@@ -1,0 +1,14 @@
+Condicoes de contorno - caso duct
+============================================================
+
+Entrada/saida (x): periodicas; o escoamento e mantido por forca de corpo
+  G = -dp/dx = 3.895208e-05 (unidades de rede) aplicada pelo termo de forca do cumulante [G15].
+Paredes y = +-a e z = +-b: nao deslizamento, bounce-back no meio caminho [L94]
+  (camada de nos solidos fantasma em j = 0, j = Ny+1, k = 0, k = Nz+1).
+Condicao inicial: fluido em repouso, rho = 1.
+
+Nos por tipo (mapa em contorno_cortes.png / contorno_3d.png):
+  fluido                                                        1536
+  parede fixa (bounce-back, meio caminho) [L94]                  336
+
+Links fluido->solido: 2832  (paredes curvas: 0, paredes moveis: 0)

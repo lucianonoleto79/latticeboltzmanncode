@@ -1,0 +1,16 @@
+Condicoes de contorno - caso spheres
+============================================================
+
+Celula periodica L^3 (L = 32) em x, y, z: arranjo cubico simples infinito.
+Esfera de diametro d = chi L = 9.60 nos (chi = 0.3, fracao solida phi = 0.0141):
+  nao deslizamento com bounce-back interpolado linear [B01];
+  forca por troca de quantidade de movimento [M02].
+Escoamento forcado por aceleracao uniforme g = 9.3880e-09 em x (forca de corpo [G15]).
+Condicao inicial: fluido em repouso, rho = 1.
+
+Nos por tipo (mapa em contorno_cortes.png / contorno_3d.png):
+  fluido                                                       32307
+  parede curva (bounce-back interpolado) [B01]                   314
+  solido (interior, sem contato com o fluido)                    147
+
+Links fluido->solido: 2594  (paredes curvas: 2594, paredes moveis: 0)

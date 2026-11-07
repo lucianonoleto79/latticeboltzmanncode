@@ -1,0 +1,52 @@
+{
+ "caso": "duct",
+ "pasta": "resultados/duct_24x16",
+ "malha": [
+  4,
+  26,
+  18
+ ],
+ "nos": 1872,
+ "nos_fluido": 1536,
+ "nu": 0.02,
+ "omega": 1.7857142857142856,
+ "forca": [
+  3.895207759193257e-05,
+  0.0,
+  0.0
+ ],
+ "colisao": {
+  "model": "k17",
+  "w1": 1.7857142857142856,
+  "limiter": null,
+  "w2": 1.0,
+  "w3": 0.7338748208313428,
+  "w4": 0.053392658509454856,
+  "w5": 0.36236643644899263,
+  "A": -0.3664479850046861,
+  "B": 0.5729459543892538
+ },
+ "argumentos": {
+  "case": "duct",
+  "model": "k17",
+  "res": 0,
+  "res_z": 0,
+  "chi": 0.5,
+  "Re": 0.0,
+  "nu": 0.0,
+  "u_lattice": 0.0,
+  "u_adv": 0.0,
+  "limiter": null,
+  "max_iter": 200000,
+  "tol": 1e-07,
+  "save_every": 1000,
+  "checkpoint_every": 100,
+  "outdir": "resultados/duct_24x16",
+  "restart": "",
+  "no_gui": true,
+  "no_figs": false,
+  "preprocess_only": false,
+  "report_every": 100,
+  "max_time": 0.0
+ }
+}

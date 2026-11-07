@@ -1,0 +1,13 @@
+# pastas de casos rodados localmente (checkpoints e campos VTK chegam a centenas de MB)
+casos/
+saida_*/
+# arquivos grandes, mesmo dentro de resultados/
+*.vtk
+checkpoint/
+checkpoint*.npz
+# arquivos de controle de uma simulacao em andamento
+SALVAR
+PAUSAR
+PARAR
+__pycache__/
+.pytest_cache/

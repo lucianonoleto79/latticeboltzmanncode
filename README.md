@@ -9,20 +9,46 @@ ou **na nuvem, pelo GitHub Actions** (seção abaixo).
 
 ```
 lbm3d.py                    solver (método, casos de teste, checkpoint, VTK, linha de comando)
+figuras.py                  imagens do domínio, condições de contorno, malha, escoamento e gráficos
 acompanhar.py               acompanhamento da convergência (painel HTML, janela, terminal)
+                            e controle de uma simulação em andamento (salvar / pausar / parar)
 painel_template.html        modelo do painel HTML (autocontido, sem internet)
 scripts/resumo_execucao.py  resumo de uma execução na nuvem (página do GitHub Actions)
-tests/test_lbm3d.py         testes rápidos (pytest, ~20 s)
-resultados/                 resultados de validação já obtidos (logs, CSV, gráficos, painéis)
-.github/workflows/
-    testes.yml              roda os testes a cada push / pull request
-    simulacao.yml           roda uma simulação na nuvem, com continuação automática
+tests/test_lbm3d.py         testes rápidos (pytest, ~15 s)
+resultados/                 resultados de validação já obtidos, um caso por pasta (formato abaixo)
 requirements.txt            numpy, matplotlib
 requirements-dev.txt        + pytest
 ```
 
-As pastas de saída (`saida_*`, com checkpoints `.npz` e campos `.vtk`, que chegam a centenas de MB)
-não vão para o repositório (`.gitignore`).
+## Organização dos casos
+
+Cada simulação grava tudo numa pasta própria, **`casos/<caso>_<parâmetros>/`** (ex.:
+`casos/cylinder_D10_Re20`, `casos/spheres_L32_chi0.5`, `casos/duct_24x16`; `--outdir` escolhe outra):
+
+```
+casos/cylinder_D10_Re20/
+  LEIAME.txt            o que há em cada subpasta e como continuar/controlar a simulação
+  parametros.json       parâmetros da execução (malha, nu, omega, taxas de colisão, argumentos)
+  execucao.log          cópia da saída do terminal (tabela de resíduos)
+  estado.json           iteração, resíduos e situação (convergiu / interrompida / divergiu)
+  validacao.txt         comparação com a referência da literatura
+  dominio/              dominio_3d.png (vista 3D), dominio_cortes.png (fluido/sólido em 3 cortes)
+  contorno/             contorno_cortes.png, contorno_3d.png (mapa colorido por tipo de condição),
+                        condicoes_contorno.txt (descrição + contagem de nós/links),
+                        perfil_entrada.png (cilindro: perfil de velocidade imposto)
+  malha/                malha_corte.png (nós e linhas da malha), malha_detalhe.png (links
+                        fluido→parede e a fração q do bounce-back interpolado), malha.txt
+  escoamento/           final/ e parcial_itNNNNNNN/: velocidade_cortes.png (|u| em 3 cortes),
+                        componentes_pressao.png (u_x, u_y, u_z, p), linhas_corrente.png, <caso>_itN.vtk
+  graficos/             convergencia.png (resíduos), grandezas.png (C_D, C_L, C, erro L2 ...),
+                        validação do caso, convergencia.csv e o painel convergencia.html
+  checkpoint/           checkpoint.npz (estado completo para continuar)
+```
+
+As imagens do domínio, contorno e malha são geradas no início (≈2 s); para conferir a montagem de um
+caso sem rodá-lo: `python lbm3d.py --case cylinder --res 10 --preprocess-only`. `--no-figs` desliga
+todas as imagens (o VTK continua sendo gravado). A pasta `casos/`, os `.vtk` e os checkpoints não vão
+para o repositório (`.gitignore`).
 
 ## Rodar no seu computador
 
@@ -32,7 +58,7 @@ Requisitos: Python ≥ 3.10, `numpy`, `matplotlib`.
 pip install -r requirements.txt
 python lbm3d.py --case duct                 # validação rápida (solução analítica)
 python lbm3d.py --case cylinder --res 10    # benchmark Schäfer–Turek 3D-1Z
-python lbm3d.py --restart saida_cylinder/checkpoint.npz   # continua de onde parou
+python lbm3d.py --restart casos/cylinder_D10_Re20   # continua de onde parou
 ```
 
 Testes:
@@ -78,43 +104,73 @@ execução só; casos maiores usam a continuação automática.
 
 ## Resultados de validação já obtidos
 
-Em [`resultados/`](resultados), com o modelo K17:
+Em [`resultados/`](resultados), com o modelo K17, no formato de pastas acima:
 
 | Caso | Resultado | Referência |
 |---|---|---|
-| Duto 24×16 (ν = 0,02) | erro L2 = 1,7·10⁻³ (BGK: 1,4·10⁻², cumulante clássico: 7,8·10⁻³) | White (2006) |
-| Cilindro 3D-1Z, D = 10 | C_D = 6,230 ✔, Δp = 0,1654 Pa ✔, C_L = 0,0102 (1,7 % acima da faixa) | Schäfer & Turek (1996) |
-| Esferas, L = 32, χ = 0,3 / 0,5 / 0,7 | C = 1,713 / 2,858 / 6,062 (erro +0,8 / +0,5 / +1,0 %) | Sangani & Acrivos (1982) |
-| Esferas, L = 48, χ = 0,5 | C = 2,852 (erro +0,23 %; ordem observada ≈ 1,8) | idem |
+| [`duct_24x16`](resultados/duct_24x16) (ν = 0,02) | erro L2 = 1,7·10⁻³ (BGK: 1,4·10⁻², cumulante clássico: 7,8·10⁻³) | White (2006) |
+| [`cylinder_D10_Re20`](resultados/cylinder_D10_Re20) | C_D = 6,230 ✔, Δp = 0,1654 Pa ✔, C_L = 0,0102 (1,7 % acima da faixa) | Schäfer & Turek (1996) |
+| `spheres_L32_chi0.3` / `0.5` / `0.7` | C = 1,713 / 2,858 / 6,062 (erro +0,8 / +0,5 / +1,0 %) | Sangani & Acrivos (1982) |
+| `spheres_L48_chi0.5` | C = 2,852 (erro +0,23 %; ordem observada ≈ 1,8) | idem |
 
-## Controles durante a execução
+O duto foi rodado de novo com a versão atual (todas as subpastas preenchidas). Para o cilindro e as
+esferas, rodados antes da reorganização, há `dominio/`, `contorno/` e `malha/` (regerados) e os
+gráficos/logs originais; `escoamento/` não existe porque os campos dessas execuções não foram guardados
+(rode o caso de novo para obtê-los).
 
-| Ação | Janela gráfica | Sem janela (`--no-gui`) |
-|---|---|---|
-| Curva de convergência a cada 100 it. | gráfico à esquerda (+ fatia de \|u\|) | impressa no terminal; `convergencia.png` no fim |
-| Pausar / continuar | botão **Pausar** ou tecla `P` | — |
-| Salvar resultado parcial agora | botão **Salvar** ou tecla `S` | — |
-| Salvar a cada 100 it. | caixa **Auto-salvar** (padrão: ligada) | `--save-every 100` (padrão) |
-| Parar e reiniciar depois | botão **Salvar e sair** / `Q` / fechar janela | `Ctrl+C` |
-| Reiniciar | `--restart <pasta>/checkpoint.npz` | idem |
+## Resíduos
 
-Cada salvamento grava `<caso>_itNNNNNNN.vtk` (densidade, velocidade e máscara de sólido, para abrir
-no ParaView) e sobrescreve `checkpoint.npz` (populações, iteração e histórico). O reinício reproduz
-bit a bit uma execução contínua. No reinício você pode alterar `--max-iter`, `--tol`, `--save-every`,
-`--no-gui`, `--outdir`, `--max-time`; os parâmetros físicos vêm do checkpoint.
+A cada `--report-every` iterações (padrão 100) o terminal imprime uma linha da tabela:
 
-`--max-time M` encerra após M minutos salvando o checkpoint (usado na nuvem); `SIGTERM` tem o mesmo
-efeito que `Ctrl+C`. Ao final, `<saída>/estado.json` informa a iteração e se a simulação convergiu.
+```
+ iteracao     res(u)    res(ux)    res(uy)    res(uz)   res(rho)   MLUPS      tempo  grandezas monitoradas
+     3000  4.289e-03  4.289e-03  6.284e-07  4.545e-07  5.488e-09    0.67   0h00m08s  L2_error=0.0365582
+```
+
+* `res(u) = ‖uⁿ − uⁿ⁻¹⁰⁰‖₂ / ‖uⁿ‖₂` sobre os nós de fluido — critério de parada (`res(u) < --tol`, padrão 1e-7);
+* `res(ux)`, `res(uy)`, `res(uz)`: a mesma variação por componente, normalizada por `‖uⁿ‖₂`
+  (logo `res(u)² = res(ux)² + res(uy)² + res(uz)²`);
+* `res(rho) = ‖ρⁿ − ρⁿ⁻¹⁰⁰‖₂ / ‖ρⁿ‖₂`;
+* MLUPS, tempo decorrido e as grandezas do caso.
+
+A mesma linha vai para `graficos/convergencia.csv` (colunas `res`, `res_ux`, `res_uy`, `res_uz`,
+`res_rho`) e para `execucao.log`; `graficos/convergencia.png` mostra as curvas.
+(Linha acima: duto 24×16, de `resultados/duct_24x16/execucao.log`.)
+
+## Salvar resultados parciais e interromper
+
+| Ação | Janela gráfica | Terminal (`--no-gui`) | Qualquer modo (outro terminal, segundo plano, remoto) |
+|---|---|---|---|
+| Salvar resultado parcial agora | botão **Salvar** / tecla `S` | `Ctrl+C` → `s` | `python acompanhar.py <pasta> --salvar` (ou crie `<pasta>/SALVAR`); `kill -USR1 <pid>` |
+| Pausar / continuar | botão **Pausar** / tecla `P` | `Ctrl+C` → `p` (de novo `Ctrl+C` → `c`) | `--pausar` / `--continuar` (arquivo `<pasta>/PAUSAR`) |
+| Salvar e parar | botão **Salvar e sair** / `Q` / fechar janela | `Ctrl+C` → `q` (ou `Ctrl+C` duas vezes) | `--parar` (arquivo `<pasta>/PARAR`); `SIGTERM` |
+| Salvar parciais periodicamente | caixa **Auto-salvar parciais** | `--save-every N` (padrão 1000; 0 desliga) | idem |
+| Continuar depois | `python lbm3d.py --restart <pasta do caso>` | idem | idem |
+
+* **Resultado parcial** = `escoamento/parcial_itNNNNNNN/` (imagens + `.vtk`), gráficos atualizados em
+  `graficos/` e `checkpoint/checkpoint.npz`.
+* O checkpoint também é regravado a cada `--checkpoint-every` iterações (padrão 100), para limitar o
+  que se perde se o processo for morto sem aviso.
+* Os arquivos de controle são verificados a cada 10 iterações; `SALVAR` e `PARAR` são apagados ao serem
+  atendidos, e sobras de uma execução anterior são apagadas no início.
+* Sem terminal interativo (ex.: na nuvem, com saída redirecionada), `Ctrl+C`/`SIGTERM` salvam e encerram
+  direto, sem menu.
+* Ao parar, a última situação vai para `escoamento/parcial_itN/` (ou `final/`, se terminou) e `estado.json`.
+
+O reinício reproduz bit a bit uma execução contínua. No reinício você pode alterar `--max-iter`,
+`--tol`, `--save-every`, `--checkpoint-every`, `--no-gui`, `--no-figs`, `--outdir`, `--max-time`,
+`--report-every`; os parâmetros físicos vêm do checkpoint. `--max-time M` encerra após M minutos
+salvando o checkpoint (usado na nuvem).
 
 ### Painel HTML de convergência
-A cada 100 iterações o código acrescenta uma linha a `<saída>/convergencia.csv` e regrava
-**`<saída>/convergencia.html`**, uma página autocontida (sem internet, sem bibliotecas externas).
+A cada 100 iterações o código acrescenta uma linha a `graficos/convergencia.csv` e regrava
+**`graficos/convergencia.html`**, uma página autocontida (sem internet, sem bibliotecas externas).
 Basta abri-la no navegador: ela se recarrega sozinha a cada 5 s. Para atualização ao vivo sem
 recarregar (e para acompanhar de outro computador via túnel SSH), sirva a pasta:
 
 ```bash
-python acompanhar.py saida_spheres_L32_chi0.5 --servir        # http://127.0.0.1:8765/convergencia.html
-python acompanhar.py saida_spheres_L32_chi0.5                 # (re)gera o HTML e abre no navegador
+python acompanhar.py casos/spheres_L32_chi0.5 --servir        # http://127.0.0.1:8765/convergencia.html
+python acompanhar.py casos/spheres_L32_chi0.5                 # (re)gera o HTML e abre no navegador
 ```
 
 O painel mostra:
@@ -124,12 +180,10 @@ O painel mostra:
 * curva do resíduo em escala log com a tolerância e a extrapolação;
 * evolução de cada grandeza do caso (C_D, C_L, Δp, C, erro L2 …) com a **faixa de referência da
   literatura** sombreada, a variação relativa nas últimas 500 it., e opção "Tudo"/"Último terço";
-* valores ao passar o mouse e uma tabela com as últimas 30 leituras; tema claro/escuro automático.
+* valores ao passar o mouse e uma tabela com as últimas 30 leituras (incluindo os resíduos por
+  componente); tema claro/escuro automático.
 
 Outros modos: `--janela` (matplotlib), `--texto` (terminal, ex.: via ssh), `--png` (imagem estática).
-
-Resíduo de convergência: `r = ||u^n − u^(n−100)||₂ / ||u^n||₂` sobre os nós de fluido; o caso para
-quando `r < --tol` (padrão 1e-7).
 
 ## Método e equações
 
