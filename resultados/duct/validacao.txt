@@ -1,0 +1,1 @@
+Duto 24x16, nu=0.020, modelo=k17: erro L2 relativo = 1.694e-03, erro max = 1.173e-03

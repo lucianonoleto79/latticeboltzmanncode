@@ -1,0 +1,4 @@
+Arranjo cubico de esferas (Sangani & Acrivos 1982), L=32, chi=0.50 (d=16.0, phi=0.0654), modelo=k17:
+  C (troca de q. mov.) = 2.8583   C (balanco global) = 2.8547
+  referencia C = 2.8450  -> erro = +0.47%   (serie S&A: 2.8419)
+  Re_p = 7.97e-02,  fracao solida discreta = 0.0642
