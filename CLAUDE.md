@@ -5,7 +5,7 @@ Solver: `lbm3d.py` (LBM D3Q27, cumulante K17). Figuras: `figuras.py`. Acompanham
 
 ## Ao simular um caso (novo ou já existente)
 
-Toda simulação executada entra na documentação, no mesmo commit (ou PR) dos resultados:
+Toda simulação executada entra na documentação, no mesmo commit dos resultados:
 
 1. `README.md`, seção **"Casos simulados"**: uma entrada por caso, no formato das existentes — o que
    foi simulado e com quais parâmetros, o resultado principal em uma ou duas frases (com os números),
@@ -29,14 +29,9 @@ Antes de qualquer simulação (caso novo ou nova rodada de um existente):
    `dt = 1` (unidade de rede); o número de iterações vem de `--max-iter` ou, para casos estacionários,
    da extrapolação do resíduo até `--tol` (taxa em décadas/1000 it., como no painel). Informe também o
    tamanho da malha (nx × ny × nz e número de nós).
-2. Pergunte ao usuário onde rodar, recomendando conforme o tempo:
-   * até ~30 min: no contêiner da sessão (os resultados são processados e commitados aqui);
-   * mais de ~30 min: no computador do usuário, clonando o repositório, porque o contêiner é recolhido
-     após inatividade, as tarefas em segundo plano têm limite de ~2 h e o checkpoint
-     (`casos/<caso>/checkpoint/checkpoint.npz`) se perde com ele. Dê os comandos (`git clone`, o comando
-     do caso e, se interromper, `python lbm3d.py --restart casos/<caso>`).
-   * Alternativa para rodadas longas no contêiner: dividir em trechos com `--max-time <min>` e
-     `--restart`, versionando o checkpoint numa branch entre eles.
+2. Pergunte ao usuário se pode rodar, informando a estimativa. Para rodadas longas, sugira dividir
+   em trechos com `--max-time <min>` e `--restart casos/<caso>` (o reinício é bit a bit idêntico a
+   uma execução contínua).
 3. Só comece a simulação depois da resposta.
 
 ## Casos novos
@@ -52,5 +47,6 @@ Antes de qualquer simulação (caso novo ou nova rodada de um existente):
 
 ## Git
 
-* Trabalhe numa branch e abra PR para a `main`; não faça commit direto na `main`.
+* Trabalhe numa branch e faça o merge na `main` ao terminar; não faça commit direto na `main`.
+* O repositório é apenas local (sem remote).
 * Os dados brutos (`.npz`) e os campos `.vtk` não vão para o repositório.

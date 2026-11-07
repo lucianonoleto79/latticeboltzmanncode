@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Testes rapidos (poucos minutos) rodados a cada push pelo GitHub Actions.
+"""Testes rapidos (poucos minutos): rode com `pytest`.
 
 Os benchmarks completos (cilindro de Schaefer-Turek, arranjo de esferas) demoram
-horas e rodam pelo fluxo "Simulacao LBM" (.github/workflows/simulacao.yml).
+horas e sao rodados a parte pela linha de comando do lbm3d.py.
 """
 import json
 import os

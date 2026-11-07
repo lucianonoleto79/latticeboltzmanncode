@@ -1387,7 +1387,7 @@ def parse_args(argv=None):
                    help="intervalo (it.) entre impressoes dos residuos / linhas do CSV")
     p.add_argument("--max-time", type=float, default=0.0,
                    help="limite de tempo de relogio em minutos: ao atingir, salva o checkpoint "
-                        "e encerra (util na nuvem; continue com --restart)")
+                        "e encerra (util em rodadas longas; continue com --restart)")
     return p.parse_args(argv)
 
 
@@ -1492,7 +1492,7 @@ def _executar(case, args, pastas, restart_file):
 
     try:  # sinais so podem ser tratados na thread principal
         signal.signal(signal.SIGINT, sigint)
-        signal.signal(signal.SIGTERM, sigint)  # ex.: cancelamento na nuvem
+        signal.signal(signal.SIGTERM, sigint)  # ex.: kill do processo
         if hasattr(signal, "SIGUSR1"):
             signal.signal(signal.SIGUSR1, sigusr1)
     except ValueError:
@@ -1566,7 +1566,7 @@ def _executar(case, args, pastas, restart_file):
             print("=" * 78 + "\nVALIDACAO\n" + msg + "\n" + "=" * 78)
             with open(pastas.arquivo("validacao.txt"), "a") as fh:
                 fh.write(msg + "\n")
-    with open(pastas.arquivo("estado.json"), "w") as fh:  # lido pelo fluxo na nuvem
+    with open(pastas.arquivo("estado.json"), "w") as fh:  # situacao final da execucao
         json.dump({"caso": case.name, "pasta": pastas.raiz, "it": sim.it, "residuo": res,
                    "residuos": sim.residuos(), "tol": args.tol, "convergiu": converged,
                    "terminou": bool(terminou), "divergiu": bool(divergiu),

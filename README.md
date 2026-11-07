@@ -2,8 +2,7 @@
 
 Solver de lattice-Boltzmann tridimensional em Python/NumPy, com operador de colisão de
 cumulantes parametrizado (K17, difusão de 4ª ordem), paredes curvas, painel HTML de
-convergência, checkpoint/reinício e casos de validação da literatura. Roda no seu computador
-ou **na nuvem, pelo GitHub Actions** (seção abaixo).
+convergência, checkpoint/reinício e casos de validação da literatura.
 
 ## Estrutura do repositório
 
@@ -13,7 +12,6 @@ figuras.py                  imagens do domínio, condições de contorno, malha,
 acompanhar.py               acompanhamento da convergência (painel HTML, janela, terminal)
                             e controle de uma simulação em andamento (salvar / pausar / parar)
 painel_template.html        modelo do painel HTML (autocontido, sem internet)
-scripts/resumo_execucao.py  resumo de uma execução na nuvem (página do GitHub Actions)
 tests/test_lbm3d.py         testes rápidos (pytest, ~15 s)
 resultados/                 casos simulados, um por pasta (índice em resultados/README.md)
 CLAUDE.md                   instruções para o Claude (documentar simulações, estimar tempo, git)
@@ -68,40 +66,6 @@ Testes:
 pip install -r requirements-dev.txt
 pytest
 ```
-
-## Rodar na nuvem (GitHub Actions)
-
-1. Envie o repositório para o GitHub.
-2. Na aba **Actions**, escolha **Simulacao LBM → Run workflow** e preencha o formulário:
-
-   | Campo | Significado |
-   |---|---|
-   | `caso`, `modelo`, `res`, `chi` | como na linha de comando (`--case`, `--model`, `--res`, `--chi`) |
-   | `extras` | outros argumentos, ex.: `--nu 0.01 --Re 20` |
-   | `tol`, `max_iter` | critério de parada e limite total de iterações |
-   | `tempo_max` | minutos de simulação por execução (padrão 320; o GitHub encerra jobs com 6 h) |
-   | `reiniciar_de` | ID de uma execução anterior, para continuar do checkpoint dela |
-   | `continuar` | se o tempo acabar antes de convergir, dispara sozinho a continuação |
-
-   Também pela linha de comando, com o [GitHub CLI](https://cli.github.com):
-   ```bash
-   gh workflow run simulacao.yml -f caso=cylinder -f res=10 -f tol=1e-6
-   ```
-3. A página da execução mostra um resumo (iteração, situação, resultado da validação). Os arquivos
-   ficam no artefato **`resultado`** por 30 dias: `convergencia.html` (abra no navegador),
-   `convergencia.csv`/`.png`, `validacao.txt`, o último `.vtk` (ParaView), `checkpoint.npz` e o log.
-
-**Simulações longas.** Ao atingir `tempo_max`, o solver para de forma limpa (`--max-time`), salva o
-checkpoint e o artefato. Com `continuar` marcado, o fluxo dispara uma nova execução com
-`reiniciar_de` apontando para a anterior; a cadeia segue até convergir ou atingir `max_iter`. O
-reinício é bit a bit idêntico a uma execução contínua, e o `convergencia.csv` acumula todas as
-partes. Para interromper uma cadeia, cancele a execução em andamento na aba Actions (o
-solver trata o sinal de cancelamento e normalmente ainda salva o checkpoint) ou desligue o fluxo.
-
-Os executores gratuitos (`ubuntu-latest`, 4 vCPUs) são ilimitados em repositórios públicos; em
-repositórios privados contam na cota mensal de minutos da conta. A velocidade é parecida com a de
-um notebook (~0,7–1 MLUPS): o cilindro com D = 10 leva ~3 h e a esfera com L = 48 ~4 h, cada um numa
-execução só; casos maiores usam a continuação automática.
 
 ## Casos simulados
 
@@ -194,14 +158,14 @@ A mesma linha vai para `graficos/convergencia.csv` (colunas `res`, `res_ux`, `re
   que se perde se o processo for morto sem aviso.
 * Os arquivos de controle são verificados a cada 10 iterações; `SALVAR` e `PARAR` são apagados ao serem
   atendidos, e sobras de uma execução anterior são apagadas no início.
-* Sem terminal interativo (ex.: na nuvem, com saída redirecionada), `Ctrl+C`/`SIGTERM` salvam e encerram
+* Sem terminal interativo (ex.: com saída redirecionada para arquivo), `Ctrl+C`/`SIGTERM` salvam e encerram
   direto, sem menu.
 * Ao parar, a última situação vai para `escoamento/parcial_itN/` (ou `final/`, se terminou) e `estado.json`.
 
 O reinício reproduz bit a bit uma execução contínua. No reinício você pode alterar `--max-iter`,
 `--tol`, `--save-every`, `--checkpoint-every`, `--no-gui`, `--no-figs`, `--outdir`, `--max-time`,
 `--report-every`; os parâmetros físicos vêm do checkpoint. `--max-time M` encerra após M minutos
-salvando o checkpoint (usado na nuvem).
+salvando o checkpoint (útil para dividir rodadas longas em trechos).
 
 ### Painel HTML de convergência
 A cada 100 iterações o código acrescenta uma linha a `graficos/convergencia.csv` e regrava
