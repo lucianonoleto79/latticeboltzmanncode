@@ -15,7 +15,8 @@ acompanhar.py               acompanhamento da convergência (painel HTML, janela
 painel_template.html        modelo do painel HTML (autocontido, sem internet)
 scripts/resumo_execucao.py  resumo de uma execução na nuvem (página do GitHub Actions)
 tests/test_lbm3d.py         testes rápidos (pytest, ~15 s)
-resultados/                 resultados de validação já obtidos, um caso por pasta (formato abaixo)
+resultados/                 casos simulados, um por pasta (índice em resultados/README.md)
+CLAUDE.md                   instruções para o Claude (documentar simulações, estimar tempo, git)
 requirements.txt            numpy, matplotlib
 requirements-dev.txt        + pytest
 ```
@@ -102,21 +103,61 @@ repositórios privados contam na cota mensal de minutos da conta. A velocidade �
 um notebook (~0,7–1 MLUPS): o cilindro com D = 10 leva ~3 h e a esfera com L = 48 ~4 h, cada um numa
 execução só; casos maiores usam a continuação automática.
 
-## Resultados de validação já obtidos
+## Casos simulados
 
-Em [`resultados/`](resultados), com o modelo K17, no formato de pastas acima:
+Resultados versionados em [`resultados/`](resultados) (índice e lista de arquivos em
+[`resultados/README.md`](resultados/README.md)), todos com o modelo K17 e parâmetros do benchmark
+(nenhum é ilustrativo).
 
-| Caso | Resultado | Referência |
-|---|---|---|
-| [`duct_24x16`](resultados/duct_24x16) (ν = 0,02) | erro L2 = 1,7·10⁻³ (BGK: 1,4·10⁻², cumulante clássico: 7,8·10⁻³) | White (2006) |
-| [`cylinder_D10_Re20`](resultados/cylinder_D10_Re20) | C_D = 6,230 ✔, Δp = 0,1654 Pa ✔, C_L = 0,0102 (1,7 % acima da faixa) | Schäfer & Turek (1996) |
-| `spheres_L32_chi0.3` / `0.5` / `0.7` | C = 1,713 / 2,858 / 6,062 (erro +0,8 / +0,5 / +1,0 %) | Sangani & Acrivos (1982) |
-| `spheres_L48_chi0.5` | C = 2,852 (erro +0,23 %; ordem observada ≈ 1,8) | idem |
+### Duto retangular 24 × 16 — `duct_24x16`
+Duto periódico com seção 24 × 16 nós, ν = 0,02, forçado por gradiente de pressão (u_max = 0,05), até
+res(u) < 10⁻⁷ (12 600 it., ≈ 40 s no contêiner). **Erro L2 relativo do perfil = 1,694·10⁻³** (erro máximo
+1,17·10⁻³ de u_max) contra a solução em série de White (2006). Rodado com a versão atual do código:
+todas as subpastas estão preenchidas. Os valores de comparação citados antes neste README (BGK: 1,4·10⁻²;
+cumulante clássico: 7,8·10⁻³) não têm arquivos em `resultados/` e não foram reverificados.
 
-O duto foi rodado de novo com a versão atual (todas as subpastas preenchidas). Para o cilindro e as
-esferas, rodados antes da reorganização, há `dominio/`, `contorno/` e `malha/` (regerados) e os
-gráficos/logs originais; `escoamento/` não existe porque os campos dessas execuções não foram guardados
-(rode o caso de novo para obtê-los).
+```bash
+python lbm3d.py --case duct
+```
+
+[Pasta](resultados/duct_24x16) · ![Duto: perfis LBM × analítico](resultados/duct_24x16/graficos/duct_validacao.png)
+
+### Cilindro Schäfer–Turek 3D-1Z, D = 10 — `cylinder_D10_Re20`
+Canal 2,5 × 0,41 × 0,41 m (malha 251 × 43 × 43, 464 099 nós, dx = 0,01 m), Re = 20, Um = 0,1 (rede).
+**C_D = 6,230 e Δp = 0,1654 Pa dentro das faixas de referência; C_L = 0,0102, 1,7 % acima da faixa**
+[0,008; 0,010]. Rodado antes da reorganização das pastas (por isso só há o log, a validação e o gráfico
+da janela de acompanhamento); `dominio/`, `contorno/` e `malha/` foram regerados com a versão atual, mas
+os campos do escoamento não foram guardados e a rodada não foi repetida com esta versão.
+
+```bash
+python lbm3d.py --case cylinder --res 10
+```
+
+[Pasta](resultados/cylinder_D10_Re20) · ![Cilindro: condições de contorno](resultados/cylinder_D10_Re20/contorno/contorno_cortes.png)
+
+### Arranjo cúbico de esferas, L = 32 — `spheres_L32_chi0.3`, `0.5`, `0.7`
+Célula periódica 32³ com uma esfera de diâmetro χL, ν = 0,02, regime de Stokes (Re_p ≤ 0,11).
+**C = 1,713 / 2,858 / 6,062 para χ = 0,3 / 0,5 / 0,7 (erro +0,77 / +0,47 / +1,04 %)** em relação a
+Sangani & Acrivos (1982), valores tabelados em Bogner et al. (2015). Rodados antes da reorganização:
+há log, CSV e painel de convergência; os campos do escoamento não foram guardados.
+
+```bash
+python lbm3d.py --case spheres --res 32 --chi 0.5     # idem --chi 0.3 e 0.7
+```
+
+[χ = 0,3](resultados/spheres_L32_chi0.3) · [χ = 0,5](resultados/spheres_L32_chi0.5) · [χ = 0,7](resultados/spheres_L32_chi0.7) ·
+![Esferas: malha junto à parede curva](resultados/spheres_L32_chi0.5/malha/malha_detalhe.png)
+
+### Arranjo cúbico de esferas, L = 48, χ = 0,5 — `spheres_L48_chi0.5`
+Mesmo caso com malha 48³. **C = 2,852 (erro +0,23 %)**; com L = 32 o erro era +0,47 %. A "ordem observada
+≈ 1,8" citada anteriormente vem de só duas resoluções e não foi recalculada aqui. Rodado antes da
+reorganização (sem campos do escoamento).
+
+```bash
+python lbm3d.py --case spheres --res 48 --chi 0.5
+```
+
+[Pasta](resultados/spheres_L48_chi0.5) · ![Esferas L48: convergência](resultados/spheres_L48_chi0.5/graficos/convergencia.png)
 
 ## Resíduos
 
@@ -245,15 +286,19 @@ qual foi criado. Abaixo disso o código usa automaticamente o cumulante clássic
   `f(x_b) = f^eq(1, u(x_{b−1})) + f(x_{b−1}) − f^eq(ρ(x_{b−1}), u(x_{b−1}))`
 * Força no corpo por troca de quantidade de movimento [M02]: `F = Σ c_d [f_d*(x_f) + f_d̄(x_f, t+1)]`
 
-## Casos de validação
+## Casos (`--case`)
 
-| Caso | Referência | Grandeza |
-|---|---|---|
-| `shearwave` | decaimento exato `exp(−ν k² t)` [G17] | erro na viscosidade |
-| `duct` | White (2006), *Viscous Fluid Flow*, Eq. 3-48 | erro L2 do perfil |
-| `cylinder` | Schäfer & Turek (1996), caso 3D-1Z, Re = 20 | C_D ∈ [6,05; 6,25], C_L ∈ [0,008; 0,010], Δp ∈ [0,165; 0,175] Pa |
-| `spheres` | Sangani & Acrivos (1982), arranjo cúbico simples, regime de Stokes | arraste C = f_t/(3πμ d u_s) |
-| `cavity` | demonstração (comparar com Albensoeder & Kuhlmann 2005) | perfis centrais |
+Os casos são classes em `lbm3d.py` (dicionário `CASES`). O modelo padrão é `--model k17`, mas o K17 só
+vale para ω ≥ 1,75 (ν ≤ 0,024): fora disso o código usa automaticamente o cumulante clássico [G15] e
+avisa. A coluna "modelo efetivo" indica o que roda com os parâmetros padrão.
+
+| Caso | Descrição | Referência / grandeza | Parâmetros padrão | Modelo efetivo |
+|---|---|---|---|---|
+| `shearwave` | onda de cisalhamento periódica (decaimento viscoso) | decaimento exato `exp(−ν k² t)` [G17]; erro na viscosidade | N = 32, ν = 0,01 | K17 |
+| `duct` | duto retangular periódico em x, forçado por gradiente de pressão | White (2006), Eq. 3-48; erro L2 do perfil | 24 × 16, ν = 0,02 | K17 |
+| `cylinder` | cilindro em canal de seção quadrada, Re = 20 | Schäfer & Turek (1996), 3D-1Z; C_D ∈ [6,05; 6,25], C_L ∈ [0,008; 0,010], Δp ∈ [0,165; 0,175] Pa | D = 10, Um = 0,1 | K17 (para D ≥ 12 recai no cumulante clássico) |
+| `spheres` | arranjo cúbico simples de esferas, regime de Stokes | Sangani & Acrivos (1982); arraste C = f_t/(3πμ d u_s) | L = 32, χ = 0,5, ν = 0,02 | K17 |
+| `cavity` | cavidade cúbica com tampa móvel (demonstração) | comparar com Albensoeder & Kuhlmann (2005); perfis centrais | N = 32, Re = 100, U = 0,1 | cumulante clássico (ν = 0,032) |
 
 Solução do duto (−a ≤ y ≤ a, −b ≤ z ≤ b, G = −dp/dx):
 
