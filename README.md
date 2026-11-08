@@ -135,6 +135,25 @@ python lbm3d.py --case cylinder --res 10
 
 [Pasta](resultados/cylinder_D10_Re20) · ![Cilindro: condições de contorno](resultados/cylinder_D10_Re20/contorno/contorno_cortes.png)
 
+### Cilindro 3D-1Z — convergência de malha com Um = 0,05 (em andamento)
+Série D = 6, 10, 16, 20 com a mesma velocidade de rede Um = 0,05 (Mach de rede ≈ 0,087), o K17 em todas
+as malhas e parada em resíduo < 10⁻⁶. Objetivo: verificar se C_D e C_L entram nas faixas com o refino e
+estimar a ordem de convergência (extrapolação de Richardson em `scripts/convergencia_malha.py`).
+**Feito até agora: D = 6** (malha 151 × 27 × 27, 110 079 nós; 15 600 it., 25 min no contêiner):
+C_D = 6,329 (acima da faixa [6,05; 6,25]), C_L = 0,0235 (2,3 × o limite superior), Δp = 0,1656 Pa (dentro
+da faixa). Com D = 6 a malha é grosseira demais para o C_L; D = 10, 16 e 20 ainda não foram rodados
+(estimativas: ~3 h, ~18 h e ~45 h no contêiner, a 1,2 MLUPS), e a rodada D = 10 antiga, com Um = 0,1,
+não entra na série por ter outro número de Mach.
+
+```bash
+python lbm3d.py --case cylinder --res 6 --u-lattice 0.05 --tol 1e-6
+bash scripts/estudo_malha_cilindro.sh          # D = 10, 16, 20 (retoma do checkpoint)
+python scripts/convergencia_malha.py           # tabela, gráfico e Richardson
+```
+
+[Pasta D = 6](resultados/cylinder_D6_Re20_U0.05) · [Análise](resultados/cylinder_convergencia_malha) ·
+![Cilindro D = 6: linhas de corrente](resultados/cylinder_D6_Re20_U0.05/escoamento/final/linhas_corrente.png)
+
 ### Arranjo cúbico de esferas, L = 32 — `spheres_L32_chi0.3`, `0.5`, `0.7`
 Célula periódica 32³ com uma esfera de diâmetro χL, ν = 0,02, regime de Stokes (Re_p ≤ 0,11).
 **C = 1,713 / 2,858 / 6,062 para χ = 0,3 / 0,5 / 0,7 (erro +0,77 / +0,47 / +1,04 %)** em relação a

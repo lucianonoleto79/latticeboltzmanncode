@@ -1,0 +1,54 @@
+{
+ "caso": "cylinder",
+ "pasta": "casos/cylinder_D6_Re20_U0.05",
+ "malha": [
+  151,
+  27,
+  27
+ ],
+ "nos": 110079,
+ "nos_fluido": 92950,
+ "nu": 0.006666666666666666,
+ "omega": 1.923076923076923,
+ "forca": [
+  0.0,
+  0.0,
+  0.0
+ ],
+ "colisao": {
+  "model": "k17",
+  "w1": 1.923076923076923,
+  "limiter": null,
+  "w2": 1.0,
+  "w3": 0.3300589390962678,
+  "w4": 0.062015503875969116,
+  "w5": 0.12254810386699069,
+  "A": -0.4621212121212119,
+  "B": 0.28787878787878807
+ },
+ "argumentos": {
+  "case": "cylinder",
+  "model": "k17",
+  "res": 6,
+  "res_z": 0,
+  "chi": 0.5,
+  "Re": 0.0,
+  "nu": 0.0,
+  "u_lattice": 0.05,
+  "u_adv": 0.0,
+  "limiter": null,
+  "max_iter": 200000,
+  "tol": 1e-06,
+  "save_every": 5000,
+  "checkpoint_every": 100,
+  "outdir": "casos/cylinder_D6_Re20_U0.05",
+  "restart": "",
+  "no_gui": true,
+  "no_figs": false,
+  "preprocess_only": false,
+  "report_every": 100,
+  "max_time": 0.0
+ },
+ "dx_fisico": 0.016666666666666666,
+ "unidade": "m"
+}

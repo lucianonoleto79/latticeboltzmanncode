@@ -1,0 +1,8 @@
+Convergencia de malha - cilindro Schaefer & Turek 3D-1Z, Re = 20, K17, Um = 0.05
+
+   D       it    residuo        C_D        C_L    dp [Pa]  pasta
+   6    15600   7.00e-07    6.32927    0.02346    0.16565  casos/cylinder_D6_Re20_U0.05
+
+Faixas de referencia: C_D [6.05, 6.25], C_L [0.008, 0.01], dp [0.165, 0.175]
+
+Extrapolacao de Richardson: precisa de pelo menos 3 malhas.
