@@ -14,6 +14,9 @@ Todos os casos usam o modelo K17 e os parâmetros do benchmark correspondente.
 | [`cylinder_D6_Re20_U0.05_cumulant`](cylinder_D6_Re20_U0.05_cumulant) | Cilindro 3D-1Z, D = 6, Um = 0,05, cumulante clássico | C_D = 6,764 ✘, C_L = 0,0337 ✘, Δp = 0,1811 Pa ✘ | `python lbm3d.py --case cylinder --res 6 --u-lattice 0.05 --tol 1e-6 --model cumulant` |
 | [`cylinder_D6_Re20_U0.05_bgk`](cylinder_D6_Re20_U0.05_bgk) | Cilindro 3D-1Z, D = 6, Um = 0,05, BGK | C_D = 6,883 ✘, C_L = 0,0294 ✘, Δp = 0,1860 Pa ✘ | `python lbm3d.py --case cylinder --res 6 --u-lattice 0.05 --tol 1e-6 --model bgk` |
 | [`cylinder_comparacao_modelos`](cylinder_comparacao_modelos) | Comparação K17 × cumulante × BGK (D = 6) | K17 o mais próximo nas três grandezas | `python scripts/comparar_cilindro.py ...` (ver README) |
+| [`cylinder_D6_Re20`](cylinder_D6_Re20) | Cilindro 3D-1Z, D = 6, Um = 0,1 (estudo de Mach) | C_D = 6,302 ✘, C_L = 0,0214 ✘, Δp = 0,1642 Pa ✘ (0,5 % abaixo) | `python lbm3d.py --case cylinder --res 6 --tol 1e-6` |
+| [`cylinder_D6_Re20_U0.025`](cylinder_D6_Re20_U0.025) | Cilindro 3D-1Z, D = 6, Um = 0,025 (estudo de Mach) | C_D = 6,343 ✘, C_L = 0,0246 ✘, Δp = 0,1666 Pa ✔ | `python lbm3d.py --case cylinder --res 6 --u-lattice 0.025 --tol 1e-6` |
+| [`cylinder_efeito_mach`](cylinder_efeito_mach) | Efeito de Um (Mach) no cilindro, D = 6 | variação ≤ 0,65 % em C_D, 15 % em C_L | `python scripts/comparar_cilindro.py ...` (ver README) |
 | [`spheres_L32_chi0.3`](spheres_L32_chi0.3) | Esferas, L = 32, χ = 0,3 | C = 1,7132 (erro +0,77 %) | `python lbm3d.py --case spheres --res 32 --chi 0.3` |
 | [`spheres_L32_chi0.5`](spheres_L32_chi0.5) | Esferas, L = 32, χ = 0,5 | C = 2,8583 (erro +0,47 %) | `python lbm3d.py --case spheres --res 32 --chi 0.5` |
 | [`spheres_L32_chi0.7`](spheres_L32_chi0.7) | Esferas, L = 32, χ = 0,7 | C = 6,0623 (erro +1,04 %) | `python lbm3d.py --case spheres --res 32 --chi 0.7` |
@@ -178,6 +181,74 @@ Arquivos:
 
 * `comparacao_modelos.png`
 * `comparacao_modelos.txt`
+
+## cylinder_D6_Re20 — Cilindro 3D-1Z, D = 6, Um = 0,1 (padrão)
+
+K17, ω = 1,852, ν = 0,01333. Convergiu (resíduo 9,8·10⁻⁷) em 9 900 it., 15 min no contêiner (rodando em
+paralelo com outra simulação). C_D = 6,30157, C_L = 0,02135, Δp = 0,16418 Pa.
+
+Arquivos:
+
+* `LEIAME.txt`
+* `estado.json`
+* `execucao.log`
+* `parametros.json`
+* `validacao.txt`
+* `contorno/condicoes_contorno.txt`
+* `contorno/contorno_3d.png`
+* `contorno/contorno_cortes.png`
+* `contorno/perfil_entrada.png`
+* `dominio/dominio_3d.png`
+* `dominio/dominio_cortes.png`
+* `escoamento/final/componentes_pressao.png`
+* `escoamento/final/linhas_corrente.png`
+* `escoamento/final/velocidade_cortes.png`
+* `graficos/convergencia.csv`
+* `graficos/convergencia.html`
+* `graficos/convergencia.png`
+* `graficos/grandezas.png`
+* `malha/malha.txt`
+* `malha/malha_corte.png`
+* `malha/malha_detalhe.png`
+
+## cylinder_D6_Re20_U0.025 — Cilindro 3D-1Z, D = 6, Um = 0,025
+
+K17, ω = 1,961, ν = 0,00333. Convergiu (resíduo 8,8·10⁻⁷) em 22 300 it., 35 min no contêiner. C_D =
+6,34293, C_L = 0,02463, Δp = 0,16657 Pa.
+
+Arquivos:
+
+* `LEIAME.txt`
+* `estado.json`
+* `execucao.log`
+* `parametros.json`
+* `validacao.txt`
+* `contorno/condicoes_contorno.txt`
+* `contorno/contorno_3d.png`
+* `contorno/contorno_cortes.png`
+* `contorno/perfil_entrada.png`
+* `dominio/dominio_3d.png`
+* `dominio/dominio_cortes.png`
+* `escoamento/final/componentes_pressao.png`
+* `escoamento/final/linhas_corrente.png`
+* `escoamento/final/velocidade_cortes.png`
+* `graficos/convergencia.csv`
+* `graficos/convergencia.html`
+* `graficos/convergencia.png`
+* `graficos/grandezas.png`
+* `malha/malha.txt`
+* `malha/malha_corte.png`
+* `malha/malha_detalhe.png`
+
+## cylinder_efeito_mach — Efeito da velocidade de rede (D = 6)
+
+Gerado por `scripts/comparar_cilindro.py` a partir de `cylinder_D6_Re20`, `cylinder_D6_Re20_U0.05` e
+`cylinder_D6_Re20_U0.025`.
+
+Arquivos:
+
+* `efeito_mach.png`
+* `efeito_mach.txt`
 
 ## spheres_L32_chi0.3 — Esferas, L = 32, χ = 0,3
 

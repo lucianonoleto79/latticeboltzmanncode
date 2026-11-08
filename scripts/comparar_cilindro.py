@@ -40,7 +40,7 @@ def main():
     a = ap.parse_args()
     dados = []
     for item in a.rodadas:
-        rot, pasta = item.split("=", 1)
+        rot, pasta = item.rsplit("=", 1)
         meta, c = acompanhar.ler(pasta)
         if c is None:
             sys.exit("sem convergencia.csv em %s" % pasta)

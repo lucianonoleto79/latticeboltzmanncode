@@ -173,6 +173,27 @@ python scripts/comparar_cilindro.py --nome comparacao_modelos --saida resultados
 [BGK](resultados/cylinder_D6_Re20_U0.05_bgk) ·
 ![Comparação de modelos, D = 6](resultados/cylinder_comparacao_modelos/comparacao_modelos.png)
 
+### Cilindro 3D-1Z — efeito da velocidade de rede / Mach (D = 6, K17)
+Mesma malha D = 6, Re = 20, com Um = 0,1 / 0,05 / 0,025 (Ma = Um·√3 = 0,17 / 0,087 / 0,043), até resíduo
+< 10⁻⁶ (9 900 / 15 600 / 22 300 it.). **A variação com Um é pequena perto do erro de malha: C_D = 6,302 /
+6,329 / 6,343 (0,65 % de diferença entre os extremos), Δp = 0,1642 / 0,1656 / 0,1666 Pa (1,5 %) e
+C_L = 0,0214 / 0,0235 / 0,0246 (15 %), enquanto o C_L está 2,1–2,5 × acima da faixa em todas.** Diminuir
+Um afasta C_D e C_L da referência e leva Δp para dentro da faixa; a diferença cai pela metade a cada
+redução de Um à metade (≈ 1ª ordem em Um). Com Re e D fixos, reduzir Um também reduz ν e muda as taxas
+do K17, então a variação não é só efeito de compressibilidade, e não foi separada. Em D = 10 a
+comparação Um = 0,1 × 0,05 sai do estudo de malha, ainda não rodado.
+
+```bash
+python lbm3d.py --case cylinder --res 6 --u-lattice 0.1 --tol 1e-6     # idem 0.05 e 0.025
+python scripts/comparar_cilindro.py --nome efeito_mach --saida resultados/cylinder_efeito_mach \
+    "Um=0,1=resultados/cylinder_D6_Re20" "Um=0,05=resultados/cylinder_D6_Re20_U0.05" \
+    "Um=0,025=resultados/cylinder_D6_Re20_U0.025"
+```
+
+[Comparação](resultados/cylinder_efeito_mach) · [Um = 0,1](resultados/cylinder_D6_Re20) ·
+[Um = 0,025](resultados/cylinder_D6_Re20_U0.025) ·
+![Efeito do Mach, D = 6](resultados/cylinder_efeito_mach/efeito_mach.png)
+
 ### Arranjo cúbico de esferas, L = 32 — `spheres_L32_chi0.3`, `0.5`, `0.7`
 Célula periódica 32³ com uma esfera de diâmetro χL, ν = 0,02, regime de Stokes (Re_p ≤ 0,11).
 **C = 1,713 / 2,858 / 6,062 para χ = 0,3 / 0,5 / 0,7 (erro +0,77 / +0,47 / +1,04 %)** em relação a
