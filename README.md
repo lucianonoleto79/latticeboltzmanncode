@@ -17,6 +17,7 @@ scripts/resumo_execucao.py  resumo de uma execução na nuvem (página do GitHub
 tests/test_lbm3d.py         testes rápidos (pytest, ~15 s)
 resultados/                 casos simulados, um por pasta (índice em resultados/README.md)
 CLAUDE.md                   instruções para o Claude (documentar simulações, estimar tempo, git)
+RODADAS_PENDENTES.md        comandos prontos das rodadas longas do cilindro (rodar no seu computador)
 requirements.txt            numpy, matplotlib
 requirements-dev.txt        + pytest
 ```
