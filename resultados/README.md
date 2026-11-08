@@ -19,6 +19,7 @@ Todos os casos usam o modelo K17 e os parâmetros do benchmark correspondente.
 | [`cylinder_efeito_mach`](cylinder_efeito_mach) | Efeito de Um (Mach) no cilindro, D = 6 | variação ≤ 0,65 % em C_D, 15 % em C_L | `python scripts/comparar_cilindro.py ...` (ver README) |
 | [`cylinder_D6_Re20_U0.05_lim0.01`](cylinder_D6_Re20_U0.05_lim0.01) | Cilindro 3D-1Z, D = 6, Um = 0,05, K17 com limitador 0,01 | C_D = 6,367 ✘, C_L = 0,0241 ✘, Δp = 0,1667 Pa ✔ | `python lbm3d.py --case cylinder --res 6 --u-lattice 0.05 --tol 1e-6 --limiter 0.01` |
 | [`cylinder_efeito_limitador`](cylinder_efeito_limitador) | Efeito do limitador (D = 6) | limitador piora C_D em 0,6 % | `python scripts/comparar_cilindro.py ...` (ver README) |
+| [`cylinder_pos_processamento`](cylinder_pos_processamento) | L_a, separação e C_p das rodadas D = 6 | K17: L_a ≈ 0,66 D, separação ≈ 151° | `python scripts/pos_cilindro.py casos/<caso>` |
 | [`spheres_L32_chi0.3`](spheres_L32_chi0.3) | Esferas, L = 32, χ = 0,3 | C = 1,7132 (erro +0,77 %) | `python lbm3d.py --case spheres --res 32 --chi 0.3` |
 | [`spheres_L32_chi0.5`](spheres_L32_chi0.5) | Esferas, L = 32, χ = 0,5 | C = 2,8583 (erro +0,47 %) | `python lbm3d.py --case spheres --res 32 --chi 0.5` |
 | [`spheres_L32_chi0.7`](spheres_L32_chi0.7) | Esferas, L = 32, χ = 0,7 | C = 6,0623 (erro +1,04 %) | `python lbm3d.py --case spheres --res 32 --chi 0.7` |
@@ -103,6 +104,8 @@ Arquivos:
 * `graficos/convergencia.html`
 * `graficos/convergencia.png`
 * `graficos/grandezas.png`
+* `graficos/pos_cilindro.png`
+* `graficos/pos_cilindro.txt`
 * `malha/malha.txt`
 * `malha/malha_corte.png`
 * `malha/malha_detalhe.png`
@@ -142,6 +145,8 @@ Arquivos:
 * `graficos/convergencia.html`
 * `graficos/convergencia.png`
 * `graficos/grandezas.png`
+* `graficos/pos_cilindro.png`
+* `graficos/pos_cilindro.txt`
 * `malha/malha.txt`
 * `malha/malha_corte.png`
 * `malha/malha_detalhe.png`
@@ -171,6 +176,8 @@ Arquivos:
 * `graficos/convergencia.html`
 * `graficos/convergencia.png`
 * `graficos/grandezas.png`
+* `graficos/pos_cilindro.png`
+* `graficos/pos_cilindro.txt`
 * `malha/malha.txt`
 * `malha/malha_corte.png`
 * `malha/malha_detalhe.png`
@@ -209,6 +216,8 @@ Arquivos:
 * `graficos/convergencia.html`
 * `graficos/convergencia.png`
 * `graficos/grandezas.png`
+* `graficos/pos_cilindro.png`
+* `graficos/pos_cilindro.txt`
 * `malha/malha.txt`
 * `malha/malha_corte.png`
 * `malha/malha_detalhe.png`
@@ -238,6 +247,8 @@ Arquivos:
 * `graficos/convergencia.html`
 * `graficos/convergencia.png`
 * `graficos/grandezas.png`
+* `graficos/pos_cilindro.png`
+* `graficos/pos_cilindro.txt`
 * `malha/malha.txt`
 * `malha/malha_corte.png`
 * `malha/malha_detalhe.png`
@@ -277,6 +288,8 @@ Arquivos:
 * `graficos/convergencia.html`
 * `graficos/convergencia.png`
 * `graficos/grandezas.png`
+* `graficos/pos_cilindro.png`
+* `graficos/pos_cilindro.txt`
 * `malha/malha.txt`
 * `malha/malha_corte.png`
 * `malha/malha_detalhe.png`
@@ -290,6 +303,15 @@ Arquivos:
 
 * `efeito_limitador.png`
 * `efeito_limitador.txt`
+
+## cylinder_pos_processamento — Grandezas dos campos (D = 6)
+
+Tabela gerada a partir de `scripts/pos_cilindro.py` aplicado ao `.vtk` final das seis rodadas com D = 6;
+cada uma delas também tem `graficos/pos_cilindro.png` e `graficos/pos_cilindro.txt`.
+
+Arquivos:
+
+* `pos_processamento.txt`
 
 ## spheres_L32_chi0.3 — Esferas, L = 32, χ = 0,3
 

@@ -1,0 +1,7 @@
+Pos-processamento do cilindro - casos/cylinder_D6_Re20_U0.05 (campo cylinder_it0015600.vtk, plano z = no 13)
+  L_a (bolha de recirculacao) = 3.963 nos = 0.0660 m = 0.660 D
+  angulo de separacao (lado de cima, a partir da frente) = 151.3 graus
+  C_p no ponto de estagnacao frontal (no mais proximo) = 7.823
+  (C_p = 2 (p - p_traseira) / (rho U_media^2), nos de fluido a menos de 1.5 dx da parede;
+   em relacao a saida, a traseira tem C_p = 2.557)
+  Com D = 6 ha 3 nos no raio: L_a e o angulo de separacao sao estimativas grosseiras.

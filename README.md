@@ -208,6 +208,22 @@ python lbm3d.py --case cylinder --res 6 --u-lattice 0.05 --tol 1e-6 --limiter 0.
 [Comparação](resultados/cylinder_efeito_limitador) · [Pasta](resultados/cylinder_D6_Re20_U0.05_lim0.01) ·
 ![Efeito do limitador, D = 6](resultados/cylinder_efeito_limitador/efeito_limitador.png)
 
+### Cilindro 3D-1Z — grandezas extraídas dos campos (D = 6)
+Pós-processamento (`scripts/pos_cilindro.py`) do campo final das seis rodadas com D = 6, no plano
+z = H/2: comprimento da bolha de recirculação L_a, ângulo de separação, C_p junto à parede (referência:
+traseira) e perfis de u_x a jusante. **Com o K17, L_a ≈ 0,66 D e separação a ≈ 151° da frente, quase
+iguais com Um = 0,1 / 0,05 / 0,025 e com o limitador; o cumulante clássico e o BGK dão bolhas ≈ 7–9 %
+menores (0,60 e 0,62 D).** Com só 3 nós no raio esses valores são grosseiros, e não conferi se o caso
+3D-1Z tem referência para eles: servem para comparar rodadas entre si, e a convergência de malha
+(D = 10, 16, 20) dirá quanto mudam com o refino. Não é uma simulação nova.
+
+```bash
+python scripts/pos_cilindro.py casos/cylinder_D6_Re20_U0.05     # precisa do .vtk (não versionado)
+```
+
+[Tabela](resultados/cylinder_pos_processamento/pos_processamento.txt) ·
+![Pós-processamento, D = 6, K17](resultados/cylinder_D6_Re20_U0.05/graficos/pos_cilindro.png)
+
 ### Arranjo cúbico de esferas, L = 32 — `spheres_L32_chi0.3`, `0.5`, `0.7`
 Célula periódica 32³ com uma esfera de diâmetro χL, ν = 0,02, regime de Stokes (Re_p ≤ 0,11).
 **C = 1,713 / 2,858 / 6,062 para χ = 0,3 / 0,5 / 0,7 (erro +0,77 / +0,47 / +1,04 %)** em relação a
