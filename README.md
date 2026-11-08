@@ -194,6 +194,20 @@ python scripts/comparar_cilindro.py --nome efeito_mach --saida resultados/cylind
 [Um = 0,025](resultados/cylinder_D6_Re20_U0.025) ·
 ![Efeito do Mach, D = 6](resultados/cylinder_efeito_mach/efeito_mach.png)
 
+### Cilindro 3D-1Z — limitador de 3ª ordem do K17 (D = 6, Um = 0,05)
+O mesmo D = 6 com o limitador de [G17] (`--limiter 0.01`), que aproxima de 1 as taxas dos cumulantes de
+3ª ordem onde eles são grandes. Convergiu nas mesmas 15 600 it. (25 min). **O limitador piora levemente
+o resultado: C_D = 6,367 contra 6,329 sem limitador (+0,6 %, mais longe da faixa), C_L = 0,0241 contra
+0,0235; Δp = 0,1667 contra 0,1656 Pa (ambos dentro da faixa).** Como o caso já é estável sem ele, não há
+motivo para usá-lo aqui. Só foi testado o valor 0,01 e só nesta malha.
+
+```bash
+python lbm3d.py --case cylinder --res 6 --u-lattice 0.05 --tol 1e-6 --limiter 0.01
+```
+
+[Comparação](resultados/cylinder_efeito_limitador) · [Pasta](resultados/cylinder_D6_Re20_U0.05_lim0.01) ·
+![Efeito do limitador, D = 6](resultados/cylinder_efeito_limitador/efeito_limitador.png)
+
 ### Arranjo cúbico de esferas, L = 32 — `spheres_L32_chi0.3`, `0.5`, `0.7`
 Célula periódica 32³ com uma esfera de diâmetro χL, ν = 0,02, regime de Stokes (Re_p ≤ 0,11).
 **C = 1,713 / 2,858 / 6,062 para χ = 0,3 / 0,5 / 0,7 (erro +0,77 / +0,47 / +1,04 %)** em relação a
