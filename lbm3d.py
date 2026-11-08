@@ -652,6 +652,8 @@ class Cylinder(Case):
             tag += "_U%g" % self.Um
         if self.args.model != "k17":
             tag += "_" + self.args.model
+        if self.args.limiter is not None:
+            tag += "_lim%g" % self.args.limiter
         return tag
 
     def mascara_saida(self):
