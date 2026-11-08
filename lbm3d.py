@@ -648,7 +648,11 @@ class Cylinder(Case):
 
     def tag(self):
         tag = "cylinder_D%d_Re%g" % (self.D, self.Re)
-        return tag if self.Um == 0.1 else tag + "_U%g" % self.Um  # Um padrao = 0.1
+        if self.Um != 0.1:  # Um padrao = 0.1
+            tag += "_U%g" % self.Um
+        if self.args.model != "k17":
+            tag += "_" + self.args.model
+        return tag
 
     def mascara_saida(self):
         m = np.zeros(self.shape, bool)
