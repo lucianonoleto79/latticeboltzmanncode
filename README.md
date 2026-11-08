@@ -154,6 +154,26 @@ python scripts/convergencia_malha.py           # tabela, gráfico e Richardson
 [Pasta D = 6](resultados/cylinder_D6_Re20_U0.05) · [Análise](resultados/cylinder_convergencia_malha) ·
 ![Cilindro D = 6: linhas de corrente](resultados/cylinder_D6_Re20_U0.05/escoamento/final/linhas_corrente.png)
 
+### Cilindro 3D-1Z — comparação de modelos de colisão (D = 6, Um = 0,05)
+Mesma malha e parâmetros do D = 6 do estudo de malha, com os três modelos do código, todos até resíduo
+< 10⁻⁶ (15 600–16 200 it., ~25 min cada no contêiner). **O K17 é o mais próximo da referência nas três
+grandezas: C_D = 6,329 (+1,3 % acima da faixa) contra 6,764 (+8,2 %) no cumulante clássico e 6,883
+(+10,1 %) no BGK; Δp = 0,1656 Pa dentro da faixa só no K17 (cumulante +3,5 %, BGK +6,3 % acima).** O
+C_L fica fora da faixa nos três (0,0235 / 0,0337 / 0,0294), com o K17 de novo o melhor. Vale para esta
+malha grosseira; não foi verificado se a vantagem se mantém em malhas finas (no duto, com outra
+malha, o padrão foi o mesmo).
+
+```bash
+python lbm3d.py --case cylinder --res 6 --u-lattice 0.05 --tol 1e-6 --model cumulant   # idem --model bgk
+python scripts/comparar_cilindro.py --nome comparacao_modelos --saida resultados/cylinder_comparacao_modelos \
+    "K17=resultados/cylinder_D6_Re20_U0.05" "cumulante=resultados/cylinder_D6_Re20_U0.05_cumulant" \
+    "BGK=resultados/cylinder_D6_Re20_U0.05_bgk"
+```
+
+[Comparação](resultados/cylinder_comparacao_modelos) · [cumulante](resultados/cylinder_D6_Re20_U0.05_cumulant) ·
+[BGK](resultados/cylinder_D6_Re20_U0.05_bgk) ·
+![Comparação de modelos, D = 6](resultados/cylinder_comparacao_modelos/comparacao_modelos.png)
+
 ### Arranjo cúbico de esferas, L = 32 — `spheres_L32_chi0.3`, `0.5`, `0.7`
 Célula periódica 32³ com uma esfera de diâmetro χL, ν = 0,02, regime de Stokes (Re_p ≤ 0,11).
 **C = 1,713 / 2,858 / 6,062 para χ = 0,3 / 0,5 / 0,7 (erro +0,77 / +0,47 / +1,04 %)** em relação a
