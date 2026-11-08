@@ -155,3 +155,14 @@ def test_arquivos_de_controle(tmp_path):
     assert not estado["terminou"] and estado["it"] < 1000000
     assert os.path.exists(os.path.join(out, "checkpoint", "checkpoint.npz"))
     assert not os.path.exists(os.path.join(out, "PARAR"))
+
+
+def test_cilindro_transiente(tmp_path):
+    """cylinder2z (3D-2Z, Re = 100): grava a serie temporal e analisa ao fim de --max-iter."""
+    sim, out = rodar(tmp_path, "--case", "cylinder2z", "--res", "4", "--max-iter", "300")
+    serie = np.loadtxt(os.path.join(out, "graficos", "serie_temporal.csv"), delimiter=",", skiprows=2)
+    assert serie.shape == (60, 5) and serie[-1, 0] == 300
+    txt = open(os.path.join(out, "validacao.txt")).read()
+    assert "3D-2Z" in txt and "C_D max" in txt
+    assert json.load(open(os.path.join(out, "estado.json")))["terminou"]
+    assert sim.case.tag() == "cylinder2z_D4_Re100"
