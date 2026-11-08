@@ -647,7 +647,8 @@ class Cylinder(Case):
                                  dict(mask=cyl, q=qfun, tag=1))
 
     def tag(self):
-        return "cylinder_D%d_Re%g" % (self.D, self.Re)
+        tag = "cylinder_D%d_Re%g" % (self.D, self.Re)
+        return tag if self.Um == 0.1 else tag + "_U%g" % self.Um  # Um padrao = 0.1
 
     def mascara_saida(self):
         m = np.zeros(self.shape, bool)
