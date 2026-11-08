@@ -160,8 +160,7 @@ Mesma malha e parâmetros do D = 6 do estudo de malha, com os três modelos do c
 grandezas: C_D = 6,329 (+1,3 % acima da faixa) contra 6,764 (+8,2 %) no cumulante clássico e 6,883
 (+10,1 %) no BGK; Δp = 0,1656 Pa dentro da faixa só no K17 (cumulante +3,5 %, BGK +6,3 % acima).** O
 C_L fica fora da faixa nos três (0,0235 / 0,0337 / 0,0294), com o K17 de novo o melhor. Vale para esta
-malha grosseira; não foi verificado se a vantagem se mantém em malhas finas (no duto, com outra
-malha, o padrão foi o mesmo).
+malha grosseira; não foi verificado se a vantagem se mantém em malhas finas.
 
 ```bash
 python lbm3d.py --case cylinder --res 6 --u-lattice 0.05 --tol 1e-6 --model cumulant   # idem --model bgk
