@@ -20,6 +20,7 @@ Todos os casos usam o modelo K17 e os parâmetros do benchmark correspondente.
 | [`cylinder_D6_Re20_U0.05_lim0.01`](cylinder_D6_Re20_U0.05_lim0.01) | Cilindro 3D-1Z, D = 6, Um = 0,05, K17 com limitador 0,01 | C_D = 6,367 ✘, C_L = 0,0241 ✘, Δp = 0,1667 Pa ✔ | `python lbm3d.py --case cylinder --res 6 --u-lattice 0.05 --tol 1e-6 --limiter 0.01` |
 | [`cylinder_efeito_limitador`](cylinder_efeito_limitador) | Efeito do limitador (D = 6) | limitador piora C_D em 0,6 % | `python scripts/comparar_cilindro.py ...` (ver README) |
 | [`cylinder_pos_processamento`](cylinder_pos_processamento) | L_a, separação e C_p das rodadas D = 6 | K17: L_a ≈ 0,66 D, separação ≈ 151° | `python scripts/pos_cilindro.py casos/<caso>` |
+| [`cylinder2z_D6_Re100`](cylinder2z_D6_Re100) | Cilindro 3D-2Z (Re = 100, transiente), D = 6 | sem desprendimento de vórtices; C_D = 3,66, Δp = 3,40 Pa | `python lbm3d.py --case cylinder2z --res 6` |
 | [`spheres_L32_chi0.3`](spheres_L32_chi0.3) | Esferas, L = 32, χ = 0,3 | C = 1,7132 (erro +0,77 %) | `python lbm3d.py --case spheres --res 32 --chi 0.3` |
 | [`spheres_L32_chi0.5`](spheres_L32_chi0.5) | Esferas, L = 32, χ = 0,5 | C = 2,8583 (erro +0,47 %) | `python lbm3d.py --case spheres --res 32 --chi 0.5` |
 | [`spheres_L32_chi0.7`](spheres_L32_chi0.7) | Esferas, L = 32, χ = 0,7 | C = 6,0623 (erro +1,04 %) | `python lbm3d.py --case spheres --res 32 --chi 0.7` |
@@ -312,6 +313,40 @@ cada uma delas também tem `graficos/pos_cilindro.png` e `graficos/pos_cilindro.
 Arquivos:
 
 * `pos_processamento.txt`
+
+## cylinder2z_D6_Re100 — Cilindro 3D-2Z (Re = 100, não estacionário), D = 6
+
+K17, ω = 1,969, ν = 0,00267, Um = 0,1 (rede), 20 300 it. = 150 tempos convectivos = 15,0 s, ~32 min no
+contêiner. Sem desprendimento de vórtices nesta malha (C_L pico a pico 3·10⁻⁴ no último terço).
+`graficos/serie_temporal.csv` tem C_D, C_L e Δp a cada 5 it.; `validacao.txt` foi refeito com a análise
+corrigida, e o `execucao.log` (saída original) traz o St espúrio da versão anterior. Parciais, `.vtk` e
+checkpoint não versionados.
+
+Arquivos:
+
+* `LEIAME.txt`
+* `estado.json`
+* `execucao.log`
+* `parametros.json`
+* `validacao.txt`
+* `contorno/condicoes_contorno.txt`
+* `contorno/contorno_3d.png`
+* `contorno/contorno_cortes.png`
+* `contorno/perfil_entrada.png`
+* `dominio/dominio_3d.png`
+* `dominio/dominio_cortes.png`
+* `escoamento/final/componentes_pressao.png`
+* `escoamento/final/linhas_corrente.png`
+* `escoamento/final/velocidade_cortes.png`
+* `graficos/convergencia.csv`
+* `graficos/convergencia.html`
+* `graficos/convergencia.png`
+* `graficos/grandezas.png`
+* `graficos/serie_temporal.csv`
+* `graficos/serie_temporal.png`
+* `malha/malha.txt`
+* `malha/malha_corte.png`
+* `malha/malha_detalhe.png`
 
 ## spheres_L32_chi0.3 — Esferas, L = 32, χ = 0,3
 

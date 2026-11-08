@@ -1,0 +1,18 @@
+{
+ "caso": "cylinder2z",
+ "pasta": "casos/cylinder2z_D6_Re100",
+ "it": 20300,
+ "residuo": 0.07710129195985903,
+ "residuos": {
+  "res": 0.07710129195985903,
+  "res_ux": 0.050808016729076026,
+  "res_uy": 0.04673664103107317,
+  "res_uz": 0.03433425466017775,
+  "res_rho": 0.000206420364319811
+ },
+ "tol": 1e-07,
+ "convergiu": false,
+ "terminou": true,
+ "divergiu": false,
+ "checkpoint": "casos/cylinder2z_D6_Re100/checkpoint/checkpoint.npz"
+}

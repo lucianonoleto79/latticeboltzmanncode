@@ -1,0 +1,8 @@
+Schaefer & Turek 3D-2Z (Re=100), D=6 celulas, modelo=k17, t final = 15.037 s (20300 it., 150.4 tempos convectivos):
+  janela de analise: ultimo terco da serie (1354 amostras)
+  C_D max = 3.66973   (media 3.65632)
+  C_L max = -0.02284   C_L min = -0.02314
+  Delta p max = 3.40717 Pa   (media 3.39886 Pa)
+  C_L pico a pico na janela = 3.014e-04  (2a metade / 1a metade = 0.98)
+  sem desprendimento de vortices (C_L pico a pico < 0.01 ou amortecendo): escoamento estacionario, St nao calculado
+  (faixas de referencia do artigo nao incluidas no codigo: comparar manualmente)

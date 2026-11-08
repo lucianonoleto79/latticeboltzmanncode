@@ -224,6 +224,24 @@ python scripts/pos_cilindro.py casos/cylinder_D6_Re20_U0.05     # precisa do .vt
 [Tabela](resultados/cylinder_pos_processamento/pos_processamento.txt) ·
 ![Pós-processamento, D = 6, K17](resultados/cylinder_D6_Re20_U0.05/graficos/pos_cilindro.png)
 
+### Cilindro 3D-2Z (Re = 100, não estacionário), D = 6 — `cylinder2z_D6_Re100`
+Primeira rodada do caso novo `cylinder2z` (mesma geometria do 3D-1Z, Um = 2,25 m/s, Ū = 1 m/s,
+Re = 100), D = 6, Um = 0,1 (rede), K17 (ω = 1,969), 150 tempos convectivos = 15 s físicos (20 300 it.,
+~32 min no contêiner). **Com D = 6 não houve desprendimento de vórtices: depois do transiente inicial
+(~2 s) o escoamento fica estacionário, com C_D = 3,66, C_L = −0,023 e Δp = 3,40 Pa, e oscilação residual
+de C_L de só 3·10⁻⁴ pico a pico.** Não verifiquei a causa (malha grosseira com 3 nós no raio é a
+hipótese mais provável) nem comparei com o artigo, cujas faixas para o 3D-2Z não estão no código.
+O `execucao.log` mostra um "St = 1,8873" da primeira versão da análise, que tratava essa oscilação
+residual como desprendimento; a análise foi corrigida (exige C_L pico a pico > 10⁻², limiar escolhido
+por mim, e oscilação que não amorteça) e o `validacao.txt` foi refeito a partir da série gravada.
+
+```bash
+python lbm3d.py --case cylinder2z --res 6
+```
+
+[Pasta](resultados/cylinder2z_D6_Re100) ·
+![3D-2Z, D = 6: séries temporais](resultados/cylinder2z_D6_Re100/graficos/serie_temporal.png)
+
 ### Arranjo cúbico de esferas, L = 32 — `spheres_L32_chi0.3`, `0.5`, `0.7`
 Célula periódica 32³ com uma esfera de diâmetro χL, ν = 0,02, regime de Stokes (Re_p ≤ 0,11).
 **C = 1,713 / 2,858 / 6,062 para χ = 0,3 / 0,5 / 0,7 (erro +0,77 / +0,47 / +1,04 %)** em relação a
@@ -387,6 +405,7 @@ avisa. A coluna "modelo efetivo" indica o que roda com os parâmetros padrão.
 | `duct` | duto retangular periódico em x, forçado por gradiente de pressão | White (2006), Eq. 3-48; erro L2 do perfil | 24 × 16, ν = 0,02 | K17 |
 | `cylinder` | cilindro em canal de seção quadrada, Re = 20 | Schäfer & Turek (1996), 3D-1Z; C_D ∈ [6,05; 6,25], C_L ∈ [0,008; 0,010], Δp ∈ [0,165; 0,175] Pa | D = 10, Um = 0,1 | K17 (para D ≥ 12 recai no cumulante clássico) |
 | `spheres` | arranjo cúbico simples de esferas, regime de Stokes | Sangani & Acrivos (1982); arraste C = f_t/(3πμ d u_s) | L = 32, χ = 0,5, ν = 0,02 | K17 |
+| `cylinder2z` | cilindro em canal, Re = 100, não estacionário (roda até `--max-iter`, padrão 150 D/Ū) | Schäfer & Turek (1996), 3D-2Z; C_D máx., C_L máx./mín., Δp, Strouhal (faixas do artigo ainda não incluídas) | D = 10, Um = 0,1 | K17 (ν = 0,0044) |
 | `cavity` | cavidade cúbica com tampa móvel (demonstração) | comparar com Albensoeder & Kuhlmann (2005); perfis centrais | N = 32, Re = 100, U = 0,1 | cumulante clássico (ν = 0,032) |
 
 Solução do duto (−a ≤ y ≤ a, −b ≤ z ≤ b, G = −dp/dx):

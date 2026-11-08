@@ -776,6 +776,7 @@ class Cylinder2Z(Cylinder):
     REF = {}
     amostra = 5
     tempos_convectivos = 150
+    cl_pp_min = 1e-2  # amplitude pico a pico minima de C_L para considerar desprendimento
 
     def __init__(self, args):
         super().__init__(args)
@@ -831,8 +832,14 @@ class Cylinder2Z(Cylinder):
                "dp_med": dp[jan].mean(), "St": np.nan, "periodos": 0}
         x = cl[jan] - cl[jan].mean()
         tt = it[jan]
+        meio = x.size // 2
+        out["C_L_pp"] = x.max() - x.min()                       # amplitude pico a pico
+        a1, a2 = np.ptp(x[:meio]) if meio else 0.0, np.ptp(x[meio:])
+        out["decaimento"] = a2 / a1 if a1 > 0 else np.nan        # < 1: oscilacao amortecendo
+        # desprendimento = oscilacao de C_L de amplitude relevante que nao esta amortecendo
+        out["desprendimento"] = bool(out["C_L_pp"] > self.cl_pp_min and out["decaimento"] > 0.8)
         sobe = np.where((x[:-1] < 0) & (x[1:] >= 0))[0]
-        if sobe.size >= 2 and (cl[jan].max() - cl[jan].min()) > 1e-6:
+        if out["desprendimento"] and sobe.size >= 2:
             tc = tt[sobe] - x[sobe] * (tt[sobe + 1] - tt[sobe]) / (x[sobe + 1] - x[sobe])
             periodo = np.mean(np.diff(tc))  # em iteracoes
             out["St"] = self.D / (periodo * self.Ubar)
@@ -855,8 +862,9 @@ class Cylinder2Z(Cylinder):
                 ax.grid(alpha=0.3)
             fig.axes[0].legend(fontsize=7)
             fig.axes[-1].set_xlabel("t [s]")
-            fig.suptitle("Cilindro %s (Re = %g, D = %d): series temporais  |  St = %.4f"
-                         % (self.benchmark, self.Re, self.D, a["St"]))
+            fig.suptitle("Cilindro %s (Re = %g, D = %d): series temporais  |  %s"
+                         % (self.benchmark, self.Re, self.D, "St = %.4f" % a["St"] if a["periodos"]
+                            else "sem desprendimento de vortices"))
             fig.tight_layout()
             fig.savefig(os.path.join(outdir, "serie_temporal.png"), dpi=120)
         except Exception as e:  # pragma: no cover
@@ -869,10 +877,13 @@ class Cylinder2Z(Cylinder):
                   "  C_D max = %.5f   (media %.5f)" % (a["C_D_max"], a["C_D_med"]),
                   "  C_L max = %.5f   C_L min = %.5f" % (a["C_L_max"], a["C_L_min"]),
                   "  Delta p max = %.5f Pa   (media %.5f Pa)" % (a["dp_max"], a["dp_med"])]
+        linhas.append("  C_L pico a pico na janela = %.3e  (2a metade / 1a metade = %.2f)"
+                      % (a["C_L_pp"], a["decaimento"]))
         if a["periodos"]:
             linhas.append("  St = %.4f  (%d periodos de C_L na janela)" % (a["St"], a["periodos"]))
         else:
-            linhas.append("  sem oscilacao periodica de C_L detectada na janela: St nao calculado")
+            linhas.append("  sem desprendimento de vortices (C_L pico a pico < %g ou amortecendo):"
+                          " escoamento estacionario, St nao calculado" % self.cl_pp_min)
         linhas.append("  (faixas de referencia do artigo nao incluidas no codigo: comparar manualmente)")
         return "\n".join(linhas)
 
