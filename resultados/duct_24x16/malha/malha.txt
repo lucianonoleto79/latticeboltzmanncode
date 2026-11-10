@@ -1,0 +1,12 @@
+Malha - caso duct
+============================================================
+Rede de velocidades     : D3Q27 (27 velocidades discretas, c_s^2 = 1/3)
+Malha cartesiana        : uniforme, dx = dt = 1 (unidades de rede)
+Dimensoes (nx, ny, nz)  : 4 x 26 x 18
+Nos totais              : 1872
+Nos de fluido           : 1536 (82.1 %)
+Nos solidos             : 336
+Links fluido->solido    : 2832
+Viscosidade de rede     : nu = 0.02  (omega = 1.78571, tau = 0.56000)
+Modelo de colisao       : k17
+

@@ -1,0 +1,9 @@
+Cilindro 3D-1Z, D = 6, K17, Re = 20: efeito da velocidade de rede (Mach)
+
+rodada              it   residuo        C_D   desvio%        C_L   desvio%    dp [Pa]   desvio%  pasta
+Um=0,1 (Ma 0,17)    9900  9.80e-07    6.30157     +0.83    0.02135    +113.5    0.16418     -0.50  resultados/cylinder_D6_Re20
+Um=0,05 (Ma 0,087)   15600  7.00e-07    6.32927     +1.27    0.02346    +134.6    0.16565     +0.00  resultados/cylinder_D6_Re20_U0.05
+Um=0,025 (Ma 0,043)   22300  8.77e-07    6.34293     +1.49    0.02463    +146.3    0.16657     +0.00  resultados/cylinder_D6_Re20_U0.025
+
+desvio% = distancia ate a faixa de referencia, em % do limite mais proximo (0 = dentro).
+Faixas: C_D [6.05, 6.25], C_L [0.008, 0.01], dp [0.165, 0.175]

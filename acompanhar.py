@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 acompanhar.py - acompanha a convergencia de uma simulacao do lbm3d.py em andamento
-(ou terminada) lendo <pasta>/convergencia.csv, gravado a cada 100 iteracoes.
+(ou terminada) lendo <pasta do caso>/graficos/convergencia.csv, gravado a cada 100
+iteracoes, e controla a simulacao (salvar parcial / pausar / parar) pelos arquivos de
+controle na pasta do caso.
 
 Funciona com simulacoes rodando sem janela (--no-gui), em segundo plano ou em outra
 maquina (basta ter acesso a pasta).  Mostra:
@@ -13,14 +15,20 @@ maquina (basta ter acesso a pasta).  Mostra:
     relativa nos ultimos relatorios.
 
 Uso:
-  python acompanhar.py saida_spheres                # gera e abre o painel HTML
-  python acompanhar.py saida_spheres --servir       # painel HTML ao vivo em http://127.0.0.1:8765
-  python acompanhar.py saida_cylinder --janela      # janela matplotlib atualizada a cada 5 s
-  python acompanhar.py saida_cylinder --texto       # so terminal (ex.: via ssh)
-  python acompanhar.py saida_cylinder --png         # grava acompanhamento.png e sai
+  python acompanhar.py casos/spheres_L32_chi0.5            # gera e abre o painel HTML
+  python acompanhar.py casos/spheres_L32_chi0.5 --servir   # painel ao vivo em http://127.0.0.1:8765
+  python acompanhar.py casos/cylinder_D10_Re20 --janela    # janela matplotlib atualizada a cada 5 s
+  python acompanhar.py casos/cylinder_D10_Re20 --texto     # so terminal (ex.: via ssh)
+  python acompanhar.py casos/cylinder_D10_Re20 --png       # grava graficos/acompanhamento.png e sai
 
-O lbm3d.py ja grava <saida>/convergencia.html a cada 100 iteracoes: basta abrir esse
-arquivo no navegador (ele se recarrega sozinho).
+Controle de uma simulacao em andamento (atendido em ate 10 iteracoes):
+  python acompanhar.py casos/cylinder_D10_Re20 --salvar     # salva resultado parcial e continua
+  python acompanhar.py casos/cylinder_D10_Re20 --pausar     # pausa (--continuar retoma)
+  python acompanhar.py casos/cylinder_D10_Re20 --parar      # salva o checkpoint e encerra
+
+O lbm3d.py ja grava graficos/convergencia.html a cada 100 iteracoes: basta abrir esse
+arquivo no navegador (ele se recarrega sozinho).  Pastas no formato antigo (CSV direto
+na pasta, ex.: resultados/) tambem funcionam.
 """
 import argparse
 import os
@@ -30,8 +38,16 @@ import time
 import numpy as np
 
 
+def pasta_graficos(pasta):
+    """Subpasta graficos/ do caso (formato atual) ou a propria pasta (formato antigo)."""
+    g = os.path.join(pasta, "graficos")
+    if os.path.isdir(g) or not os.path.exists(os.path.join(pasta, "convergencia.csv")):
+        return g if os.path.isdir(g) else pasta
+    return pasta
+
+
 def ler(pasta):
-    path = os.path.join(pasta, "convergencia.csv")
+    path = os.path.join(pasta_graficos(pasta), "convergencia.csv")
     if not os.path.exists(path):
         return None, None
     meta = {}
@@ -88,7 +104,7 @@ def fmt_tempo(s):
 
 
 def texto_status(meta, c, d):
-    extras = [k for k in c if k not in ("it", "res", "tempo_unix", "mlups")]
+    extras = [k for k in c if k not in ("it", "res", "tempo_unix", "mlups") and not k.startswith("res_")]
     partes = ["[%s] it=%d  res=%.3e (tol %.0e)" % (meta.get("caso", "?"), d["it"], d["res"], d["tol"])]
     if d["res"] <= d["tol"]:
         partes.append("CONVERGIDO")
@@ -116,7 +132,7 @@ class Painel:
 
     def desenhar(self, meta, c, d, pasta):
         plt = self.plt
-        extras = [k for k in c if k not in ("it", "res", "tempo_unix", "mlups")]
+        extras = [k for k in c if k not in ("it", "res", "tempo_unix", "mlups") and not k.startswith("res_")]
         n = 1 + max(1, len(extras))
         if self.fig is None or len(self.fig.axes) != n:
             if self.fig is not None:
@@ -128,7 +144,11 @@ class Painel:
             ax.grid(True, alpha=0.3, which="both")
         it = c["it"]
         ax = axs[0]
-        ax.semilogy(it, c["res"], "b.-", ms=3, label="residuo")
+        ax.semilogy(it, c["res"], "b.-", ms=3, label="residuo res(u)")
+        for k, cor in (("res_ux", "#2a78d6"), ("res_uy", "#1baf7a"), ("res_uz", "#b87900"),
+                       ("res_rho", "#d03b3b")):
+            if k in c and (c[k] > 0).any():
+                ax.semilogy(it[c[k] > 0], c[k][c[k] > 0], "-", color=cor, lw=0.8, label=k)
         ax.axhline(d["tol"], color="r", ls="--", label="tolerancia %.0e" % d["tol"])
         if np.isfinite(d["eta_it"]) and d["res"] > d["tol"]:
             ax.semilogy([it[-1], it[-1] + d["eta_it"]], [d["res"], d["tol"]], "b:", alpha=0.6,
@@ -157,17 +177,21 @@ TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "painel_temp
 
 
 def gerar_html(pasta, intervalo=5):
-    """Grava <pasta>/convergencia.html: pagina autocontida (sem internet) com os dados
-    de convergencia.csv embutidos.  Aberta do disco ela se recarrega a cada `intervalo`
-    segundos; servida por HTTP (--servir) ela busca o CSV sem recarregar."""
+    """Grava convergencia.html ao lado de convergencia.csv (graficos/ do caso): pagina
+    autocontida (sem internet) com os dados embutidos.  Aberta do disco ela se recarrega
+    a cada `intervalo` segundos; servida por HTTP (--servir) ela busca o CSV sem recarregar."""
     import json
+    nome = os.path.basename(os.path.abspath(pasta))
+    if nome == "graficos":
+        nome = os.path.basename(os.path.dirname(os.path.abspath(pasta)))
+    pasta = pasta_graficos(pasta)
     csv = os.path.join(pasta, "convergencia.csv")
     texto = open(csv).read() if os.path.exists(csv) else ""
     with open(TEMPLATE, encoding="utf-8") as fh:
         tpl = fh.read()
     ini, fim = tpl.index("/*__DADOS__*/"), tpl.index("/*__FIM__*/")
     dados = json.dumps({"csv": texto, "intervalo": intervalo,
-                        "pasta": os.path.basename(os.path.abspath(pasta))}).replace("</", "<\\/")
+                        "pasta": nome}).replace("</", "<\\/")
     html = tpl[:ini] + "/*__DADOS__*/" + dados + tpl[fim:]
     out = os.path.join(pasta, "convergencia.html")
     tmp = out + ".tmp"
@@ -192,7 +216,7 @@ def servir(pasta, porta, intervalo):
             super().end_headers()
 
     gerar_html(pasta, intervalo)
-    handler = functools.partial(Quieto, directory=os.path.abspath(pasta))
+    handler = functools.partial(Quieto, directory=os.path.abspath(pasta_graficos(pasta)))
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", porta), handler)
     url = "http://127.0.0.1:%d/convergencia.html" % srv.server_address[1]
     print("Painel ao vivo em %s  (Ctrl+C para encerrar)" % url)
@@ -201,6 +225,23 @@ def servir(pasta, porta, intervalo):
         srv.serve_forever()
     except KeyboardInterrupt:
         pass
+
+
+def controlar(pasta, acao):
+    """Cria/apaga os arquivos de controle lidos pelo lbm3d.py a cada 10 iteracoes."""
+    if not os.path.isdir(pasta):
+        print("pasta nao encontrada:", pasta)
+        return 1
+    caminho = {"salvar": "SALVAR", "pausar": "PAUSAR", "continuar": "PAUSAR", "parar": "PARAR"}[acao]
+    caminho = os.path.join(pasta, caminho)
+    if acao == "continuar":
+        if os.path.exists(caminho):
+            os.remove(caminho)
+        print("Pedido enviado: continuar (removido %s)" % caminho)
+    else:
+        open(caminho, "w").close()
+        print("Pedido enviado: %s (criado %s; atendido em ate 10 iteracoes)" % (acao, caminho))
+    return 0
 
 
 def main():
@@ -214,7 +255,18 @@ def main():
     p.add_argument("--janela", action="store_true", help="janela matplotlib em vez de HTML")
     p.add_argument("--texto", action="store_true", help="so imprime o estado no terminal")
     p.add_argument("--png", action="store_true", help="grava acompanhamento.png e sai")
+    ctl = p.add_mutually_exclusive_group()
+    ctl.add_argument("--salvar", action="store_true",
+                     help="pede a simulacao em andamento que salve um resultado parcial")
+    ctl.add_argument("--pausar", action="store_true", help="pausa a simulacao em andamento")
+    ctl.add_argument("--continuar", action="store_true", help="retoma uma simulacao pausada")
+    ctl.add_argument("--parar", action="store_true",
+                     help="pede que a simulacao salve o checkpoint e encerre")
     a = p.parse_args()
+
+    if a.salvar or a.pausar or a.continuar or a.parar:
+        return controlar(a.pasta, "salvar" if a.salvar else "pausar" if a.pausar else
+                         "continuar" if a.continuar else "parar")
 
     if a.servir is not None:
         return servir(a.pasta, a.servir, a.intervalo)
@@ -239,7 +291,7 @@ def main():
                 if painel is not None:
                     painel.desenhar(meta, c, d, a.pasta)
                     if a.png:
-                        out = os.path.join(a.pasta, "acompanhamento.png")
+                        out = os.path.join(pasta_graficos(a.pasta), "acompanhamento.png")
                         painel.fig.savefig(out, dpi=110)
                         print("grafico salvo em", out)
                         return

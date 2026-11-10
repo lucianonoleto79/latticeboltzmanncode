@@ -9,20 +9,48 @@ ou **na nuvem, pelo GitHub Actions** (seção abaixo).
 
 ```
 lbm3d.py                    solver (método, casos de teste, checkpoint, VTK, linha de comando)
+figuras.py                  imagens do domínio, condições de contorno, malha, escoamento e gráficos
 acompanhar.py               acompanhamento da convergência (painel HTML, janela, terminal)
+                            e controle de uma simulação em andamento (salvar / pausar / parar)
 painel_template.html        modelo do painel HTML (autocontido, sem internet)
 scripts/resumo_execucao.py  resumo de uma execução na nuvem (página do GitHub Actions)
-tests/test_lbm3d.py         testes rápidos (pytest, ~20 s)
-resultados/                 resultados de validação já obtidos (logs, CSV, gráficos, painéis)
-.github/workflows/
-    testes.yml              roda os testes a cada push / pull request
-    simulacao.yml           roda uma simulação na nuvem, com continuação automática
+tests/test_lbm3d.py         testes rápidos (pytest, ~15 s)
+resultados/                 casos simulados, um por pasta (índice em resultados/README.md)
+CLAUDE.md                   instruções para o Claude (documentar simulações, estimar tempo, git)
+RODADAS_PENDENTES.md        comandos prontos das rodadas longas do cilindro (rodar no seu computador)
 requirements.txt            numpy, matplotlib
 requirements-dev.txt        + pytest
 ```
 
-As pastas de saída (`saida_*`, com checkpoints `.npz` e campos `.vtk`, que chegam a centenas de MB)
-não vão para o repositório (`.gitignore`).
+## Organização dos casos
+
+Cada simulação grava tudo numa pasta própria, **`casos/<caso>_<parâmetros>/`** (ex.:
+`casos/cylinder_D10_Re20`, `casos/spheres_L32_chi0.5`, `casos/duct_24x16`; `--outdir` escolhe outra):
+
+```
+casos/cylinder_D10_Re20/
+  LEIAME.txt            o que há em cada subpasta e como continuar/controlar a simulação
+  parametros.json       parâmetros da execução (malha, nu, omega, taxas de colisão, argumentos)
+  execucao.log          cópia da saída do terminal (tabela de resíduos)
+  estado.json           iteração, resíduos e situação (convergiu / interrompida / divergiu)
+  validacao.txt         comparação com a referência da literatura
+  dominio/              dominio_3d.png (vista 3D), dominio_cortes.png (fluido/sólido em 3 cortes)
+  contorno/             contorno_cortes.png, contorno_3d.png (mapa colorido por tipo de condição),
+                        condicoes_contorno.txt (descrição + contagem de nós/links),
+                        perfil_entrada.png (cilindro: perfil de velocidade imposto)
+  malha/                malha_corte.png (nós e linhas da malha), malha_detalhe.png (links
+                        fluido→parede e a fração q do bounce-back interpolado), malha.txt
+  escoamento/           final/ e parcial_itNNNNNNN/: velocidade_cortes.png (|u| em 3 cortes),
+                        componentes_pressao.png (u_x, u_y, u_z, p), linhas_corrente.png, <caso>_itN.vtk
+  graficos/             convergencia.png (resíduos), grandezas.png (C_D, C_L, C, erro L2 ...),
+                        validação do caso, convergencia.csv e o painel convergencia.html
+  checkpoint/           checkpoint.npz (estado completo para continuar)
+```
+
+As imagens do domínio, contorno e malha são geradas no início (≈2 s); para conferir a montagem de um
+caso sem rodá-lo: `python lbm3d.py --case cylinder --res 10 --preprocess-only`. `--no-figs` desliga
+todas as imagens (o VTK continua sendo gravado). A pasta `casos/`, os `.vtk` e os checkpoints não vão
+para o repositório (`.gitignore`).
 
 ## Rodar no seu computador
 
@@ -32,7 +60,7 @@ Requisitos: Python ≥ 3.10, `numpy`, `matplotlib`.
 pip install -r requirements.txt
 python lbm3d.py --case duct                 # validação rápida (solução analítica)
 python lbm3d.py --case cylinder --res 10    # benchmark Schäfer–Turek 3D-1Z
-python lbm3d.py --restart saida_cylinder/checkpoint.npz   # continua de onde parou
+python lbm3d.py --restart casos/cylinder_D10_Re20   # continua de onde parou
 ```
 
 Testes:
@@ -43,6 +71,15 @@ pytest
 ```
 
 ## Rodar na nuvem (GitHub Actions)
+
+> **Atenção (11/2026): não recomendado para simulações longas.** Os termos do GitHub Actions proíbem
+> nos runners do GitHub "any other activity unrelated to the production, testing, deployment, or
+> publication of the software project" e carga "disproportionate to the benefits provided". Rodadas de
+> horas, encadeadas com continuação automática, podem ser enquadradas aí, e a conta deste repositório
+> já foi suspensa uma vez por atividade sinalizada (motivo exato não informado). Use o Actions só para
+> os testes rápidos (`pytest`) e rode as simulações longas no seu computador (`RODADAS_PENDENTES.md`).
+> As instruções abaixo ficam como registro; os arquivos de fluxo (`.github/workflows/`) não estão
+> neste repositório.
 
 1. Envie o repositório para o GitHub.
 2. Na aba **Actions**, escolha **Simulacao LBM → Run workflow** e preencha o formulário:
@@ -76,45 +113,222 @@ repositórios privados contam na cota mensal de minutos da conta. A velocidade �
 um notebook (~0,7–1 MLUPS): o cilindro com D = 10 leva ~3 h e a esfera com L = 48 ~4 h, cada um numa
 execução só; casos maiores usam a continuação automática.
 
-## Resultados de validação já obtidos
+## Casos simulados
 
-Em [`resultados/`](resultados), com o modelo K17:
+Resultados versionados em [`resultados/`](resultados) (índice e lista de arquivos em
+[`resultados/README.md`](resultados/README.md)), todos com o modelo K17 e parâmetros do benchmark
+(nenhum é ilustrativo).
 
-| Caso | Resultado | Referência |
-|---|---|---|
-| Duto 24×16 (ν = 0,02) | erro L2 = 1,7·10⁻³ (BGK: 1,4·10⁻², cumulante clássico: 7,8·10⁻³) | White (2006) |
-| Cilindro 3D-1Z, D = 10 | C_D = 6,230 ✔, Δp = 0,1654 Pa ✔, C_L = 0,0102 (1,7 % acima da faixa) | Schäfer & Turek (1996) |
-| Esferas, L = 32, χ = 0,3 / 0,5 / 0,7 | C = 1,713 / 2,858 / 6,062 (erro +0,8 / +0,5 / +1,0 %) | Sangani & Acrivos (1982) |
-| Esferas, L = 48, χ = 0,5 | C = 2,852 (erro +0,23 %; ordem observada ≈ 1,8) | idem |
+### Duto retangular 24 × 16 — `duct_24x16`
+Duto periódico com seção 24 × 16 nós, ν = 0,02, forçado por gradiente de pressão (u_max = 0,05), até
+res(u) < 10⁻⁷ (12 600 it., ≈ 40 s no contêiner). **Erro L2 relativo do perfil = 1,694·10⁻³** (erro máximo
+1,17·10⁻³ de u_max) contra a solução em série de White (2006). Rodado com a versão atual do código:
+todas as subpastas estão preenchidas. Os valores de comparação citados antes neste README (BGK: 1,4·10⁻²;
+cumulante clássico: 7,8·10⁻³) não têm arquivos em `resultados/` e não foram reverificados.
 
-## Controles durante a execução
+```bash
+python lbm3d.py --case duct
+```
 
-| Ação | Janela gráfica | Sem janela (`--no-gui`) |
-|---|---|---|
-| Curva de convergência a cada 100 it. | gráfico à esquerda (+ fatia de \|u\|) | impressa no terminal; `convergencia.png` no fim |
-| Pausar / continuar | botão **Pausar** ou tecla `P` | — |
-| Salvar resultado parcial agora | botão **Salvar** ou tecla `S` | — |
-| Salvar a cada 100 it. | caixa **Auto-salvar** (padrão: ligada) | `--save-every 100` (padrão) |
-| Parar e reiniciar depois | botão **Salvar e sair** / `Q` / fechar janela | `Ctrl+C` |
-| Reiniciar | `--restart <pasta>/checkpoint.npz` | idem |
+[Pasta](resultados/duct_24x16) · ![Duto: perfis LBM × analítico](resultados/duct_24x16/graficos/duct_validacao.png)
 
-Cada salvamento grava `<caso>_itNNNNNNN.vtk` (densidade, velocidade e máscara de sólido, para abrir
-no ParaView) e sobrescreve `checkpoint.npz` (populações, iteração e histórico). O reinício reproduz
-bit a bit uma execução contínua. No reinício você pode alterar `--max-iter`, `--tol`, `--save-every`,
-`--no-gui`, `--outdir`, `--max-time`; os parâmetros físicos vêm do checkpoint.
+### Cilindro Schäfer–Turek 3D-1Z, D = 10 — `cylinder_D10_Re20`
+Canal 2,5 × 0,41 × 0,41 m (malha 251 × 43 × 43, 464 099 nós, dx = 0,01 m), Re = 20, Um = 0,1 (rede).
+**C_D = 6,230 e Δp = 0,1654 Pa dentro das faixas de referência; C_L = 0,0102, 1,7 % acima da faixa**
+[0,008; 0,010]. Rodado antes da reorganização das pastas (por isso só há o log, a validação e o gráfico
+da janela de acompanhamento); `dominio/`, `contorno/` e `malha/` foram regerados com a versão atual, mas
+os campos do escoamento não foram guardados e a rodada não foi repetida com esta versão.
 
-`--max-time M` encerra após M minutos salvando o checkpoint (usado na nuvem); `SIGTERM` tem o mesmo
-efeito que `Ctrl+C`. Ao final, `<saída>/estado.json` informa a iteração e se a simulação convergiu.
+```bash
+python lbm3d.py --case cylinder --res 10
+```
+
+[Pasta](resultados/cylinder_D10_Re20) · ![Cilindro: condições de contorno](resultados/cylinder_D10_Re20/contorno/contorno_cortes.png)
+
+### Cilindro 3D-1Z — convergência de malha com Um = 0,05 (em andamento)
+Série D = 6, 10, 16, 20 com a mesma velocidade de rede Um = 0,05 (Mach de rede ≈ 0,087), o K17 em todas
+as malhas e parada em resíduo < 10⁻⁶. Objetivo: verificar se C_D e C_L entram nas faixas com o refino e
+estimar a ordem de convergência (extrapolação de Richardson em `scripts/convergencia_malha.py`).
+**Feito até agora: D = 6** (malha 151 × 27 × 27, 110 079 nós; 15 600 it., 25 min no contêiner):
+C_D = 6,329 (acima da faixa [6,05; 6,25]), C_L = 0,0235 (2,3 × o limite superior), Δp = 0,1656 Pa (dentro
+da faixa). Com D = 6 a malha é grosseira demais para o C_L; D = 10, 16 e 20 ainda não foram rodados
+(estimativas: ~3 h, ~18 h e ~45 h no contêiner, a 1,2 MLUPS), e a rodada D = 10 antiga, com Um = 0,1,
+não entra na série por ter outro número de Mach.
+
+```bash
+python lbm3d.py --case cylinder --res 6 --u-lattice 0.05 --tol 1e-6
+bash scripts/estudo_malha_cilindro.sh          # D = 10, 16, 20 (retoma do checkpoint)
+python scripts/convergencia_malha.py           # tabela, gráfico e Richardson
+```
+
+[Pasta D = 6](resultados/cylinder_D6_Re20_U0.05) · [Análise](resultados/cylinder_convergencia_malha) ·
+![Cilindro D = 6: linhas de corrente](resultados/cylinder_D6_Re20_U0.05/escoamento/final/linhas_corrente.png)
+
+### Cilindro 3D-1Z — comparação de modelos de colisão (D = 6, Um = 0,05)
+Mesma malha e parâmetros do D = 6 do estudo de malha, com os três modelos do código, todos até resíduo
+< 10⁻⁶ (15 600–16 200 it., ~25 min cada no contêiner). **O K17 é o mais próximo da referência nas três
+grandezas: C_D = 6,329 (+1,3 % acima da faixa) contra 6,764 (+8,2 %) no cumulante clássico e 6,883
+(+10,1 %) no BGK; Δp = 0,1656 Pa dentro da faixa só no K17 (cumulante +3,5 %, BGK +6,3 % acima).** O
+C_L fica fora da faixa nos três (0,0235 / 0,0337 / 0,0294), com o K17 de novo o melhor. Vale para esta
+malha grosseira; não foi verificado se a vantagem se mantém em malhas finas.
+
+```bash
+python lbm3d.py --case cylinder --res 6 --u-lattice 0.05 --tol 1e-6 --model cumulant   # idem --model bgk
+python scripts/comparar_cilindro.py --nome comparacao_modelos --saida resultados/cylinder_comparacao_modelos \
+    "K17=resultados/cylinder_D6_Re20_U0.05" "cumulante=resultados/cylinder_D6_Re20_U0.05_cumulant" \
+    "BGK=resultados/cylinder_D6_Re20_U0.05_bgk"
+```
+
+[Comparação](resultados/cylinder_comparacao_modelos) · [cumulante](resultados/cylinder_D6_Re20_U0.05_cumulant) ·
+[BGK](resultados/cylinder_D6_Re20_U0.05_bgk) ·
+![Comparação de modelos, D = 6](resultados/cylinder_comparacao_modelos/comparacao_modelos.png)
+
+### Cilindro 3D-1Z — efeito da velocidade de rede / Mach (D = 6, K17)
+Mesma malha D = 6, Re = 20, com Um = 0,1 / 0,05 / 0,025 (Ma = Um·√3 = 0,17 / 0,087 / 0,043), até resíduo
+< 10⁻⁶ (9 900 / 15 600 / 22 300 it.). **A variação com Um é pequena perto do erro de malha: C_D = 6,302 /
+6,329 / 6,343 (0,65 % de diferença entre os extremos), Δp = 0,1642 / 0,1656 / 0,1666 Pa (1,5 %) e
+C_L = 0,0214 / 0,0235 / 0,0246 (15 %), enquanto o C_L está 2,1–2,5 × acima da faixa em todas.** Diminuir
+Um afasta C_D e C_L da referência e leva Δp para dentro da faixa; a diferença cai pela metade a cada
+redução de Um à metade (≈ 1ª ordem em Um). Com Re e D fixos, reduzir Um também reduz ν e muda as taxas
+do K17, então a variação não é só efeito de compressibilidade, e não foi separada. Em D = 10 a
+comparação Um = 0,1 × 0,05 sai do estudo de malha, ainda não rodado.
+
+```bash
+python lbm3d.py --case cylinder --res 6 --u-lattice 0.1 --tol 1e-6     # idem 0.05 e 0.025
+python scripts/comparar_cilindro.py --nome efeito_mach --saida resultados/cylinder_efeito_mach \
+    "Um=0,1=resultados/cylinder_D6_Re20" "Um=0,05=resultados/cylinder_D6_Re20_U0.05" \
+    "Um=0,025=resultados/cylinder_D6_Re20_U0.025"
+```
+
+[Comparação](resultados/cylinder_efeito_mach) · [Um = 0,1](resultados/cylinder_D6_Re20) ·
+[Um = 0,025](resultados/cylinder_D6_Re20_U0.025) ·
+![Efeito do Mach, D = 6](resultados/cylinder_efeito_mach/efeito_mach.png)
+
+### Cilindro 3D-1Z — limitador de 3ª ordem do K17 (D = 6, Um = 0,05)
+O mesmo D = 6 com o limitador de [G17] (`--limiter 0.01`), que aproxima de 1 as taxas dos cumulantes de
+3ª ordem onde eles são grandes. Convergiu nas mesmas 15 600 it. (25 min). **O limitador piora levemente
+o resultado: C_D = 6,367 contra 6,329 sem limitador (+0,6 %, mais longe da faixa), C_L = 0,0241 contra
+0,0235; Δp = 0,1667 contra 0,1656 Pa (ambos dentro da faixa).** Como o caso já é estável sem ele, não há
+motivo para usá-lo aqui. Só foi testado o valor 0,01 e só nesta malha.
+
+```bash
+python lbm3d.py --case cylinder --res 6 --u-lattice 0.05 --tol 1e-6 --limiter 0.01
+```
+
+[Comparação](resultados/cylinder_efeito_limitador) · [Pasta](resultados/cylinder_D6_Re20_U0.05_lim0.01) ·
+![Efeito do limitador, D = 6](resultados/cylinder_efeito_limitador/efeito_limitador.png)
+
+### Cilindro 3D-1Z — grandezas extraídas dos campos (D = 6)
+Pós-processamento (`scripts/pos_cilindro.py`) do campo final das seis rodadas com D = 6, no plano
+z = H/2: comprimento da bolha de recirculação L_a, ângulo de separação, C_p junto à parede (referência:
+traseira) e perfis de u_x a jusante. **Com o K17, L_a ≈ 0,66 D e separação a ≈ 151° da frente, quase
+iguais com Um = 0,1 / 0,05 / 0,025 e com o limitador; o cumulante clássico e o BGK dão bolhas ≈ 7–9 %
+menores (0,60 e 0,62 D).** Com só 3 nós no raio esses valores são grosseiros, e não conferi se o caso
+3D-1Z tem referência para eles: servem para comparar rodadas entre si, e a convergência de malha
+(D = 10, 16, 20) dirá quanto mudam com o refino. Não é uma simulação nova.
+
+```bash
+python scripts/pos_cilindro.py casos/cylinder_D6_Re20_U0.05     # precisa do .vtk (não versionado)
+```
+
+[Tabela](resultados/cylinder_pos_processamento/pos_processamento.txt) ·
+![Pós-processamento, D = 6, K17](resultados/cylinder_D6_Re20_U0.05/graficos/pos_cilindro.png)
+
+### Cilindro 3D-2Z (Re = 100, não estacionário), D = 6 — `cylinder2z_D6_Re100`
+Primeira rodada do caso novo `cylinder2z` (mesma geometria do 3D-1Z, Um = 2,25 m/s, Ū = 1 m/s,
+Re = 100), D = 6, Um = 0,1 (rede), K17 (ω = 1,969), 150 tempos convectivos = 15 s físicos (20 300 it.,
+~32 min no contêiner). **Com D = 6 não houve desprendimento de vórtices: depois do transiente inicial
+(~2 s) o escoamento fica estacionário, com C_D = 3,66, C_L = −0,023 e Δp = 3,40 Pa, e oscilação residual
+de C_L de só 3·10⁻⁴ pico a pico.** Não verifiquei a causa (malha grosseira com 3 nós no raio é a
+hipótese mais provável) nem comparei com o artigo, cujas faixas para o 3D-2Z não estão no código.
+O `execucao.log` mostra um "St = 1,8873" da primeira versão da análise, que tratava essa oscilação
+residual como desprendimento; a análise foi corrigida (exige C_L pico a pico > 10⁻², limiar escolhido
+por mim, e oscilação que não amorteça) e o `validacao.txt` foi refeito a partir da série gravada.
+
+```bash
+python lbm3d.py --case cylinder2z --res 6
+```
+
+[Pasta](resultados/cylinder2z_D6_Re100) ·
+![3D-2Z, D = 6: séries temporais](resultados/cylinder2z_D6_Re100/graficos/serie_temporal.png)
+
+### Arranjo cúbico de esferas, L = 32 — `spheres_L32_chi0.3`, `0.5`, `0.7`
+Célula periódica 32³ com uma esfera de diâmetro χL, ν = 0,02, regime de Stokes (Re_p ≤ 0,11).
+**C = 1,713 / 2,858 / 6,062 para χ = 0,3 / 0,5 / 0,7 (erro +0,77 / +0,47 / +1,04 %)** em relação a
+Sangani & Acrivos (1982), valores tabelados em Bogner et al. (2015). Rodados antes da reorganização:
+há log, CSV e painel de convergência; os campos do escoamento não foram guardados.
+
+```bash
+python lbm3d.py --case spheres --res 32 --chi 0.5     # idem --chi 0.3 e 0.7
+```
+
+[χ = 0,3](resultados/spheres_L32_chi0.3) · [χ = 0,5](resultados/spheres_L32_chi0.5) · [χ = 0,7](resultados/spheres_L32_chi0.7) ·
+![Esferas: malha junto à parede curva](resultados/spheres_L32_chi0.5/malha/malha_detalhe.png)
+
+### Arranjo cúbico de esferas, L = 48, χ = 0,5 — `spheres_L48_chi0.5`
+Mesmo caso com malha 48³. **C = 2,852 (erro +0,23 %)**; com L = 32 o erro era +0,47 %. A "ordem observada
+≈ 1,8" citada anteriormente vem de só duas resoluções e não foi recalculada aqui. Rodado antes da
+reorganização (sem campos do escoamento).
+
+```bash
+python lbm3d.py --case spheres --res 48 --chi 0.5
+```
+
+[Pasta](resultados/spheres_L48_chi0.5) · ![Esferas L48: convergência](resultados/spheres_L48_chi0.5/graficos/convergencia.png)
+
+## Resíduos
+
+A cada `--report-every` iterações (padrão 100) o terminal imprime uma linha da tabela:
+
+```
+ iteracao     res(u)    res(ux)    res(uy)    res(uz)   res(rho)   MLUPS      tempo  grandezas monitoradas
+     3000  4.289e-03  4.289e-03  6.284e-07  4.545e-07  5.488e-09    0.67   0h00m08s  L2_error=0.0365582
+```
+
+* `res(u) = ‖uⁿ − uⁿ⁻¹⁰⁰‖₂ / ‖uⁿ‖₂` sobre os nós de fluido — critério de parada (`res(u) < --tol`, padrão 1e-7);
+* `res(ux)`, `res(uy)`, `res(uz)`: a mesma variação por componente, normalizada por `‖uⁿ‖₂`
+  (logo `res(u)² = res(ux)² + res(uy)² + res(uz)²`);
+* `res(rho) = ‖ρⁿ − ρⁿ⁻¹⁰⁰‖₂ / ‖ρⁿ‖₂`;
+* MLUPS, tempo decorrido e as grandezas do caso.
+
+A mesma linha vai para `graficos/convergencia.csv` (colunas `res`, `res_ux`, `res_uy`, `res_uz`,
+`res_rho`) e para `execucao.log`; `graficos/convergencia.png` mostra as curvas.
+(Linha acima: duto 24×16, de `resultados/duct_24x16/execucao.log`.)
+
+## Salvar resultados parciais e interromper
+
+| Ação | Janela gráfica | Terminal (`--no-gui`) | Qualquer modo (outro terminal, segundo plano, remoto) |
+|---|---|---|---|
+| Salvar resultado parcial agora | botão **Salvar** / tecla `S` | `Ctrl+C` → `s` | `python acompanhar.py <pasta> --salvar` (ou crie `<pasta>/SALVAR`); `kill -USR1 <pid>` |
+| Pausar / continuar | botão **Pausar** / tecla `P` | `Ctrl+C` → `p` (de novo `Ctrl+C` → `c`) | `--pausar` / `--continuar` (arquivo `<pasta>/PAUSAR`) |
+| Salvar e parar | botão **Salvar e sair** / `Q` / fechar janela | `Ctrl+C` → `q` (ou `Ctrl+C` duas vezes) | `--parar` (arquivo `<pasta>/PARAR`); `SIGTERM` |
+| Salvar parciais periodicamente | caixa **Auto-salvar parciais** | `--save-every N` (padrão 1000; 0 desliga) | idem |
+| Continuar depois | `python lbm3d.py --restart <pasta do caso>` | idem | idem |
+
+* **Resultado parcial** = `escoamento/parcial_itNNNNNNN/` (imagens + `.vtk`), gráficos atualizados em
+  `graficos/` e `checkpoint/checkpoint.npz`.
+* O checkpoint também é regravado a cada `--checkpoint-every` iterações (padrão 100), para limitar o
+  que se perde se o processo for morto sem aviso.
+* Os arquivos de controle são verificados a cada 10 iterações; `SALVAR` e `PARAR` são apagados ao serem
+  atendidos, e sobras de uma execução anterior são apagadas no início.
+* Sem terminal interativo (ex.: na nuvem, com saída redirecionada), `Ctrl+C`/`SIGTERM` salvam e encerram
+  direto, sem menu.
+* Ao parar, a última situação vai para `escoamento/parcial_itN/` (ou `final/`, se terminou) e `estado.json`.
+
+O reinício reproduz bit a bit uma execução contínua. No reinício você pode alterar `--max-iter`,
+`--tol`, `--save-every`, `--checkpoint-every`, `--no-gui`, `--no-figs`, `--outdir`, `--max-time`,
+`--report-every`; os parâmetros físicos vêm do checkpoint. `--max-time M` encerra após M minutos
+salvando o checkpoint (usado na nuvem).
 
 ### Painel HTML de convergência
-A cada 100 iterações o código acrescenta uma linha a `<saída>/convergencia.csv` e regrava
-**`<saída>/convergencia.html`**, uma página autocontida (sem internet, sem bibliotecas externas).
+A cada 100 iterações o código acrescenta uma linha a `graficos/convergencia.csv` e regrava
+**`graficos/convergencia.html`**, uma página autocontida (sem internet, sem bibliotecas externas).
 Basta abri-la no navegador: ela se recarrega sozinha a cada 5 s. Para atualização ao vivo sem
 recarregar (e para acompanhar de outro computador via túnel SSH), sirva a pasta:
 
 ```bash
-python acompanhar.py saida_spheres_L32_chi0.5 --servir        # http://127.0.0.1:8765/convergencia.html
-python acompanhar.py saida_spheres_L32_chi0.5                 # (re)gera o HTML e abre no navegador
+python acompanhar.py casos/spheres_L32_chi0.5 --servir        # http://127.0.0.1:8765/convergencia.html
+python acompanhar.py casos/spheres_L32_chi0.5                 # (re)gera o HTML e abre no navegador
 ```
 
 O painel mostra:
@@ -124,12 +338,10 @@ O painel mostra:
 * curva do resíduo em escala log com a tolerância e a extrapolação;
 * evolução de cada grandeza do caso (C_D, C_L, Δp, C, erro L2 …) com a **faixa de referência da
   literatura** sombreada, a variação relativa nas últimas 500 it., e opção "Tudo"/"Último terço";
-* valores ao passar o mouse e uma tabela com as últimas 30 leituras; tema claro/escuro automático.
+* valores ao passar o mouse e uma tabela com as últimas 30 leituras (incluindo os resíduos por
+  componente); tema claro/escuro automático.
 
 Outros modos: `--janela` (matplotlib), `--texto` (terminal, ex.: via ssh), `--png` (imagem estática).
-
-Resíduo de convergência: `r = ||u^n − u^(n−100)||₂ / ||u^n||₂` sobre os nós de fluido; o caso para
-quando `r < --tol` (padrão 1e-7).
 
 ## Método e equações
 
@@ -191,15 +403,20 @@ qual foi criado. Abaixo disso o código usa automaticamente o cumulante clássic
   `f(x_b) = f^eq(1, u(x_{b−1})) + f(x_{b−1}) − f^eq(ρ(x_{b−1}), u(x_{b−1}))`
 * Força no corpo por troca de quantidade de movimento [M02]: `F = Σ c_d [f_d*(x_f) + f_d̄(x_f, t+1)]`
 
-## Casos de validação
+## Casos (`--case`)
 
-| Caso | Referência | Grandeza |
-|---|---|---|
-| `shearwave` | decaimento exato `exp(−ν k² t)` [G17] | erro na viscosidade |
-| `duct` | White (2006), *Viscous Fluid Flow*, Eq. 3-48 | erro L2 do perfil |
-| `cylinder` | Schäfer & Turek (1996), caso 3D-1Z, Re = 20 | C_D ∈ [6,05; 6,25], C_L ∈ [0,008; 0,010], Δp ∈ [0,165; 0,175] Pa |
-| `spheres` | Sangani & Acrivos (1982), arranjo cúbico simples, regime de Stokes | arraste C = f_t/(3πμ d u_s) |
-| `cavity` | demonstração (comparar com Albensoeder & Kuhlmann 2005) | perfis centrais |
+Os casos são classes em `lbm3d.py` (dicionário `CASES`). O modelo padrão é `--model k17`, mas o K17 só
+vale para ω ≥ 1,75 (ν ≤ 0,024): fora disso o código usa automaticamente o cumulante clássico [G15] e
+avisa. A coluna "modelo efetivo" indica o que roda com os parâmetros padrão.
+
+| Caso | Descrição | Referência / grandeza | Parâmetros padrão | Modelo efetivo |
+|---|---|---|---|---|
+| `shearwave` | onda de cisalhamento periódica (decaimento viscoso) | decaimento exato `exp(−ν k² t)` [G17]; erro na viscosidade | N = 32, ν = 0,01 | K17 |
+| `duct` | duto retangular periódico em x, forçado por gradiente de pressão | White (2006), Eq. 3-48; erro L2 do perfil | 24 × 16, ν = 0,02 | K17 |
+| `cylinder` | cilindro em canal de seção quadrada, Re = 20 | Schäfer & Turek (1996), 3D-1Z; C_D ∈ [6,05; 6,25], C_L ∈ [0,008; 0,010], Δp ∈ [0,165; 0,175] Pa | D = 10, Um = 0,1 | K17 (para D ≥ 12 recai no cumulante clássico) |
+| `spheres` | arranjo cúbico simples de esferas, regime de Stokes | Sangani & Acrivos (1982); arraste C = f_t/(3πμ d u_s) | L = 32, χ = 0,5, ν = 0,02 | K17 |
+| `cylinder2z` | cilindro em canal, Re = 100, não estacionário (roda até `--max-iter`, padrão 150 D/Ū) | Schäfer & Turek (1996), 3D-2Z; C_D máx., C_L máx./mín., Δp, Strouhal (faixas do artigo ainda não incluídas) | D = 10, Um = 0,1 | K17 (ν = 0,0044) |
+| `cavity` | cavidade cúbica com tampa móvel (demonstração) | comparar com Albensoeder & Kuhlmann (2005); perfis centrais | N = 32, Re = 100, U = 0,1 | cumulante clássico (ν = 0,032) |
 
 Solução do duto (−a ≤ y ≤ a, −b ≤ z ≤ b, G = −dp/dx):
 

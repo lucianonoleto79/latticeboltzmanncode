@@ -1,0 +1,14 @@
+Malha - caso cylinder
+============================================================
+Rede de velocidades     : D3Q27 (27 velocidades discretas, c_s^2 = 1/3)
+Malha cartesiana        : uniforme, dx = dt = 1 (unidades de rede)
+Dimensoes (nx, ny, nz)  : 251 x 43 x 43
+Nos totais              : 464099
+Nos de fluido           : 416970 (89.8 %)
+Nos solidos             : 47129
+Links fluido->solido    : 405942
+  em paredes curvas    : 12100  (q min / med / max = 0.109 / 0.543 / 0.964)
+Espacamento fisico      : dx = 0.01 m
+Viscosidade de rede     : nu = 0.0222222  (omega = 1.76471, tau = 0.56667)
+Modelo de colisao       : k17
+

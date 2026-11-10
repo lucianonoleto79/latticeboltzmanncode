@@ -1,0 +1,18 @@
+{
+ "caso": "cylinder",
+ "pasta": "casos/cylinder_D6_Re20_U0.05_bgk",
+ "it": 15700,
+ "residuo": 9.254301092027637e-07,
+ "residuos": {
+  "res": 9.254301092027637e-07,
+  "res_ux": 9.073056498274083e-07,
+  "res_uy": 1.606137880512926e-07,
+  "res_uz": 8.61426485436707e-08,
+  "res_rho": 2.1267190583695899e-07
+ },
+ "tol": 1e-06,
+ "convergiu": true,
+ "terminou": true,
+ "divergiu": false,
+ "checkpoint": "casos/cylinder_D6_Re20_U0.05_bgk/checkpoint/checkpoint.npz"
+}

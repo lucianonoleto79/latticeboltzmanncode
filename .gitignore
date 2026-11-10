@@ -1,0 +1,18 @@
+# pastas de casos rodados localmente (checkpoints e campos VTK chegam a centenas de MB)
+casos/
+saida_*/
+# dados brutos: nunca vao para o repositorio
+*.npz
+*.vtk
+checkpoint/
+# figuras e logs so sao versionados dentro de resultados/
+*.png
+*.log
+!resultados/**/*.png
+!resultados/**/*.log
+# arquivos de controle de uma simulacao em andamento
+SALVAR
+PAUSAR
+PARAR
+__pycache__/
+.pytest_cache/

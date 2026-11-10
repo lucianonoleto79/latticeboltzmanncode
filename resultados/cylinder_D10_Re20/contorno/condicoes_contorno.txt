@@ -1,0 +1,21 @@
+Condicoes de contorno - caso cylinder
+============================================================
+
+Entrada (x = 0): parede movel com perfil parabolico [L94] (Schaefer & Turek 3D-1Z)
+  U(y, z) = 16 Um y z (H - y)(H - z) / H^4,  Um = 0.1 (rede) = 0.45 m/s, U_media = 4 Um / 9 = 0.04444.
+Saida (x = L): pressao imposta rho = 1 por extrapolacao de nao-equilibrio [G02].
+Paredes do canal (y = 0, H; z = 0, H): nao deslizamento, bounce-back meio caminho [L94].
+Cilindro (D = 10 nos, centro em x = 50.0, y = 20.0): nao deslizamento com bounce-back interpolado linear [B01];
+  forca no corpo por troca de quantidade de movimento [M02] -> C_D, C_L.
+Re = U_media D / nu = 20;  nu = 0.022222 (rede).
+Condicao inicial: perfil de entrada em todo o canal, rho = 1.
+
+Nos por tipo (mapa em contorno_cortes.png / contorno_3d.png):
+  fluido                                                      415289
+  parede fixa (bounce-back, meio caminho) [L94]                42080
+  parede movel / entrada de velocidade [L94]                    1681
+  parede curva (bounce-back interpolado) [B01]                  1476
+  saida com pressao imposta (rho = 1) [G02]                     1681
+  solido (interior, sem contato com o fluido)                   1892
+
+Links fluido->solido: 405942  (paredes curvas: 12100, paredes moveis: 29282)

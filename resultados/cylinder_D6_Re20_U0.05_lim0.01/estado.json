@@ -1,0 +1,18 @@
+{
+ "caso": "cylinder",
+ "pasta": "casos/cylinder_D6_Re20_U0.05_lim0.01",
+ "it": 15600,
+ "residuo": 7.055187032599456e-07,
+ "residuos": {
+  "res": 7.055187032599456e-07,
+  "res_ux": 6.903201585403929e-07,
+  "res_uy": 1.2744920126704242e-07,
+  "res_uz": 7.05083006372919e-08,
+  "res_rho": 1.7532378368629372e-07
+ },
+ "tol": 1e-06,
+ "convergiu": true,
+ "terminou": true,
+ "divergiu": false,
+ "checkpoint": "casos/cylinder_D6_Re20_U0.05_lim0.01/checkpoint/checkpoint.npz"
+}
