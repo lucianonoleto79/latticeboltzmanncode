@@ -72,6 +72,15 @@ pytest
 
 ## Rodar na nuvem (GitHub Actions)
 
+> **Atenção (11/2026): não recomendado para simulações longas.** Os termos do GitHub Actions proíbem
+> nos runners do GitHub "any other activity unrelated to the production, testing, deployment, or
+> publication of the software project" e carga "disproportionate to the benefits provided". Rodadas de
+> horas, encadeadas com continuação automática, podem ser enquadradas aí, e a conta deste repositório
+> já foi suspensa uma vez por atividade sinalizada (motivo exato não informado). Use o Actions só para
+> os testes rápidos (`pytest`) e rode as simulações longas no seu computador (`RODADAS_PENDENTES.md`).
+> As instruções abaixo ficam como registro; os arquivos de fluxo (`.github/workflows/`) não estão
+> neste repositório.
+
 1. Envie o repositório para o GitHub.
 2. Na aba **Actions**, escolha **Simulacao LBM → Run workflow** e preencha o formulário:
 
