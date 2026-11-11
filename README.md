@@ -190,65 +190,396 @@ O painel mostra:
 
 Outros modos: `--janela` (matplotlib), `--texto` (terminal, ex.: via ssh), `--png` (imagem estática).
 
-## Método e equações
+## Formulação matemática e numérica
 
-### 1. Equação de lattice-Boltzmann, rede D3Q27
-`f_i(x + c_i, t+1) = f_i*(x, t)`, com `c_i ∈ {−1,0,1}³`, pesos `w = w_a w_b w_c`, sendo `(1/6, 2/3, 1/6)`,
-e `c_s² = 1/3`, `ν = c_s²(1/ω₁ − 1/2)`, `p = c_s² ρ`.
-Macroscópicas: `ρ = Σ f_i`, `ρu = Σ f_i c_i + F/2`.
+Esta seção descreve o modelo que o `lbm3d.py` resolve e como ele é discretizado, na ordem em que o
+código executa um passo de tempo. As equações usam unidades de rede (Δx = Δt = 1, ρ₀ = 1); a
+conversão para unidades físicas está no item 9. Entre colchetes estão as referências da lista ao fim
+do README e, quando útil, a função do código que implementa cada parte.
 
-### 2. Colisão de cumulantes [G15]
-Transformação "chimera" para momentos centrais, direção por direção (z, y, x):
+### 1. Problema físico
 
-```
-κ₀ = f₋ + f₀ + f₊
-κ₁ = (f₊ − f₋) − u κ₀
-κ₂ = (f₊ + f₋) − 2u (f₊ − f₋) + u² κ₀
-```
+O objetivo é resolver escoamentos laminares, incompressíveis e isotérmicos de um fluido newtoniano,
+com uma força de corpo **F** opcional (gradiente de pressão imposto ou aceleração):
 
-Cumulantes (k = momentos centrais/ρ): `c₂ = k₂`, `c₃ = k₃`,
-`c₂₁₁ = k₂₁₁ − (k₂₀₀k₀₁₁ + 2k₁₁₀k₁₀₁)`, `c₂₂₀ = k₂₂₀ − (k₂₀₀k₀₂₀ + 2k₁₁₀²)`,
-`c₂₂₁ = k₂₂₁ − (k₂₀₀k₀₂₁ + k₀₂₀k₂₀₁ + 4k₁₁₀k₁₁₁ + 2k₁₀₁k₁₂₀ + 2k₀₁₁k₂₁₀)`,
-`c₂₂₂ = k₂₂₂ − Σk₄k₂ − Σk₃k₃ + 2Σk₂k₂k₂` (as somas de partições estão escritas no código).
+$$
+\nabla\cdot\mathbf u = 0,\qquad
+\frac{\partial \mathbf u}{\partial t} + (\mathbf u\cdot\nabla)\mathbf u
+= -\frac{1}{\rho_0}\nabla p + \nu\,\nabla^2\mathbf u + \frac{\mathbf F}{\rho_0}.
+$$
 
-Relaxação de 2ª ordem com correção galileana [G15, Eqs. 58–63]:
+O método de lattice-Boltzmann não resolve essas equações diretamente. Ele evolui funções de
+distribuição de partículas $f_i(\mathbf x,t)$ e, pela expansão de Chapman–Enskog, recupera as
+equações de Navier–Stokes **fracamente compressíveis**, com equação de estado isotérmica
 
-```
-∂x ux = −ω₁/2 (2c₂₀₀ − c₀₂₀ − c₀₀₂) − ω₂/2 (c₂₀₀ + c₀₂₀ + c₀₀₂ − 1)
-(c₂₀₀ − c₀₂₀)* = (1−ω₁)(c₂₀₀ − c₀₂₀) − 3(1 − ω₁/2)(ux² ∂x ux − uy² ∂y uy)
-(c₂₀₀ + c₀₂₀ + c₀₀₂)* = traço + ω₂(1 − traço) − 3(1 − ω₂/2)(ux² ∂x ux + uy² ∂y uy + uz² ∂z uz)
-c₁₁₀* = (1 − ω₁) c₁₁₀
-```
+$$
+p = c_s^2\,\rho,\qquad c_s^2 = \tfrac13 .
+$$
 
-Força de corpo: o momento central de 1ª ordem troca de sinal (`−F/2ρ → +F/2ρ`).
+O erro de compressibilidade em relação ao problema incompressível é de ordem $\mathrm{Ma}^2$, com
+$\mathrm{Ma} = U/c_s = \sqrt3\,U$. Por isso as velocidades de rede são mantidas pequenas
+(U ≤ 0,1, ou seja, Ma ≲ 0,17).
 
-### 3. Parametrização K17 (difusão de 4ª ordem) [G17], com ω₂ = 1
+### 2. Rede D3Q27 e equação de lattice-Boltzmann
 
-```
-ω₃ = 8(ω₁−2)(1+2ω₁) / (7ω₁² − 14ω₁ − 8)          (c₁₂₀ + c₁₀₂, …)
-ω₄ = 8(ω₁−2)(4ω₁−7) / (9ω₁² − 50ω₁ + 56)          (c₁₂₀ − c₁₀₂, …)
-ω₅ = 24(ω₁−2)(3ω₁² − 7ω₁ − 2) / (29ω₁³ − 130ω₁² + 152ω₁ + 48)   (c₁₁₁)
-A  = (4 + 2ω₁ − 3ω₁²) / (2 − 7ω₁ + 5ω₁²)
-B  = (4 + 28ω₁ − 14ω₁²) / (6 − 21ω₁ + 15ω₁²)
-c₀₂₂* = −(1/ω₁ − 1/2)·(2/3)·A·(∂y uy + ∂z uz)      (idem c₂₀₂, c₂₂₀)
-c₁₁₂* = −(1/ω₁ − 1/2)·(1/3)·B·(∂x uy + ∂y ux)      (idem c₁₂₁, c₂₁₁)
-c₅ = c₆ = 0
-```
+**Velocidades discretas.** São as 27 combinações $\mathbf c_i = (a-1,\,b-1,\,c-1)$, com
+$a,b,c \in \{0,1,2\}$. No código as populações ficam no vetor `f[a, b, c, x, y, z]`; o índice
+linear é $d = 9a+3b+c$, e a direção oposta é $\bar d = 26-d$ (`CV`, `OPP`).
 
-Essas expressões foram conferidas com o código-fonte aberto do VirtualFluids (TU Braunschweig),
-de onde vêm o K17 e o artigo [G17].
+**Pesos.** São o produto de pesos 1D, $w_{abc} = w_a w_b w_c$, com $(w_0,w_1,w_2) = (1/6,\,2/3,\,1/6)$
+(`W`):
 
-**Faixa de uso:** com ω₂ = 1, A tem um polo em ω₁ = 1 e ω₄ tem um polo em ω₁ ≈ 1,556. Nos testes, o
-K17 só foi estável e mais preciso para **ω₁ ≥ 1,75 (ν ≤ 0,024)**, o regime de baixa viscosidade para o
-qual foi criado. Abaixo disso o código usa automaticamente o cumulante clássico [G15] e avisa.
+| Grupo | Nº de direções | Peso |
+|---|---|---|
+| repouso, $\mathbf c = 0$ | 1 | 8/27 |
+| faces, $\lvert\mathbf c\rvert = 1$ | 6 | 2/27 |
+| arestas, $\lvert\mathbf c\rvert = \sqrt2$ | 12 | 1/54 |
+| vértices, $\lvert\mathbf c\rvert = \sqrt3$ | 8 | 1/216 |
 
-### 4. Condições de contorno
-* Parede (meio caminho) e parede móvel [L94]: `f_d̄(x_f, t+1) = f_d*(x_f) − 6 w_d ρ_w (c_d·u_w)`
-* Parede curva, interpolação linear [B01], com `q` a fração do link até a parede:
-  `q<½: f_d̄ = 2q f_d*(x_f) + (1−2q) f_d*(x_f − c_d)`; `q≥½: f_d̄ = f_d*/(2q) + (2q−1)/(2q) f_d̄*(x_f)`
-* Saída com `ρ = 1` por extrapolação de não-equilíbrio [G02]:
-  `f(x_b) = f^eq(1, u(x_{b−1})) + f(x_{b−1}) − f^eq(ρ(x_{b−1}), u(x_{b−1}))`
-* Força no corpo por troca de quantidade de movimento [M02]: `F = Σ c_d [f_d*(x_f) + f_d̄(x_f, t+1)]`
+**Equação de evolução.** Cada passo é dividido em colisão (local) e propagação:
+
+$$
+f_i^{*}(\mathbf x,t) = f_i(\mathbf x,t) + \Omega_i\big(f(\mathbf x,t)\big),\qquad
+f_i(\mathbf x+\mathbf c_i,\,t+1) = f_i^{*}(\mathbf x,t).
+$$
+
+**Grandezas macroscópicas** (`macroscopic`). A velocidade inclui metade da força de corpo, o que
+torna o esquema de forçamento de 2ª ordem (item 5):
+
+$$
+\rho = \sum_i f_i,\qquad
+\rho\,\mathbf u = \sum_i f_i\,\mathbf c_i + \tfrac12\,\mathbf F .
+$$
+
+**Viscosidade.** A viscosidade cinemática é dada pela taxa de relaxação de cisalhamento $\omega_1$:
+
+$$
+\nu = c_s^2\left(\frac1{\omega_1}-\frac12\right) = \frac13\left(\frac1{\omega_1}-\frac12\right)
+\quad\Longleftrightarrow\quad
+\omega_1 = \frac{1}{3\nu+\tfrac12}.
+$$
+
+Cada caso escolhe ν (diretamente, ou a partir de Re e da velocidade de referência), e o código
+calcula $\omega_1$ com essa relação. É preciso $0<\omega_1<2$, ou seja, ν > 0.
+
+### 3. Momentos centrais e cumulantes
+
+A colisão não é feita sobre as populações, e sim sobre os **cumulantes**, que são invariantes
+galileanos e estatisticamente independentes entre si [G15]. O caminho é
+populações → momentos centrais → cumulantes → relaxação → momentos centrais → populações.
+
+**Momentos centrais.** São os momentos na velocidade local do fluido, normalizados por ρ:
+
+$$
+\kappa_{\alpha\beta\gamma} = \frac1\rho\sum_i f_i\,(c_{ix}-u_x)^\alpha\,(c_{iy}-u_y)^\beta\,(c_{iz}-u_z)^\gamma .
+$$
+
+**Transformação "chimera"** [G15, Apêndice J] (`_fwd`, `_bwd`). Como a rede é um produto de três
+redes 1D de 3 velocidades, a transformação é aplicada uma direção por vez: z, depois y, depois x.
+Em cada linha de três valores $(f_-, f_0, f_+)$, com $u$ a componente da velocidade naquela direção:
+
+$$
+\kappa_0 = f_- + f_0 + f_+,\qquad
+\kappa_1 = (f_+-f_-) - u\,\kappa_0,\qquad
+\kappa_2 = (f_++f_-) - 2u\,(f_+-f_-) + u^2\kappa_0 .
+$$
+
+A inversa, aplicada na ordem x, y, z, é
+
+$$
+f_- = \tfrac12\big[(u^2-u)\,\kappa_0 + (2u-1)\,\kappa_1 + \kappa_2\big],\quad
+f_0 = (1-u^2)\,\kappa_0 - 2u\,\kappa_1 - \kappa_2,\quad
+f_+ = \tfrac12\big[(u^2+u)\,\kappa_0 + (2u+1)\,\kappa_1 + \kappa_2\big].
+$$
+
+Isso custa O(27) operações por nó, em vez das O(27²) de uma matriz de momentos geral.
+
+**Cumulantes.** São os coeficientes da expansão do logaritmo da transformada de Laplace da
+distribuição. Em termos dos momentos centrais (já normalizados por ρ):
+
+* 2ª e 3ª ordens: são iguais aos momentos centrais, por exemplo $c_{200}=\kappa_{200}$,
+  $c_{110}=\kappa_{110}$, $c_{210}=\kappa_{210}$, $c_{111}=\kappa_{111}$;
+* 4ª ordem:
+
+$$
+c_{211} = \kappa_{211} - (\kappa_{200}\kappa_{011} + 2\kappa_{110}\kappa_{101}),\qquad
+c_{220} = \kappa_{220} - (\kappa_{200}\kappa_{020} + 2\kappa_{110}^2)
+$$
+
+  e permutações;
+* 5ª ordem:
+
+$$
+c_{221} = \kappa_{221} - (\kappa_{200}\kappa_{021} + \kappa_{020}\kappa_{201}
++ 4\kappa_{110}\kappa_{111} + 2\kappa_{101}\kappa_{120} + 2\kappa_{011}\kappa_{210})
+$$
+
+  e permutações;
+* 6ª ordem:
+
+$$
+\begin{aligned}
+c_{222} = \kappa_{222}
+&- \big[\kappa_{200}\kappa_{022} + \kappa_{020}\kappa_{202} + \kappa_{002}\kappa_{220}
+      + 4(\kappa_{110}\kappa_{112} + \kappa_{101}\kappa_{121} + \kappa_{011}\kappa_{211})\big] \\
+&- \big[2(\kappa_{210}\kappa_{012} + \kappa_{201}\kappa_{021} + \kappa_{120}\kappa_{102})
+      + 4\kappa_{111}^2\big] \\
+&+ 2\big[\kappa_{200}\kappa_{020}\kappa_{002}
+      + 2(\kappa_{200}\kappa_{011}^2 + \kappa_{020}\kappa_{101}^2 + \kappa_{002}\kappa_{110}^2)
+      + 8\kappa_{110}\kappa_{101}\kappa_{011}\big].
+\end{aligned}
+$$
+
+Os cumulantes de 4ª a 6ª ordem relaxam com taxa 1 (item 4). Por isso o código não precisa
+calculá-los antes da colisão: usa essas fórmulas só no sentido inverso, para reconstruir os momentos
+centrais pós-colisão a partir dos cumulantes de equilíbrio (`_cumulant_relax`).
+
+**Equilíbrio** (`equilibrium`). É a Maxwelliana discreta, cujos momentos centrais se fatoram por
+direção: $\kappa^{eq}_{\alpha\beta\gamma} = e_\alpha e_\beta e_\gamma$, com $e = (1,\,0,\,1/3)$
+(`KEQ`). Por exemplo, $\kappa^{eq}_{200} = 1/3$, $\kappa^{eq}_{220} = 1/9$, $\kappa^{eq}_{222} = 1/27$,
+e os momentos com algum índice ímpar são nulos. Em cumulantes, o único não nulo além de $c_{000}$ é
+$c^{eq}_{200} = c^{eq}_{020} = c^{eq}_{002} = c_s^2 = 1/3$. As populações de equilíbrio
+$f^{eq}(\rho,\mathbf u)$ são obtidas aplicando a transformação inversa a $\rho\,\kappa^{eq}$.
+
+### 4. Operador de colisão
+
+Cada grupo de cumulantes relaxa para o equilíbrio com sua própria taxa,
+$c^{*} = c + \omega\,(c^{eq} - c)$, ou seja, $c^{*} = (1-\omega)\,c + \omega\,c^{eq}$
+(`collide`, `_cumulant_relax`). Há três modelos (`--model`).
+
+#### 4.1 Cumulante clássico [G15] (`--model cumulant`)
+
+**Gradientes de velocidade.** São estimados localmente a partir dos cumulantes de 2ª ordem
+pré-colisão (válidos até a ordem dominante da expansão) [G15, Eqs. 58–60], com
+$T = c_{200}+c_{020}+c_{002}$:
+
+$$
+\begin{aligned}
+\partial_x u_x &= -\tfrac{\omega_1}{2}\,(2c_{200}-c_{020}-c_{002}) - \tfrac{\omega_2}{2}\,(T-1),\\
+\partial_y u_y &= \partial_x u_x + \tfrac{3\omega_1}{2}\,(c_{200}-c_{020}),\qquad
+\partial_z u_z = \partial_x u_x + \tfrac{3\omega_1}{2}\,(c_{200}-c_{002}),\\
+\partial_x u_y + \partial_y u_x &= -3\,\omega_1\,c_{110}\quad(\text{idem } xz,\ yz).
+\end{aligned}
+$$
+
+**2ª ordem.** As partes desviadoras e os termos fora da diagonal relaxam com $\omega_1$
+(viscosidade de cisalhamento). O traço relaxa com $\omega_2$ (viscosidade volumétrica), e no código
+$\omega_2 = 1$. Os termos em $u^2\,\partial u$ são a correção galileana [G15, Eqs. 61–63], que remove
+o erro cúbico na velocidade da rede D3Q27:
+
+$$
+\begin{aligned}
+(c_{200}-c_{020})^{*} &= (1-\omega_1)\,(c_{200}-c_{020})
+  - 3\left(1-\tfrac{\omega_1}{2}\right)\big(u_x^2\,\partial_x u_x - u_y^2\,\partial_y u_y\big),\\
+(c_{200}-c_{002})^{*} &= (1-\omega_1)\,(c_{200}-c_{002})
+  - 3\left(1-\tfrac{\omega_1}{2}\right)\big(u_x^2\,\partial_x u_x - u_z^2\,\partial_z u_z\big),\\
+T^{*} &= T + \omega_2\,(1-T)
+  - 3\left(1-\tfrac{\omega_2}{2}\right)\big(u_x^2\,\partial_x u_x + u_y^2\,\partial_y u_y + u_z^2\,\partial_z u_z\big),\\
+c_{110}^{*} &= (1-\omega_1)\,c_{110}\quad(\text{idem } c_{101},\ c_{011}).
+\end{aligned}
+$$
+
+Os valores diagonais são recompostos como
+$c_{200}^{*} = \tfrac13\big[T^{*} + (c_{200}-c_{020})^{*} + (c_{200}-c_{002})^{*}\big]$, e
+analogamente para $c_{020}^{*}$ e $c_{002}^{*}$.
+
+**3ª ordem.** Relaxa em combinações simétricas e antissimétricas:
+
+$$
+(c_{210}+c_{012})^{*} = (1-\omega_3)\,(c_{210}+c_{012}),\qquad
+(c_{210}-c_{012})^{*} = (1-\omega_4)\,(c_{210}-c_{012}),\qquad
+c_{111}^{*} = (1-\omega_5)\,c_{111}
+$$
+
+e o mesmo para os pares $(c_{201},c_{021})$ e $(c_{120},c_{102})$. No cumulante clássico,
+$\omega_3=\omega_4=\omega_5=1$.
+
+**4ª a 6ª ordens.** Taxa 1: todos vão para o equilíbrio, que é zero.
+
+**Limitador opcional** (`--limiter λ`) [G17, Eq. 20]. Quando $\omega\neq1$, a taxa de cada
+combinação de 3ª ordem passa a ser $\omega' = \omega + (1-\omega)\,\dfrac{|c|}{\lambda+|c|}$. Isso
+leva cumulantes grandes (escoamento mal resolvido) para o equilíbrio, sem alterar os pequenos.
+
+#### 4.2 Cumulante parametrizado K17 [G17] (`--model k17`, padrão)
+
+A estrutura é a mesma do 4.1, mas as taxas de 3ª ordem e os equilíbrios de 4ª ordem são escolhidos
+para que a difusão tenha **precisão de 4ª ordem**. Com $\omega_2 = 1$ e $\omega \equiv \omega_1$
+(`k17_parameters`):
+
+$$
+\begin{aligned}
+\omega_3 &= \frac{8(\omega-2)(1+2\omega)}{7\omega^2-14\omega-8}, \qquad
+\omega_4 = \frac{8(\omega-2)(4\omega-7)}{9\omega^2-50\omega+56}, \qquad
+\omega_5 = \frac{24(\omega-2)(3\omega^2-7\omega-2)}{29\omega^3-130\omega^2+152\omega+48},\\[4pt]
+A &= \frac{4+2\omega-3\omega^2}{2-7\omega+5\omega^2}, \qquad
+B = \frac{4+28\omega-14\omega^2}{6-21\omega+15\omega^2}.
+\end{aligned}
+$$
+
+Os cumulantes de 4ª ordem relaxam (com taxa 1) para equilíbrios proporcionais aos gradientes de
+velocidade:
+
+$$
+\begin{aligned}
+c_{022}^{*} &= -\left(\tfrac1{\omega}-\tfrac12\right)\tfrac23\,A\,(\partial_y u_y + \partial_z u_z)
+  \quad(\text{idem } c_{202},\ c_{220}),\\
+c_{112}^{*} &= -\left(\tfrac1{\omega}-\tfrac12\right)\tfrac13\,B\,(\partial_x u_y + \partial_y u_x)
+  \quad(\text{idem } c_{121},\ c_{211}),
+\end{aligned}
+$$
+
+e os de 5ª e 6ª ordens continuam indo para zero. Essas expressões foram conferidas com o
+código-fonte aberto do VirtualFluids (TU Braunschweig), de onde vêm o K17 e o artigo [G17].
+
+**Faixa de validade.** Com $\omega_2 = 1$, $A$ tem um polo em $\omega = 1$, e $\omega_4$ tem um polo
+em $\omega \approx 1{,}556$ (fica fora de (0, 2) para 1,43 < ω < 1,75). Nos testes de onda de
+cisalhamento, o K17 só foi estável e mais preciso que o clássico para **ω ≥ 1,75 (ν ≤ 0,024)**, o
+regime de baixa viscosidade para o qual ele foi criado. Abaixo disso, `collision_parameters` troca
+automaticamente para o cumulante clássico e imprime um aviso.
+
+#### 4.3 BGK (`--model bgk`)
+
+Todos os momentos centrais relaxam com a mesma taxa $\omega_1$ para $\kappa^{eq}$. Como a
+transformação para momentos centrais é linear para **u** fixo, isso equivale ao BGK clássico
+$\Omega_i = \omega_1\,(f_i^{eq} - f_i)$ com o equilíbrio fatorado do item 3. Serve como referência
+de comparação.
+
+### 5. Força de corpo
+
+A força entra em dois lugares [G15]:
+
+1. Na velocidade, $\rho\mathbf u = \sum f_i\mathbf c_i + \mathbf F/2$. Com isso, o momento central
+   de 1ª ordem pré-colisão vale $\kappa_{100} = -F_x/(2\rho)$.
+2. Na colisão, esse momento troca de sinal: $\kappa_{100}^{*} = +F_x/(2\rho)$ (idem y, z).
+
+A quantidade de movimento de cada nó aumenta, portanto, exatamente **F** por passo, e a velocidade
+física é a média entre os instantes pré- e pós-colisão. Esse é o forçamento de 2ª ordem usual do LBM
+(análogo ao esquema de Guo, Zheng e Shi). Ele é usado para impor o gradiente de pressão no duto
+($F_x = G = -\mathrm dp/\mathrm dx$) e a aceleração no arranjo de esferas ($F_x = \rho g$).
+
+### 6. Discretização espacial e geometria
+
+A malha é cartesiana e uniforme, com Δx = 1. Os sólidos são representados por uma máscara booleana
+nos nós (`case.solid`).
+
+* **Posição das paredes.** O nó $(i,j,k)$ fica na coordenada $(i-\tfrac12,\,j-\tfrac12,\,k-\tfrac12)$.
+  Assim, uma camada de nós sólidos "fantasma" em $j=0$ coloca a parede plana exatamente a meio
+  caminho entre o nó sólido e o primeiro nó de fluido, onde o bounce-back simples é de 2ª ordem.
+* **Paredes curvas** (cilindro, esferas). Um nó é sólido se o seu centro está dentro do corpo. Para
+  cada **link** fluido → sólido (nó de fluido $\mathbf x_f$, direção $\mathbf c_d$ com
+  $\mathbf x_f+\mathbf c_d$ sólido), a fração $q\in(0,1]$ do link até a superfície vem da interseção
+  exata do segmento com a esfera ou o cilindro, ou seja, a menor raiz de
+  $|\mathbf p + q\,\mathbf c_d|^2 = R^2$ (com $\mathbf p = \mathbf x_f - \mathbf x_c$; no cilindro
+  só as componentes x e y). A lista de links é montada uma única vez (`build_links`).
+* **Periodicidade.** A propagação usa `np.roll`, que é periódica em todas as direções. Onde há
+  parede, a condição de contorno sobrescreve as populações que atravessariam o sólido.
+
+### 7. Condições de contorno
+
+Todas as condições de parede usam a mesma fórmula por link (`Links.apply`), aplicada logo após a
+propagação. Ela define a população que volta para o fluido, $f_{\bar d}(\mathbf x_f,t+1)$:
+
+$$
+f_{\bar d}(\mathbf x_f,t+1) = A_1\,f_d^{*}(\mathbf x_f) + A_2\,f_d^{*}(\mathbf x_f-\mathbf c_d)
++ A_3\,f_{\bar d}^{*}(\mathbf x_f) + m_w .
+$$
+
+| Condição | Coeficientes |
+|---|---|
+| Parede fixa, bounce-back a meio caminho [L94] | $A_1=1$, $A_2=A_3=0$ |
+| Parede curva, $q<\tfrac12$ [B01] | $A_1=2q$, $A_2=1-2q$ |
+| Parede curva, $q\ge\tfrac12$ [B01] | $A_1=\tfrac1{2q}$, $A_3=\tfrac{2q-1}{2q}$ |
+| Parede móvel com velocidade $\mathbf u_w$ [L94] | $m_w = -2\,w_d\,\rho_w\,(\mathbf c_d\cdot\mathbf u_w)/c_s^2 = -6\,w_d\,(\mathbf c_d\cdot\mathbf u_w)$, com $\rho_w = 1$ |
+
+Na parede curva com $q<\tfrac12$, se o nó $\mathbf x_f-\mathbf c_d$ não for fluido, o código recai
+no bounce-back simples.
+
+**Entrada com velocidade imposta** (cilindro). A entrada é uma parede móvel em $x=0$, com o perfil
+de Schäfer–Turek avaliado no ponto médio de cada link:
+
+$$
+u_w(y,z) = \frac{16\,U_m\,y\,z\,(H-y)(H-z)}{H^4}.
+$$
+
+A tampa da cavidade usa a mesma condição, com $\mathbf u_w = (U,0,0)$.
+
+**Saída com pressão imposta** (cilindro), pela extrapolação de não-equilíbrio [G02]
+(`Cylinder.post_stream`). No último plano $x_b$, as populações são substituídas usando o penúltimo
+plano $x_{b-1}$:
+
+$$
+f_i(\mathbf x_b) = f_i^{eq}\big(1,\,\mathbf u(\mathbf x_{b-1})\big)
++ \Big[f_i(\mathbf x_{b-1}) - f_i^{eq}\big(\rho(\mathbf x_{b-1}),\,\mathbf u(\mathbf x_{b-1})\big)\Big].
+$$
+
+Ou seja, ρ = 1 (p = 1/3) é imposto, a velocidade é extrapolada com ordem zero e a parte de
+não-equilíbrio é copiada do vizinho.
+
+**Nós sólidos.** A cada passo eles são reinicializados com $f_i = w_i$ (equilíbrio em repouso), para
+que nenhum valor espúrio se acumule dentro do corpo.
+
+**Força sobre o corpo** (troca de quantidade de movimento [M02], `Links.force`). A força é a soma,
+sobre os links do corpo, da quantidade de movimento que sai e volta em cada link:
+
+$$
+\mathbf F = \sum_{\text{links}} \mathbf c_d\,\Big[f_d^{*}(\mathbf x_f,t) + f_{\bar d}(\mathbf x_f,t+1)\Big].
+$$
+
+No arranjo de esferas, soma-se a ela o empuxo $\rho g V_p$ para obter a força total por esfera.
+
+### 8. Algoritmo de um passo de tempo (`Simulation.step`)
+
+1. **Colisão**, em blocos de planos x para que os temporários do NumPy caibam no cache: ρ e **u**
+   (com F/2) → momentos centrais → relaxação dos cumulantes (item 4) → populações pós-colisão $f^{*}$.
+   ρ e **u** ficam guardados para a saída.
+2. **Nós sólidos** ← $w_i$.
+3. **Propagação** periódica: $f_i(\mathbf x+\mathbf c_i) \leftarrow f_i^{*}(\mathbf x)$, num segundo
+   vetor.
+4. **Paredes** (bounce-back simples, interpolado e móvel) aplicadas aos links.
+5. **Condições específicas do caso**, como a saída de pressão do cilindro.
+6. **Força no corpo**, nos casos com obstáculo.
+7. Troca dos dois vetores de populações e $t \leftarrow t+1$.
+
+**Condição inicial.** É o equilíbrio $f_i = f_i^{eq}(\rho_0,\mathbf u_0)$, com ρ₀ = 1 e $\mathbf u_0$
+dado pelo caso: repouso, perfil de entrada ou onda senoidal.
+
+**Precisão.** O esquema é de 2ª ordem no espaço e no tempo, desde que o forçamento seja o do item 5
+e as paredes estejam a meio caminho ou sejam interpoladas [B01]. O K17 eleva a difusão para 4ª ordem
+na faixa de ω do item 4.2.
+
+### 9. Unidades, parâmetros adimensionais e convergência
+
+**Unidades de rede.** Cada caso fixa a resolução (D, N, L) e a velocidade de rede $U$, e calcula a
+viscosidade de rede a partir do número de Reynolds, $\nu = U\,L_{ref}/\mathrm{Re}$. Para converter
+para unidades físicas, usa-se a semelhança de Re: $\Delta x = L_{fis}/L_{rede}$, a escala de
+velocidade $U_{fis}/U_{rede}$, e as diferenças de pressão
+
+$$
+\Delta p_{fis} = \rho_{fis}\,\Big(\tfrac{U_{fis}}{U_{rede}}\Big)^2\,c_s^2\,\Delta\rho_{rede}.
+$$
+
+No cilindro, por exemplo, $\Delta p_{fis} = \tfrac13\,\Delta\rho\,(0{,}2/\bar U_{rede})^2$ Pa, com
+ρ_fis = 1 kg/m³ e Ū = 0,2 m/s.
+
+**Escolhas que controlam o erro.**
+
+* Ma = √3·U pequeno. O cilindro usa $U_m = 0{,}1$, logo Ma ≈ 0,17 no máximo e
+  Ma(Ū) ≈ 0,08.
+* Re de partícula ≪ 1 no arranjo de esferas: g é escolhido para $u_s \approx 10^{-4}$.
+* $\omega_1$ longe de 2 (ν não muito pequeno), para estabilidade, e na faixa adequada ao modelo
+  escolhido.
+
+**Estado estacionário.** A simulação é avançada no tempo (pseudo-transiente) até o resíduo
+$\mathrm{res}(u) = \lVert\mathbf u^n-\mathbf u^{n-100}\rVert_2/\lVert\mathbf u^n\rVert_2$, calculado
+sobre os nós de fluido, ficar abaixo de `--tol` (seção **Resíduos**). Casos transientes, como a onda
+de cisalhamento, rodam um número fixo de iterações.
+
+**Verificações incluídas.** Os casos de teste conferem partes diferentes da formulação:
+
+* a viscosidade numérica (onda de cisalhamento, $A(t) \propto e^{-\nu k^2 t}$);
+* a invariância galileana (onda com advecção, `--u-adv`);
+* o forçamento e as paredes planas (duto, contra a série de White);
+* as paredes curvas e a força por troca de quantidade de movimento (cilindro e esferas).
 
 ## Casos (`--case`)
 
