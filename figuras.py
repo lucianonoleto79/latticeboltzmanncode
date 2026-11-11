@@ -50,6 +50,9 @@ def _salvar(fig, caminho, dpi=120):
 def _grade_cortes(case, altura_extra=0.0):
     """Figura com os tres cortes: lado a lado, ou empilhados para dominios alongados."""
     sh = case.shape
+    if min(sh) == 1:           # malha 2D: um unico corte
+        fig = _figura(8, 7 + altura_extra)
+        return fig, [fig.add_subplot(1, 1, 1)]
     if max(sh) > 3 * min(sh):
         fig = _figura(12, 10 + altura_extra)
         return fig, [fig.add_subplot(3, 1, n + 1) for n in range(3)]
@@ -71,7 +74,10 @@ def planos(case):
     vem primeiro.  Para casos com obstaculo o indice passa pelo seu centro."""
     centro = getattr(case, "centro_obstaculo", None)
     out = []
-    for ax in [case.slice_axis] + [a for a in range(3) if a != case.slice_axis]:
+    eixos = [case.slice_axis] + [a for a in range(3) if a != case.slice_axis]
+    if min(case.shape) == 1:   # malha 2D (uma camada): so o plano que contem o escoamento
+        eixos = [int(np.argmin(case.shape))]
+    for ax in eixos:
         n = case.shape[ax]
         idx = n // 2
         if centro is not None and centro[ax] is not None:
@@ -439,15 +445,18 @@ def figuras_escoamento(sim, pasta):
 # Graficos de convergencia
 # ---------------------------------------------------------------------------
 def _serie(hist, k):
-    it = np.asarray(hist["it"], float)
-    v = np.asarray(hist[k], float)
-    return it[len(it) - len(v):], v
+    """(iteracoes, valores) alinhados pelo fim; listas vazias ou de tamanhos diferentes
+    nunca geram IndexError."""
+    it = np.asarray(hist.get("it", []), float)
+    v = np.asarray(hist.get(k, []), float)
+    n = min(it.size, v.size)
+    return it[it.size - n:], v[v.size - n:]
 
 
 def graficos_convergencia(sim, pasta, tol=None):
     h = sim.hist
     arquivos = []
-    if not h.get("it"):
+    if not h.get("it") or not h.get("res"):
         return arquivos
     fig = _figura(9, 5)
     a = fig.add_subplot(1, 1, 1)
@@ -469,7 +478,7 @@ def graficos_convergencia(sim, pasta, tol=None):
     a.set_title("Residuos - %s (it = %d, res = %.3e)" % (sim.case.name, sim.it, h["res"][-1]))
     arquivos.append(_salvar(fig, os.path.join(pasta, "convergencia.png")))
 
-    extras = [k for k in h if k != "it" and not k.startswith("res")]
+    extras = [k for k in h if k != "it" and not k.startswith("res") and _serie(h, k)[1].size]
     if extras:
         refs = sim.case.ref_ranges()
         fig = _figura(9, 2.4 * len(extras) + 0.8)
@@ -491,3 +500,158 @@ def graficos_convergencia(sim, pasta, tol=None):
         fig.suptitle("Grandezas monitoradas - %s" % sim.case.name)
         arquivos.append(_salvar(fig, os.path.join(pasta, "grandezas.png")))
     return arquivos
+
+
+# ---------------------------------------------------------------------------
+# Transferencia de calor (caso calor, [CN26])
+# ---------------------------------------------------------------------------
+def _graus(theta):
+    """theta = (T - Tw)/(Tinf - Tw) -> graus C de [CN26] (Tw = 15 C, Tinf = 35 C)."""
+    return 15.0 + 20.0 * theta
+
+
+def figuras_temperatura(sim, pasta):
+    """Campo de temperatura em graus C, janela -4 <= x/D <= 12, -4 <= y/D <= 4 (Figs. 4, 8, 11)."""
+    case = sim.case
+    th = sim.termico
+    T = _graus(th.temperatura()[:, :, 0])
+    if case.metodo == "sem_solido":
+        T = np.where(case.corpo[:, :, 0], np.nan, T)
+    D = case.D
+    x = (np.arange(T.shape[0]) - 0.5 - case.xc) / D
+    y = (np.arange(T.shape[1]) - 0.5 - case.yc) / D
+    sx = (x >= -4) & (x <= 12)
+    sy = (y >= -4) & (y <= 4)
+    fig = _figura(9, 4.4)
+    a = fig.add_subplot(1, 1, 1)
+    import matplotlib
+    cmap = matplotlib.colormaps["jet"].copy()
+    cmap.set_bad("white")
+    im = a.imshow(T[np.ix_(sx, sy)].T, origin="lower", cmap=cmap, vmin=15, vmax=35, aspect="equal",
+                  extent=(x[sx][0] - 0.5 / D, x[sx][-1] + 0.5 / D, y[sy][0] - 0.5 / D, y[sy][-1] + 0.5 / D),
+                  interpolation="bilinear")
+    fig.colorbar(im, ax=a, shrink=0.8, label="T [°C]")
+    a.set_xlabel("x/D")
+    a.set_ylabel("y/D")
+    from lbm3d import NOME_FORMA
+    a.set_title("%s - Re = %g - %s  (t/Δt = %d)" % (NOME_FORMA[case.forma], case.Re,
+                                                     case.metodo.replace("_", " "), sim.it), fontsize=10)
+    arqs = [_salvar(fig, os.path.join(pasta, "temperatura.png"), dpi=130)]
+    return arqs
+
+
+def graficos_calor(case, sim, pasta, r):
+    """Graficos de Nu no formato de [CN26]."""
+    from lbm3d import NOME_FORMA, ciclos_completos, nu_churchill_bernstein
+    arqs = []
+    nome = "%s, Re = %g" % (NOME_FORMA[case.forma], case.Re)
+    if case.metodo == "sem_solido":
+        nu = np.asarray(case.serie_nu, float)
+        n = nu.size
+        if n < 2:
+            return arqs
+        inst = np.arange(1, n + 1)
+        Nu = r["Nu"]
+        # (a) historia completa + media
+        fig = _figura(9, 3.6)
+        a = fig.add_subplot(1, 1, 1)
+        a.plot(inst, nu, "k-", lw=0.6, label="Nu_inst")
+        a.axhline(Nu, color="b", lw=1.5, label="Nu = %.4f" % Nu)
+        if case.forma == "circulo":
+            a.axhline(nu_churchill_bernstein(case.Re, case.Pr), color="r", ls="--", lw=1,
+                      label="Eq. 17 = %.3f" % nu_churchill_bernstein(case.Re, case.Pr))
+        lo, hi = np.percentile(nu[n // 2:], [0, 100])
+        pad = max(0.15 * (hi - lo), 0.05 * abs(Nu))
+        a.set_ylim(lo - pad, hi + pad)
+        a.set_xlabel("inst (t/Δt)")
+        a.set_ylabel("Nu_inst")
+        a.grid(alpha=0.3)
+        a.legend(fontsize=8)
+        a.set_title("Variação do número de Nusselt - %s (sem sólido)" % nome, fontsize=10)
+        arqs.append(_salvar(fig, os.path.join(pasta, "nusselt_historia.png")))
+        if case.transiente:
+            ini, per = ciclos_completos(nu, 9)
+            if ini is not None and per:
+                # Fig. 10: sete periodos finais
+                m = int(round(7 * per))
+                fig = _figura(7, 3.4)
+                a = fig.add_subplot(1, 1, 1)
+                a.plot(np.arange(1, m + 1), nu[-m:], "k-", lw=1, label="Nu_inst")
+                a.axhline(Nu, color="b", lw=2, label="Nu=%.4f" % Nu)
+                a.set_xlabel("inst (t/Δt)")
+                a.set_ylabel("Nu_inst")
+                a.grid(alpha=0.3)
+                a.legend(fontsize=8, loc="upper center", ncol=2)
+                a.set_title(NOME_FORMA[case.forma], fontsize=11, fontweight="bold")
+                arqs.append(_salvar(fig, os.path.join(pasta, "nusselt_7periodos.png")))
+                # Fig. 5(b, c): sinal Nu_inst - Nu_avg nos 9 ciclos finais e FFT
+                sinal = nu[ini:] - nu[ini:].mean()
+                F = np.abs(np.fft.rfft(sinal))
+                tempo = np.arange(sinal.size)       # em passos de rede
+                fig = _figura(11, 3.6)
+                a = fig.add_subplot(1, 2, 1)
+                a.plot(tempo * case.U / case.D, sinal, "k-", lw=0.8)
+                a.set_xlabel("t U/D (amostra)")
+                a.set_ylabel("Nu_inst - Nu_avg")
+                a.grid(alpha=0.3)
+                a.set_title("(b) amostra: 9 ciclos completos", fontsize=9)
+                a = fig.add_subplot(1, 2, 2)
+                a.plot(np.arange(F.size)[:40], F[:40], "b.-")
+                a.set_xlabel("frequência (ciclos na amostra)")
+                a.set_ylabel("Magnitude |FFT|")
+                a.grid(alpha=0.3)
+                a.set_title("(c) pico em %d ciclos; St = D/(T U) = %.4f"
+                            % (int(np.argmax(F)), case.D / (per * case.U)), fontsize=9)
+                arqs.append(_salvar(fig, os.path.join(pasta, "nusselt_fft.png")))
+        return arqs
+    # --- metodo com solido: Figs. 6 e 7 ---
+    tc = np.asarray(case.serie_tc, float)
+    n = tc.size
+    if n < 20:
+        return arqs
+    t = np.arange(n, dtype=float)
+    fator = case.perimetro / (case.Cs * case.area_discreta)
+    h_ref = nu_churchill_bernstein(case.Re, case.Pr) * case.alfa / case.D if case.forma == "circulo" else None
+    h = r.get("h_rede", np.nan)
+    fig = _figura(12, 4)
+    a = fig.add_subplot(1, 2, 1)
+    a.plot(t, _graus(tc), "k-", lw=2, label="CFD (centro do sólido)")
+    if h_ref:
+        a.plot(t, _graus(1 - np.exp(-h_ref * fator * t)), "r--", lw=1.2, label="Eq. 14 com h da Eq. 17")
+    a.plot(t, _graus(1 - np.exp(-h * fator * t)), "b:", lw=1.2, label="Eq. 14 com h ajustado")
+    a.set_xlabel("inst (t/Δt)")
+    a.set_ylabel("T [°C]")
+    a.grid(alpha=0.3)
+    a.legend(fontsize=8)
+    a.set_title("Perfil de temperatura do sólido - %s" % nome, fontsize=9)
+    a = fig.add_subplot(1, 2, 2)
+    pontos = np.unique(np.linspace(max(20, n // 50), n, 40).astype(int))
+    nus = []
+    for m in pontos:
+        c0 = case.serie_tc
+        case.serie_tc = c0[:m]
+        nus.append(case.ajuste_h(0.0)[0] * case.D / case.alfa)
+        case.serie_tc = c0
+    a.plot(pontos, nus, "k.-")
+    if case.forma == "circulo":
+        a.axhline(nu_churchill_bernstein(case.Re, case.Pr), color="r", ls="--", label="Eq. 17")
+        a.legend(fontsize=8)
+    a.set_xlabel("número acumulado de passos")
+    a.set_ylabel("Nu (ajuste com todos os passos)")
+    a.grid(alpha=0.3)
+    a.set_title("Nu em função dos passos acumulados", fontsize=9)
+    arqs.append(_salvar(fig, os.path.join(pasta, "solido_perfil_nusselt.png")))
+    # Fig. 7: soma dos quadrados x h
+    _, (ii, tt, Tcfd, soma) = case.ajuste_h()
+    hs = np.linspace(0.8 * h, 1.2 * h, 81)
+    fig = _figura(6.5, 4)
+    a = fig.add_subplot(1, 1, 1)
+    a.plot(hs * case.D / case.alfa, [soma(v) for v in hs], "k-")
+    a.axvline(h * case.D / case.alfa, color="b", ls="--", label="mínimo: Nu = %.4f" % (h * case.D / case.alfa))
+    a.set_xlabel("Nu = h D / k_f")
+    a.set_ylabel("Σ dif²  (inst = %d ... %d)" % (ii + 1, n))
+    a.grid(alpha=0.3)
+    a.legend(fontsize=8)
+    a.set_title("Determinação do coeficiente h - %s" % nome, fontsize=9)
+    arqs.append(_salvar(fig, os.path.join(pasta, "solido_ajuste_h.png")))
+    return arqs

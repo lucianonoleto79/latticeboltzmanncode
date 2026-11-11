@@ -119,6 +119,7 @@ footer { color: var(--text-muted); font-size: 12px; margin-top: 14px; }
     <h1 id="titulo">Convergência LBM</h1>
     <span class="status" id="status"><span class="dot"></span><span id="statusTxt">—</span></span>
     <span class="sub" id="subtitulo"></span>
+    <span class="status run" id="contador" title="Tempo de simulação (contador do lbm3d.py)">⏱ <span id="contadorTxt">—</span></span>
   </header>
   <section class="tiles" id="tiles"></section>
   <div class="controls">
@@ -138,7 +139,7 @@ footer { color: var(--text-muted); font-size: 12px; margin-top: 14px; }
   <footer id="rodape"></footer>
 </main>
 <script>
-const EMBED = /*__DADOS__*/{"csv": "", "intervalo": 5, "pasta": ""}/*__FIM__*/;
+const EMBED = /*__DADOS__*/{"csv": "", "intervalo": 5, "pasta": "", "andamento": null}/*__FIM__*/;
 
 const store = {
   get(k, d) { try { const v = localStorage.getItem("lbm3d:" + k); return v === null ? d : v; } catch (e) { return d; } },
@@ -456,6 +457,32 @@ for (const b of document.querySelectorAll(".seg button")) {
 }
 let rz = null;
 window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 150); });
+// contador do tempo de simulacao (andamento.json gravado pelo lbm3d.py a cada segundo)
+let ANDAMENTO = EMBED.andamento || null;
+function hms(s) { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  return h + "h" + String(m).padStart(2, "0") + "m" + String(x).padStart(2, "0") + "s"; }
+function contadorTick() {
+  const a = ANDAMENTO, el = document.getElementById("contadorTxt"), box = document.getElementById("contador");
+  if (!a) { el.textContent = "—"; return; }
+  const agora = Date.now() / 1000, atraso = agora - a.atualizado_unix;
+  const vivo = a.situacao === "rodando" && atraso < 120;
+  const total = a.decorrido_total_s + (vivo ? atraso : 0);
+  let t = hms(total) + " · it " + a.it;
+  if (a.it_por_s) t += " · " + a.it_por_s.toFixed(1) + " it/s";
+  if (a.progresso != null) t += " · " + Math.round(100 * a.progresso) + "%";
+  if (a.restante_s != null && vivo) t += " · restante ~" + hms(a.restante_s - atraso);
+  if (!vivo) t += " · " + (a.situacao === "rodando" ? "sem atualização" : a.situacao);
+  el.textContent = t;
+  box.className = "status " + (vivo ? "run" : a.situacao === "terminou" ? "ok" : "stop");
+}
+async function buscaAndamento() {
+  if (!viaHttp) return;
+  try { const r = await fetch("andamento.json?t=" + Date.now(), { cache: "no-store" }); if (r.ok) ANDAMENTO = await r.json(); }
+  catch (e) {}
+}
+setInterval(() => { contadorTick(); }, 1000);
+setInterval(buscaAndamento, 2000);
+contadorTick();
 setData(EMBED.csv);
 agenda();
 </script>

@@ -62,9 +62,20 @@ def ler(pasta):
         else:
             header = first.strip().split(",")
         linhas = [l.strip().split(",") for l in fh if l.strip() and not l.startswith(("#", "it,"))]
-    if not linhas:
+    if not linhas or "it" not in header or "res" not in header:
         return meta, None
-    dados = np.array([[float(x) for x in l] for l in linhas if len(l) == len(header)])
+    validas = []
+    for l in linhas:              # linhas cortadas (arquivo sendo gravado) ou com colunas a mais
+        if len(l) < 2:
+            continue
+        l = (l + ["nan"] * len(header))[:len(header)]
+        try:
+            validas.append([float(x) for x in l])
+        except ValueError:
+            continue
+    if not validas:
+        return meta, None
+    dados = np.array(validas, dtype=float).reshape(len(validas), len(header))
     cols = {h: dados[:, i] for i, h in enumerate(header)}
     # se houve reinicio a partir de um checkpoint anterior, fica so a ultima passagem
     it = cols["it"]
@@ -76,7 +87,11 @@ def ler(pasta):
 
 
 def diagnostico(meta, c, janela=20):
-    it, res, t = c["it"], c["res"], c["tempo_unix"]
+    it, res = c["it"], c["res"]
+    t = c.get("tempo_unix", np.full(it.shape, np.nan))
+    if it.size == 0:
+        return {"it": 0, "res": np.nan, "tol": float(meta.get("tol", 1e-7)), "taxa": np.nan,
+                "its": np.nan, "eta_it": np.nan, "eta_s": np.nan, "ativo": False}
     tol = float(meta.get("tol", 1e-7))
     out = {"it": int(it[-1]), "res": res[-1], "tol": tol, "taxa": np.nan,
            "its": np.nan, "eta_it": np.nan, "eta_s": np.nan}
@@ -92,7 +107,7 @@ def diagnostico(meta, c, janela=20):
             if slope < 0 and res[-1] > tol:
                 out["eta_it"] = (np.log10(tol) - np.log10(res[-1])) / slope
                 out["eta_s"] = out["eta_it"] / out["its"] if out["its"] > 0 else np.nan
-    out["ativo"] = (time.time() - t[-1]) < max(120.0, 5 * 100 / out["its"]) if out["its"] > 0 else False
+    out["ativo"] = bool((time.time() - t[-1]) < max(120.0, 5 * 100 / out["its"])) if out["its"] > 0 else False
     return out
 
 
@@ -190,8 +205,9 @@ def gerar_html(pasta, intervalo=5):
     with open(TEMPLATE, encoding="utf-8") as fh:
         tpl = fh.read()
     ini, fim = tpl.index("/*__DADOS__*/"), tpl.index("/*__FIM__*/")
-    dados = json.dumps({"csv": texto, "intervalo": intervalo,
-                        "pasta": nome}).replace("</", "<\\/")
+    dados = json.dumps({"csv": texto, "intervalo": intervalo, "pasta": nome,
+                        "andamento": ler_andamento(os.path.dirname(os.path.abspath(pasta)))
+                        or ler_andamento(pasta)}).replace("</", "<\\/")
     html = tpl[:ini] + "/*__DADOS__*/" + dados + tpl[fim:]
     out = os.path.join(pasta, "convergencia.html")
     tmp = out + ".tmp"
@@ -227,6 +243,88 @@ def servir(pasta, porta, intervalo):
         pass
 
 
+def ler_andamento(pasta):
+    """andamento.json (contador) da pasta do caso, ou None."""
+    import json
+    p = os.path.join(pasta, "andamento.json")
+    try:
+        with open(p) as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
+
+
+def _vivo(pid):
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except (OSError, TypeError, ValueError):
+        return False
+
+
+def andamentos(raizes):
+    """Lista os andamento.json encontrados em raizes (pastas de casos ou pastas que as contem)."""
+    vistos, lista = set(), []
+    for r in raizes:
+        cand = [r] + [os.path.join(r, d) for d in (sorted(os.listdir(r)) if os.path.isdir(r) else [])]
+        for c in cand:
+            a = ler_andamento(c)
+            if a is None or os.path.abspath(c) in vistos:
+                continue
+            vistos.add(os.path.abspath(c))
+            a["_pasta"] = c
+            lista.append(a)
+    return lista
+
+
+def tabela_contadores(lista, todas=False):
+    """Linhas de texto com o contador de cada simulacao (em curso primeiro)."""
+    agora = time.time()
+    linhas = []
+    for a in lista:
+        atraso = agora - a.get("atualizado_unix", 0)
+        rodando = a.get("situacao") in ("rodando", "pausado") and _vivo(a.get("pid")) and atraso < 120
+        if not rodando and not todas:
+            continue
+        total = a.get("decorrido_total_s", 0.0) + (atraso if rodando and a.get("situacao") == "rodando" else 0.0)
+        prog = a.get("progresso")
+        rest = a.get("restante_s")
+        linhas.append((not rodando, "%-44s %-9s %11s %10d %9s %6s %12s" % (
+            a.get("caso", "?")[:44], a.get("situacao", "?") if rodando else
+            ("parado" if a.get("situacao") == "rodando" else a.get("situacao", "?")),
+            fmt_tempo(total), a.get("it", 0),
+            "%.1f" % a["it_por_s"] if a.get("it_por_s") else "-",
+            "%.0f%%" % (100 * prog) if prog is not None else "-",
+            fmt_tempo(rest - (atraso if rodando else 0)) if rest is not None and rodando else "-")))
+    linhas.sort(key=lambda x: x[0])
+    cab = "%-44s %-9s %11s %10s %9s %6s %12s" % ("caso", "situacao", "tempo", "iteracao", "it/s",
+                                                 "prog.", "restante")
+    return [cab, "-" * len(cab)] + [l for _, l in linhas]
+
+
+def todos(raizes, intervalo=1.0, uma_vez=False, todas=False):
+    """Contador ao vivo de todas as simulacoes em curso (atualiza a cada segundo)."""
+    tty = sys.stdout.isatty() and not uma_vez
+    try:
+        while True:
+            lista = andamentos(raizes)
+            txt = tabela_contadores(lista, todas)
+            if len(txt) == 2:
+                txt.append("(nenhuma simulacao em curso em %s)" % ", ".join(raizes))
+            cab = "Simulacoes lbm3d.py - %s" % time.strftime("%Y-%m-%d %H:%M:%S")
+            if tty:
+                sys.stdout.write("\033[H\033[J" + cab + "\n\n" + "\n".join(txt) + "\n\n(Ctrl+C para sair)\n")
+            else:
+                print(cab)
+                print("\n".join(txt))
+            sys.stdout.flush()
+            if uma_vez:
+                return 0
+            time.sleep(intervalo)
+    except KeyboardInterrupt:
+        return 0
+
+
 def controlar(pasta, acao):
     """Cria/apaga os arquivos de controle lidos pelo lbm3d.py a cada 10 iteracoes."""
     if not os.path.isdir(pasta):
@@ -246,7 +344,16 @@ def controlar(pasta, acao):
 
 def main():
     p = argparse.ArgumentParser(description="Acompanha a convergencia de uma simulacao lbm3d.py")
-    p.add_argument("pasta", help="pasta de saida da simulacao (contem convergencia.csv)")
+    p.add_argument("pasta", nargs="?", default="casos",
+                   help="pasta de saida da simulacao (contem convergencia.csv); com --todos, "
+                        "pasta(s) que contem os casos (padrao: casos)")
+    p.add_argument("--todos", action="store_true",
+                   help="contador ao vivo de todas as simulacoes em curso (le os andamento.json)")
+    p.add_argument("--uma-vez", action="store_true", help="com --todos: imprime uma vez e sai")
+    p.add_argument("--incluir-terminadas", action="store_true",
+                   help="com --todos: mostra tambem as simulacoes ja terminadas")
+    p.add_argument("--raiz", action="append", default=[],
+                   help="com --todos: outras pastas onde procurar casos (pode repetir)")
     p.add_argument("--intervalo", type=float, default=5.0, help="segundos entre atualizacoes")
     p.add_argument("--html", action="store_true",
                    help="gera convergencia.html e abre no navegador (padrao)")
@@ -263,6 +370,9 @@ def main():
     ctl.add_argument("--parar", action="store_true",
                      help="pede que a simulacao salve o checkpoint e encerre")
     a = p.parse_args()
+
+    if a.todos:
+        return todos([a.pasta] + a.raiz, uma_vez=a.uma_vez, todas=a.incluir_terminadas)
 
     if a.salvar or a.pausar or a.continuar or a.parar:
         return controlar(a.pasta, "salvar" if a.salvar else "pausar" if a.pausar else

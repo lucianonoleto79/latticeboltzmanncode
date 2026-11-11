@@ -18,6 +18,22 @@ Toda simulação executada entra na documentação, no mesmo commit dos resultad
 As figuras citadas no README precisam estar versionadas (o `.gitignore` libera PNG e log só dentro
 de `resultados/`).
 
+## Contador de tempo de simulação (obrigatório em toda simulação)
+
+Toda simulação feita com este código, agora e no futuro, tem o contador de tempo presente:
+
+* O `lbm3d.py` sempre mostra o contador (classe `Contador`): linha viva no terminal, linha
+  `[contador]` a cada minuto no `execucao.log`, `andamento.json` na pasta do caso (regravado a
+  cada segundo), título da janela gráfica e cabeçalho do painel `graficos/convergencia.html`.
+  Não remova nem desligue o contador ao mexer no código; um caso novo herda o contador
+  automaticamente (ele fica no laço principal, `_executar`).
+* Ao rodar simulações (uma ou várias, em primeiro ou segundo plano), abra para o usuário um
+  terminal com o contador de **todas** as simulações em curso:
+  `python acompanhar.py --todos` (atualiza a cada segundo; `--raiz <pasta>` para casos fora de
+  `casos/`). Ao dar notícias do andamento, informe o tempo decorrido de cada simulação em curso
+  (`python acompanhar.py --todos --uma-vez`).
+* Caso o contador falhe, corrija antes de continuar: a simulação não deve rodar sem ele.
+
 ## Antes de rodar uma simulação: estimar o tempo e perguntar onde rodar
 
 Antes de qualquer simulação (caso novo ou nova rodada de um existente):
@@ -44,6 +60,15 @@ Antes de qualquer simulação (caso novo ou nova rodada de um existente):
 * Se as figuras genéricas (`figuras.py`) não bastarem, o caso define `figura_contorno(pasta, figura,
   salvar)` (figuras extras em `contorno/`, ex.: perfil de entrada do cilindro), `descricao_contorno()`
   e, se precisar, `descricao_malha()`.
+
+## Transferência de calor (`--case calor`)
+
+* Casos do artigo [CN26] (convecção forçada 2D sobre cilindros): `--forma`, `--Re`, `--metodo
+  sem_solido|com_solido`, `--res` (D em nós), `--u-lattice`.  Os critérios de parada são os do
+  artigo (Eq. 16 em janela de 5 D/U para os estacionários; duração em D/U para os transientes;
+  1 − θ ≥ 0,98 no método com sólido).  O resultado vai para `resultado_calor.json`.
+* O núcleo em C (`lbm_kernel.c`, compilado em `build/`) é usado automaticamente; qualquer
+  mudança na colisão precisa ser feita nos dois (NumPy e C) e conferida por `tests/test_calor.py`.
 
 ## Git
 

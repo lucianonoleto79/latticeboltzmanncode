@@ -16,3 +16,6 @@ PAUSAR
 PARAR
 __pycache__/
 .pytest_cache/
+
+# nucleo em C compilado automaticamente
+build/

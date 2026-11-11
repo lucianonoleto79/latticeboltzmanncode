@@ -7,12 +7,17 @@ convergência, checkpoint/reinício e casos de validação da literatura.
 ## Estrutura do repositório
 
 ```
-lbm3d.py                    solver (método, casos de teste, checkpoint, VTK, linha de comando)
+lbm3d.py                    solver (método, casos de teste, transferência de calor, checkpoint, VTK,
+                            contador de tempo, linha de comando)
+lbm_kernel.c                núcleo em C (colisão + propagação e passo térmico), compilado sozinho
+                            em build/ na primeira execução; sem compilador, o lbm3d.py usa NumPy
 figuras.py                  imagens do domínio, condições de contorno, malha, escoamento e gráficos
-acompanhar.py               acompanhamento da convergência (painel HTML, janela, terminal)
-                            e controle de uma simulação em andamento (salvar / pausar / parar)
+acompanhar.py               acompanhamento da convergência (painel HTML, janela, terminal),
+                            controle de uma simulação em andamento (salvar / pausar / parar) e
+                            contador de todas as simulações em curso (--todos)
 painel_template.html        modelo do painel HTML (autocontido, sem internet)
-tests/test_lbm3d.py         testes rápidos (pytest, ~15 s)
+tests/test_lbm3d.py         testes rápidos do escoamento (pytest)
+tests/test_calor.py         núcleo em C = NumPy, transferência de calor, contador, robustez (pytest)
 resultados/                 casos simulados, um por pasta (índice em resultados/README.md)
 referencias.bib             referências bibliográficas em BibTeX (seção Referências)
 CLAUDE.md                   instruções para o Claude (documentar simulações, estimar tempo, git)
@@ -67,6 +72,76 @@ Testes:
 pip install -r requirements-dev.txt
 pytest
 ```
+
+## Contador de tempo de simulação
+
+Toda simulação mostra um contador do tempo de simulação (classe `Contador` do `lbm3d.py`; não há
+opção para desligá-lo):
+
+* **terminal interativo:** linha viva atualizada a cada segundo, apagada antes de cada linha da
+  tabela de resíduos:
+  `[contador] 0h12m03s | it 12345 | 41.2 it/s | 37% | restante ~0h20m`
+  (porcentagem e tempo restante quando o caso sabe estimar o progresso);
+* **sem terminal** (segundo plano, `nohup`, log): uma linha `[contador]` por minuto no `execucao.log`
+  e, ao final, o tempo total de simulação;
+* **`andamento.json`** na pasta do caso (e em `graficos/`), regravado a cada segundo: situação,
+  iteração, tempo decorrido (acumulado entre reinícios com `--restart`), velocidade, progresso e
+  tempo restante;
+* **painel HTML** (`graficos/convergencia.html`): o contador fica no cabeçalho e avança a cada segundo;
+* **janela gráfica:** o contador fica no título;
+* **todas as simulações em curso** (lê os `andamento.json`, atualiza a cada segundo):
+
+```bash
+python acompanhar.py --todos                     # casos em casos/
+python acompanhar.py --todos --raiz outra/pasta  # outras pastas (pode repetir)
+python acompanhar.py --todos --uma-vez --incluir-terminadas
+```
+
+## Transferência de calor (`--case calor`)
+
+Convecção forçada 2D sobre cilindros circulares e não circulares, como em Cunha & Noleto (2026)
+[CN26]: o escoamento é o mesmo solver de cumulantes D3Q27 (numa camada de nós, nz = 1) e a energia
+é um segundo reticulado D3Q7 acoplado pela velocidade (formulação no item 10 da seção
+**Formulação matemática e numérica**).
+
+```bash
+# Nu "sem sólido" (parede isotérmica) e "com sólido" (sólido conjugado, sistema concentrado)
+python lbm3d.py --case calor --forma circulo --Re 100 --res 20
+python lbm3d.py --case calor --forma circulo --Re 100 --res 20 --metodo com_solido
+# seções não circulares da Fig. 9 de [CN26]
+python lbm3d.py --case calor --forma quadrado45 --Re 200 --res 20
+```
+
+| Opção | Significado |
+|---|---|
+| `--forma` | `circulo`, `elipse` (2,5:1), `placa` (vertical, espessura D/10), `hexagono`, `hexagono45`, `quadrado`, `quadrado45`; D é sempre a altura da seção (transversal ao escoamento) |
+| `--Re`, `--Pr` | Re = U D/ν; Pr = 0,7296 (ar a 25 °C) por padrão |
+| `--res`, `--u-lattice` | D em nós e velocidade de entrada em unidades de rede (padrão U = 0,05) |
+| `--Ds` | tamanho do domínio Ds/D (padrão da Tabela 1 de [CN26]: 80, 80, 40, 30 para Re = 1, 10, 100, 200) |
+| `--metodo` | `sem_solido` (parede a 15 °C) ou `com_solido` (sólido conjugado inicialmente a 15 °C) |
+| `--ks-kf`, `--Cs-Cf` | `com_solido`: razões de condutividade e de capacidade térmica volumétrica sólido/fluido |
+| `--duracao` | casos transientes: duração em D/U (padrão 153 para Re = 100 e 131 para Re = 200, como em [CN26]) |
+
+Domínio (Fig. 2 de [CN26]): entrada semicircular de diâmetro Ds, com u = U e T = 35 °C, mais as
+laterais retas, que também são entrada; a saída é reta, a Ds/2 do centro, com ρ = 1 e ∂T/∂x = 0.
+
+**Critérios de parada (os do artigo):**
+* `sem_solido` estacionário (Re < 50): Eq. 16, |Nu − Nu₀|/Nu < 10⁻⁸ com a média de 0,8 i_f a i_f.
+  No LBM, as ondas acústicas fazem Nu − Nu₀ cruzar o zero, por isso o critério precisa valer em
+  todos os passos de uma janela de 5 D/U.
+* `sem_solido` transiente (Re ≥ 50): roda a duração em D/U e faz a média em 9 ciclos completos
+  (período pela FFT, como na Fig. 5 de [CN26]).
+* `com_solido`: para quando 1 − θ ≥ 0,98, com θ medido no centro do sólido. h vem do ajuste por
+  mínimos quadrados da Eq. 14 em [round(0,99 i_f), i_f].
+
+**Saída:** `resultado_calor.json` (Nu, Nu_ref, diferença, Biot, nº de instantes, Strouhal),
+`graficos/nusselt.csv` (Nu_inst, θ do centro, C_D, C_L a cada passo) e os gráficos no formato do
+artigo:
+* `graficos/nusselt_historia.png`, `nusselt_7periodos.png` e `nusselt_fft.png` (Figs. 5 e 10);
+* `graficos/solido_perfil_nusselt.png` e `solido_ajuste_h.png` (Figs. 6 e 7);
+* `escoamento/final/temperatura.png` (Figs. 4, 8 e 11).
+
+O VTK inclui o campo `theta`.
 
 ## Casos simulados
 
@@ -582,6 +657,88 @@ de cisalhamento, rodam um número fixo de iterações.
 * o forçamento e as paredes planas (duto, contra a série de White);
 * as paredes curvas e a força por troca de quantidade de movimento (cilindro e esferas).
 
+### 10. Transferência de calor (`--case calor`)
+
+**Equação.** A energia é resolvida em forma conservativa, com um único campo para fluido e sólido
+[CN26]:
+
+$$
+\frac{\partial (C\,T)}{\partial t} + \nabla\cdot(C_f\,T\,\mathbf u) = \nabla\cdot(k\,\nabla T),
+$$
+
+* C = ρc_p é a capacidade térmica volumétrica e k a condutividade;
+* no fluido, C = C_f e k = k_f, logo α = k_f/C_f = ν/Pr;
+* no sólido, u = 0, C = C_s e k = k_s;
+* em unidades de rede, C_f = 1 e k_f = α.
+
+**Rede D3Q7 e equilíbrio** (`equilibrio_termico`). A energia E = C T é o momento de ordem zero.
+Usa-se $c_s^2 = 1/4$, $w_0 = 1/4$ e $w_i = 1/8$, com a velocidade do escoamento no instante t:
+
+$$
+g_0^{eq} = E - T + w_0\,T,\qquad
+g_i^{eq} = w_i\,T\left(1 + \frac{\mathbf c_i\cdot\mathbf u}{c_s^2}\right)\quad(i = 1\ldots6),\qquad
+T = E/C.
+$$
+
+Como $\sum_i g_i^{eq} = E$, a expansão de Chapman–Enskog dá a equação acima. A capacidade térmica
+só entra na conversão T = E/C, e o fluxo $-k\nabla T$ é contínuo na interface sólido–fluido sem
+nenhuma condição de contorno ali.
+
+Isso resolve de uma vez os dois problemas do método conjugado que [CN26] discute (Seção 3.2):
+
+* **Desbalanço de fluxo** quando c_p,s ≠ c_p,f: não ocorre, porque o fluxo depende só de k e de ∇T.
+* **Capacidade volumétrica do sólido:** é preservada, porque C entra diretamente, sem trocar ρ_s
+  e c_p,s (equivale a $\rho_s^{*}c_{p,s}^{*} = \rho_s c_{p,s}$).
+
+**Colisão TRT** [G05] (`thermal_collide_stream` em `lbm_kernel.c` e `passo_termico_numpy`).
+Separam-se as partes simétrica e antissimétrica de cada par $(i,\bar\imath)$:
+
+$$
+g_i^{*} = g_i - \omega^{+}\big(g_i^{+} - g_i^{eq+}\big) - \omega^{-}\big(g_i^{-} - g_i^{eq-}\big),
+\qquad
+k = c_s^2\left(\frac{1}{\omega^{-}} - \frac12\right),
+\qquad
+\Big(\frac{1}{\omega^{+}}-\frac12\Big)\Big(\frac{1}{\omega^{-}}-\frac12\Big) = \Lambda = \frac14 .
+$$
+
+$\omega^{-}$ é ajustado nó a nó pela condutividade local. O parâmetro "mágico" Λ = 1/4 mantém o
+esquema estável e preciso mesmo com $1/\omega^{-}$ grande, como num sólido muito condutor.
+
+**Parede isotérmica com interpolação** [LMK13] (`build_links_termicos`, `LinksTermicos.apply`).
+Esta é a versão com anti-bounce-back da regra de Bouzidi, com q a fração do link até a parede:
+
+$$
+\begin{aligned}
+q<\tfrac12:&\quad g_{\bar\imath}(\mathbf x_f,t+1) = -2q\,g_i^{*}(\mathbf x_f) + (2q-1)\,g_i^{*}(\mathbf x_f-\mathbf c_i) + 2w_iT_w,\\
+q\ge\tfrac12:&\quad g_{\bar\imath}(\mathbf x_f,t+1) = -\tfrac{1}{2q}\,g_i^{*}(\mathbf x_f) + \tfrac{2q-1}{2q}\,g_{\bar\imath}^{*}(\mathbf x_f) + \tfrac{1}{q}\,w_iT_w .
+\end{aligned}
+$$
+
+**Calor trocado e Nusselt.** O calor que sai do fluido para a parede num passo é o balanço exato
+de energia nos links da parede, e não exige reconstruir gradientes:
+
+$$
+Q = \sum_{\text{links}}\Big[g_i^{*}(\mathbf x_f) - g_{\bar\imath}(\mathbf x_f,t+1)\Big],
+\qquad
+\mathrm{Nu}_{inst} = \frac{Q\,D}{k_f\,P\,(T_\infty - T_w)}.
+$$
+
+P é o perímetro exato da seção, por unidade de profundidade. Na condução entre dois cilindros
+concêntricos, Q difere da solução exata $2\pi\alpha\Delta T/\ln(r_2/r_1)$ em menos de 0,3%
+(`tests/test_calor.py`).
+
+**Nu com sólido** (Eq. 14 de [CN26]). Com Bi < 0,1, o sólido segue o modelo de sistema concentrado
+$\theta = \exp(-b t)$, com $b = h P / (C_s A)$. h é o valor que minimiza
+$\sum (T_{CFD} - T_{REF}(h))^2$ nos últimos 1% dos instantes, e $\mathrm{Nu} = h D / k_f$.
+
+**Contorno térmico do domínio:**
+* entrada e laterais: T = T∞, por anti-bounce-back no meio do caminho;
+* saída: ∂T/∂x = 0, copiando as populações do plano anterior.
+
+**Núcleo em C.** O passo térmico custa cerca de 15% do passo do escoamento. A colisão de
+cumulantes e a propagação também rodam em C (`lbm_kernel.c`) e dão o mesmo resultado do NumPy até
+o arredondamento (≤ 10⁻¹⁵, conferido em `tests/test_calor.py`).
+
 ## Casos (`--case`)
 
 Os casos são classes em `lbm3d.py` (dicionário `CASES`). O modelo padrão é `--model k17`, mas o K17 só
@@ -594,6 +751,7 @@ avisa. A coluna "modelo efetivo" indica o que roda com os parâmetros padrão.
 | `duct` | duto retangular periódico em x, forçado por gradiente de pressão | White (2006), Eq. 3-48; erro L2 do perfil | 24 × 16, ν = 0,02 | K17 |
 | `cylinder` | cilindro em canal de seção quadrada, Re = 20 | Schäfer & Turek (1996), 3D-1Z; C_D ∈ [6,05; 6,25], C_L ∈ [0,008; 0,010], Δp ∈ [0,165; 0,175] Pa | D = 10, Um = 0,1 | K17 (para D ≥ 12 recai no cumulante clássico) |
 | `spheres` | arranjo cúbico simples de esferas, regime de Stokes | Sangani & Acrivos (1982); arraste C = f_t/(3πμ d u_s) | L = 32, χ = 0,5, ν = 0,02 | K17 |
+| `calor` | convecção forçada 2D sobre cilindros (7 seções), Nu com e sem sólido | [CN26]; Nu de referência pela Eq. 17 (Churchill–Bernstein [CB77]) para o círculo | círculo, Re = 100, D = 20, U = 0,05, Pr = 0,7296 | K17 se ω ≥ 1,75, senão cumulante clássico |
 | `cavity` | cavidade cúbica com tampa móvel (demonstração) | comparar com Albensoeder & Kuhlmann (2005); perfis centrais | N = 32, Re = 100, U = 0,1 | cumulante clássico (ν = 0,032) |
 
 Solução do duto (−a ≤ y ≤ a, −b ≤ z ≤ b, G = −dp/dx):
@@ -633,6 +791,11 @@ de cada uma está na tabela abaixo.
 | Paredes curvas (bounce-back interpolado linear) | `build_links` | [B01] | `Bouzidi2001` |
 | Saída com pressão imposta (extrapolação de não-equilíbrio) | `Cylinder.post_stream` | [G02] | `Guo2002a` |
 | Força sobre o corpo (troca de quantidade de movimento) | `Links.force` | [M02] | `Mei2002` |
+| Transferência de calor: método conjugado e casos de validação | `CilindroCalor` | [CN26] | `Cunha2026` |
+| Colisão TRT do campo térmico (Λ = 1/4) | `thermal_collide_stream` | [G05] | `Ginzburg2005` |
+| Parede isotérmica curva (anti-bounce-back interpolado) | `build_links_termicos` | [LMK13] | `Li2013` |
+| Nu de referência do cilindro circular (Eq. 17 de [CN26]) | `nu_churchill_bernstein` | [CB77] | `Churchill1977` |
+| Correlações de Nu para seções não circulares (Fig. 9 de [CN26]) | — | [SAT04] | `Sparrow2004` |
 | Validação: duto retangular | `Duct` | [W06] | `White2006` |
 | Validação: cilindro 3D-1Z (Re = 20) | `Cylinder` | [ST96] | `Schafer1996` |
 | Validação: arranjo cúbico de esferas | `SphereArray` | [SA82], [H59]; valores de [BMR15] | `Sangani1982`, `Hasimoto1959`, `Bogner2015` |
@@ -740,6 +903,24 @@ o caso simulado: por exemplo, se ω < 1,75 o código troca o K17 pelo cumulante 
 * [K87] H.C. Ku, R.S. Hirsh, T.D. Taylor, *A pseudospectral method for solution of the
   three-dimensional incompressible Navier-Stokes equations*, J. Comput. Phys. 70 (2) (1987) 439–462.
   [doi:10.1016/0021-9991(87)90190-2](https://doi.org/10.1016/0021-9991%2887%2990190-2)
+
+**Transferência de calor**
+* [CN26] F. Alfaia da Cunha, L.G. Noleto, *Nusselt number calculation methods based on CFD
+  simulations applied to forced convection over cylinders*, Results Eng. 32 (2026) 112960.
+  [doi:10.1016/j.rineng.2026.112960](https://doi.org/10.1016/j.rineng.2026.112960)
+* [G05] I. Ginzburg, *Equilibrium-type and link-type lattice Boltzmann models for generic advection
+  and anisotropic-dispersion equation*, Adv. Water Resour. 28 (11) (2005) 1171–1195.
+  [doi:10.1016/j.advwatres.2005.03.004](https://doi.org/10.1016/j.advwatres.2005.03.004)
+* [LMK13] L. Li, R. Mei, J.F. Klausner, *Boundary conditions for thermal lattice Boltzmann equation
+  method*, J. Comput. Phys. 237 (2013) 366–395.
+  [doi:10.1016/j.jcp.2012.11.027](https://doi.org/10.1016/j.jcp.2012.11.027)
+* [CB77] S.W. Churchill, M. Bernstein, *A correlating equation for forced convection from gases and
+  liquids to a circular cylinder in crossflow*, J. Heat Transfer 99 (2) (1977) 300–306.
+  [doi:10.1115/1.3450685](https://doi.org/10.1115/1.3450685)
+* [SAT04] E.M. Sparrow, J.P. Abraham, J.C.K. Tong, *Archival correlations for average heat transfer
+  coefficients for non-circular and circular cylinders and for spheres in cross-flow*, Int. J. Heat
+  Mass Transf. 47 (24) (2004) 5285–5296.
+  [doi:10.1016/j.ijheatmasstransfer.2004.06.024](https://doi.org/10.1016/j.ijheatmasstransfer.2004.06.024)
 
 **Software**
 * [NumPy] C.R. Harris et al., *Array programming with NumPy*, Nature 585 (7825) (2020) 357–362.
