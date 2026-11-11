@@ -1,0 +1,262 @@
+% Referencias bibliograficas do lbm3d.py (LBM D3Q27, cumulante K17).
+%
+% Metadados (autores, volume, paginas, DOI) conferidos no Crossref/doi.org em nov/2026.
+% As chaves seguem o padrao SobrenomeAno; a sigla usada no README e no codigo aparece no
+% comentario acima de cada entrada (ex.: [G15]).
+%
+% Uso em LaTeX:  \bibliography{referencias}  e  \cite{Geier2015, Geier2017a}
+% Para gerenciadores (Zotero, Mendeley, JabRef): importe este arquivo diretamente.
+
+% ===========================================================================
+% Este codigo
+% ===========================================================================
+
+% [lbm3d] Ajuste titulo, versao e local de acesso antes de citar (o repositorio e local).
+@misc{Noleto2026lbm3d,
+  author       = {Noleto, Luciano},
+  title        = {lbm3d: solver de lattice-{B}oltzmann {D3Q27} com operador de colis{\~a}o de cumulantes parametrizado ({K17}) para escoamentos laminares tridimensionais},
+  year         = {2026},
+  howpublished = {C{\'o}digo-fonte em Python/NumPy},
+  note         = {Universidade de Bras{\'i}lia}
+}
+
+% ===========================================================================
+% Metodo numerico: operador de colisao de cumulantes
+% ===========================================================================
+
+% [G15] cumulante classico, transformacao chimera, correcao galileana, forca de corpo
+@article{Geier2015,
+  author  = {Geier, Martin and Sch{\"o}nherr, Martin and Pasquali, Andrea and Krafczyk, Manfred},
+  title   = {The cumulant lattice {B}oltzmann equation in three dimensions: Theory and validation},
+  journal = {Computers \& Mathematics with Applications},
+  year    = {2015},
+  volume  = {70},
+  number  = {4},
+  pages   = {507--547},
+  doi     = {10.1016/j.camwa.2015.05.001}
+}
+
+% [G17] parametrizacao K17 (difusao de 4a ordem): omega_3, omega_4, omega_5, A, B e limitador
+@article{Geier2017a,
+  author  = {Geier, Martin and Pasquali, Andrea and Sch{\"o}nherr, Martin},
+  title   = {Parametrization of the cumulant lattice {B}oltzmann method for fourth order accurate diffusion. {P}art {I}: Derivation and validation},
+  journal = {Journal of Computational Physics},
+  year    = {2017},
+  volume  = {348},
+  pages   = {862--888},
+  doi     = {10.1016/j.jcp.2017.05.040}
+}
+
+% [G17b] Parte II do K17 (aplicacao: esfera na crise do arrasto). Nao implementada aqui; util na
+% revisao bibliografica de um artigo que use o K17.
+@article{Geier2017b,
+  author  = {Geier, Martin and Pasquali, Andrea and Sch{\"o}nherr, Martin},
+  title   = {Parametrization of the cumulant lattice {B}oltzmann method for fourth order accurate diffusion. {P}art {II}: Application to flow around a sphere at drag crisis},
+  journal = {Journal of Computational Physics},
+  year    = {2017},
+  volume  = {348},
+  pages   = {889--898},
+  doi     = {10.1016/j.jcp.2017.07.004}
+}
+
+% [VF] Implementacao de referencia do K17, usada para conferir as expressoes de [G17].
+@misc{VirtualFluids,
+  author       = {{Institut f{\"u}r rechnergest{\"u}tzte Modellierung im Bauingenieurwesen (iRMB), TU Braunschweig}},
+  title        = {{VirtualFluids}: lattice {B}oltzmann research code},
+  howpublished = {\url{https://git.rz.tu-bs.de/irmb/VirtualFluids}},
+  note         = {Acesso em nov. 2026}
+}
+
+% ===========================================================================
+% Condicoes de contorno e forcamento
+% ===========================================================================
+
+% [L94] bounce-back no meio caminho e parede movel
+@article{Ladd1994,
+  author  = {Ladd, Anthony J. C.},
+  title   = {Numerical simulations of particulate suspensions via a discretized {B}oltzmann equation. {P}art 1. {T}heoretical foundation},
+  journal = {Journal of Fluid Mechanics},
+  year    = {1994},
+  volume  = {271},
+  pages   = {285--309},
+  doi     = {10.1017/S0022112094001771}
+}
+
+% [B01] bounce-back interpolado linear (paredes curvas)
+@article{Bouzidi2001,
+  author  = {Bouzidi, M'hamed and Firdaouss, Mouaouia and Lallemand, Pierre},
+  title   = {Momentum transfer of a {B}oltzmann-lattice fluid with boundaries},
+  journal = {Physics of Fluids},
+  year    = {2001},
+  volume  = {13},
+  number  = {11},
+  pages   = {3452--3459},
+  doi     = {10.1063/1.1399290}
+}
+
+% [G02] extrapolacao de nao-equilibrio (saida com pressao imposta)
+@article{Guo2002a,
+  author  = {Guo, Zhao-Li and Zheng, Chu-Guang and Shi, Bao-Chang},
+  title   = {Non-equilibrium extrapolation method for velocity and pressure boundary conditions in the lattice {B}oltzmann method},
+  journal = {Chinese Physics},
+  year    = {2002},
+  volume  = {11},
+  number  = {4},
+  pages   = {366--374},
+  doi     = {10.1088/1009-1963/11/4/310}
+}
+
+% [GZS02] termo de forca de 2a ordem (o forcamento com F/2 do codigo e analogo a este)
+@article{Guo2002b,
+  author  = {Guo, Zhaoli and Zheng, Chuguang and Shi, Baochang},
+  title   = {Discrete lattice effects on the forcing term in the lattice {B}oltzmann method},
+  journal = {Physical Review E},
+  year    = {2002},
+  volume  = {65},
+  number  = {4},
+  pages   = {046308},
+  doi     = {10.1103/PhysRevE.65.046308}
+}
+
+% [M02] forca no corpo por troca de quantidade de movimento
+@article{Mei2002,
+  author  = {Mei, Renwei and Yu, Dazhi and Shyy, Wei and Luo, Li-Shi},
+  title   = {Force evaluation in the lattice {B}oltzmann method involving curved geometry},
+  journal = {Physical Review E},
+  year    = {2002},
+  volume  = {65},
+  number  = {4},
+  pages   = {041203},
+  doi     = {10.1103/PhysRevE.65.041203}
+}
+
+% ===========================================================================
+% Casos de validacao (solucoes de referencia)
+% ===========================================================================
+
+% [ST96] cilindro em canal, caso 3D-1Z (Re = 20): faixas de C_D, C_L e Delta p
+@incollection{Schafer1996,
+  author    = {Sch{\"a}fer, M. and Turek, S. and Durst, F. and Krause, E. and Rannacher, R.},
+  title     = {Benchmark computations of laminar flow around a cylinder},
+  booktitle = {Flow Simulation with High-Performance Computers {II}},
+  editor    = {Hirschel, Ernst Heinrich},
+  series    = {Notes on Numerical Fluid Mechanics},
+  volume    = {52},
+  publisher = {Vieweg+Teubner},
+  address   = {Wiesbaden},
+  year      = {1996},
+  pages     = {547--566},
+  doi       = {10.1007/978-3-322-89849-4_39}
+}
+
+% [SA82] arraste no arranjo cubico simples de esferas (escoamento de Stokes)
+@article{Sangani1982,
+  author  = {Sangani, A. S. and Acrivos, A.},
+  title   = {Slow flow through a periodic array of spheres},
+  journal = {International Journal of Multiphase Flow},
+  year    = {1982},
+  volume  = {8},
+  number  = {4},
+  pages   = {343--360},
+  doi     = {10.1016/0301-9322(82)90047-7}
+}
+
+% [H59] solucao de Hasimoto, estendida por Sangani & Acrivos
+@article{Hasimoto1959,
+  author  = {Hasimoto, H.},
+  title   = {On the periodic fundamental solutions of the {S}tokes equations and their application to viscous flow past a cubic array of spheres},
+  journal = {Journal of Fluid Mechanics},
+  year    = {1959},
+  volume  = {5},
+  number  = {2},
+  pages   = {317--328},
+  doi     = {10.1017/S0022112059000222}
+}
+
+% [BMR15] valores tabelados de C(chi) usados como referencia no caso spheres (Tab. 1)
+@article{Bogner2015,
+  author  = {Bogner, Simon and Mohanty, Swati and R{\"u}de, Ulrich},
+  title   = {Drag correlation for dilute and moderately dense fluid-particle systems using the lattice {B}oltzmann method},
+  journal = {International Journal of Multiphase Flow},
+  year    = {2015},
+  volume  = {68},
+  pages   = {71--79},
+  doi     = {10.1016/j.ijmultiphaseflow.2014.10.001},
+  eprint  = {1401.2025},
+  archivePrefix = {arXiv}
+}
+
+% [W06] solucao em serie do duto retangular (Eq. 3-48)
+@book{White2006,
+  author    = {White, Frank M.},
+  title     = {Viscous Fluid Flow},
+  edition   = {3},
+  publisher = {McGraw-Hill},
+  address   = {New York},
+  year      = {2006},
+  isbn      = {978-0-07-240231-5}
+}
+
+% [AK05] cavidade cubica com tampa movel (comparacao sugerida para o caso cavity)
+@article{Albensoeder2005,
+  author  = {Albensoeder, S. and Kuhlmann, H. C.},
+  title   = {Accurate three-dimensional lid-driven cavity flow},
+  journal = {Journal of Computational Physics},
+  year    = {2005},
+  volume  = {206},
+  number  = {2},
+  pages   = {536--558},
+  doi     = {10.1016/j.jcp.2004.12.024}
+}
+
+% [K87] cavidade cubica com tampa movel (comparacao sugerida para o caso cavity)
+@article{Ku1987,
+  author  = {Ku, Hwar C. and Hirsh, Richard S. and Taylor, Thomas D.},
+  title   = {A pseudospectral method for solution of the three-dimensional incompressible {N}avier-{S}tokes equations},
+  journal = {Journal of Computational Physics},
+  year    = {1987},
+  volume  = {70},
+  number  = {2},
+  pages   = {439--462},
+  doi     = {10.1016/0021-9991(87)90190-2}
+}
+
+% ===========================================================================
+% Texto de referencia geral sobre o metodo e software usado
+% ===========================================================================
+
+% [KKK17] livro-texto de LBM (expansao de Chapman-Enskog, redes, contornos); bom para a
+% introducao/metodologia de um artigo.
+@book{Kruger2017,
+  author    = {Kr{\"u}ger, Timm and Kusumaatmaja, Halim and Kuzmin, Alexandr and Shardt, Orest and Silva, Goncalo and Viggen, Erlend Magnus},
+  title     = {The Lattice {B}oltzmann Method: Principles and Practice},
+  series    = {Graduate Texts in Physics},
+  publisher = {Springer},
+  address   = {Cham},
+  year      = {2017},
+  doi       = {10.1007/978-3-319-44649-3}
+}
+
+% [NumPy]
+@article{Harris2020,
+  author  = {Harris, Charles R. and Millman, K. Jarrod and van der Walt, St{\'e}fan J. and Gommers, Ralf and Virtanen, Pauli and Cournapeau, David and Wieser, Eric and Taylor, Julian and Berg, Sebastian and Smith, Nathaniel J. and Kern, Robert and Picus, Matti and Hoyer, Stephan and van Kerkwijk, Marten H. and Brett, Matthew and Haldane, Allan and del R{\'i}o, Jaime Fern{\'a}ndez and Wiebe, Mark and Peterson, Pearu and G{\'e}rard-Marchant, Pierre and Sheppard, Kevin and Reddy, Tyler and Weckesser, Warren and Abbasi, Hameer and Gohlke, Christoph and Oliphant, Travis E.},
+  title   = {Array programming with {NumPy}},
+  journal = {Nature},
+  year    = {2020},
+  volume  = {585},
+  number  = {7825},
+  pages   = {357--362},
+  doi     = {10.1038/s41586-020-2649-2}
+}
+
+% [Matplotlib]
+@article{Hunter2007,
+  author  = {Hunter, John D.},
+  title   = {Matplotlib: A {2D} graphics environment},
+  journal = {Computing in Science \& Engineering},
+  year    = {2007},
+  volume  = {9},
+  number  = {3},
+  pages   = {90--95},
+  doi     = {10.1109/MCSE.2007.55}
+}

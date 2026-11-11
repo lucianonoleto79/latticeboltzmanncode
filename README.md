@@ -14,6 +14,7 @@ acompanhar.py               acompanhamento da convergência (painel HTML, janela
 painel_template.html        modelo do painel HTML (autocontido, sem internet)
 tests/test_lbm3d.py         testes rápidos (pytest, ~15 s)
 resultados/                 casos simulados, um por pasta (índice em resultados/README.md)
+referencias.bib             referências bibliográficas em BibTeX (seção Referências)
 CLAUDE.md                   instruções para o Claude (documentar simulações, estimar tempo, git)
 requirements.txt            numpy, matplotlib
 requirements-dev.txt        + pytest
@@ -454,7 +455,7 @@ A força entra em dois lugares [G15]:
 
 A quantidade de movimento de cada nó aumenta, portanto, exatamente **F** por passo, e a velocidade
 física é a média entre os instantes pré- e pós-colisão. Esse é o forçamento de 2ª ordem usual do LBM
-(análogo ao esquema de Guo, Zheng e Shi). Ele é usado para impor o gradiente de pressão no duto
+(análogo ao esquema de Guo, Zheng e Shi [GZS02]). Ele é usado para impor o gradiente de pressão no duto
 ($F_x = G = -\mathrm dp/\mathrm dx$) e a aceleração no arranjo de esferas ($F_x = \rho g$).
 
 ### 6. Discretização espacial e geometria
@@ -612,13 +613,136 @@ troca de quantidade de movimento + empuxo ρgV_p. Série de Sangani & Acrivos:
 valores de referência para χ = 0,2…0,9 retirados da Tab. 1 de Bogner et al. (2015).
 
 ## Referências
-* [G15] M. Geier, M. Schönherr, A. Pasquali, M. Krafczyk, *The cumulant lattice Boltzmann equation in three dimensions: Theory and validation*, Comput. Math. Appl. 70 (2015) 507–547.
-* [G17] M. Geier, A. Pasquali, M. Schönherr, *Parametrization of the cumulant lattice Boltzmann method for fourth order accurate diffusion. Part I*, J. Comput. Phys. 348 (2017) 862–888.
-* [L94] A.J.C. Ladd, J. Fluid Mech. 271 (1994) 285–309.
-* [B01] M. Bouzidi, M. Firdaouss, P. Lallemand, Phys. Fluids 13 (2001) 3452–3459.
-* [G02] Z. Guo, C. Zheng, B. Shi, Chinese Physics 11 (2002) 366–374.
-* [M02] R. Mei, D. Yu, W. Shyy, L.-S. Luo, Phys. Rev. E 65 (2002) 041203.
-* M. Schäfer, S. Turek, *Benchmark computations of laminar flow around a cylinder*, Notes Numer. Fluid Mech. 52 (1996) 547–566.
-* A.S. Sangani, A. Acrivos, *Slow flow through a periodic array of spheres*, Int. J. Multiphase Flow 8 (1982) 343–360.
-* S. Bogner, S. Mohanty, U. Rüde, *Drag correlation for dilute and moderately dense fluid-particle systems using the lattice Boltzmann method*, Int. J. Multiphase Flow 68 (2015) 71–79 ([arXiv:1401.2025](https://arxiv.org/abs/1401.2025)).
-* F.M. White, *Viscous Fluid Flow*, 3ª ed., McGraw-Hill, 2006.
+
+Todas as referências estão em **[`referencias.bib`](referencias.bib)** (BibTeX). O arquivo pode ser
+usado direto em LaTeX (`\bibliography{referencias}`) ou importado no Zotero, Mendeley ou JabRef.
+Autores, volumes, páginas e DOIs foram conferidos no Crossref (doi.org) em novembro de 2026. As
+siglas entre colchetes são as usadas neste README e nos comentários do `lbm3d.py`; a chave BibTeX
+de cada uma está na tabela abaixo.
+
+### O que citar em cada parte de um artigo
+
+| Parte do método ou do trabalho | Onde está no código | Referências | Chaves BibTeX |
+|---|---|---|---|
+| Este código | `lbm3d.py` | [lbm3d] | `Noleto2026lbm3d` |
+| Método de lattice-Boltzmann (visão geral, Chapman–Enskog, rede D3Q27) | — | [KKK17] | `Kruger2017` |
+| Operador de cumulantes, transformação chimera, correção galileana | `collide`, `_cumulant_relax`, `_fwd`, `_bwd` | [G15] | `Geier2015` |
+| Parametrização K17 (ω₃, ω₄, ω₅, A, B) e limitador de 3ª ordem | `k17_parameters`, `_cumulant_relax` | [G17]; conferido com [VF] | `Geier2017a`, `VirtualFluids` |
+| Força de corpo (forçamento de 2ª ordem com F/2) | `macroscopic`, `_cumulant_relax` | [G15]; análogo a [GZS02] | `Geier2015`, `Guo2002b` |
+| Paredes planas e móveis (bounce-back a meio caminho) | `build_links`, `Links.apply` | [L94] | `Ladd1994` |
+| Paredes curvas (bounce-back interpolado linear) | `build_links` | [B01] | `Bouzidi2001` |
+| Saída com pressão imposta (extrapolação de não-equilíbrio) | `Cylinder.post_stream` | [G02] | `Guo2002a` |
+| Força sobre o corpo (troca de quantidade de movimento) | `Links.force` | [M02] | `Mei2002` |
+| Validação: duto retangular | `Duct` | [W06] | `White2006` |
+| Validação: cilindro 3D-1Z (Re = 20) | `Cylinder` | [ST96] | `Schafer1996` |
+| Validação: arranjo cúbico de esferas | `SphereArray` | [SA82], [H59]; valores de [BMR15] | `Sangani1982`, `Hasimoto1959`, `Bogner2015` |
+| Cavidade com tampa móvel (comparação sugerida) | `Cavity` | [AK05], [K87] | `Albensoeder2005`, `Ku1987` |
+| Software | — | [NumPy], [Matplotlib] | `Harris2020`, `Hunter2007` |
+| Trabalhos posteriores com o K17 (revisão bibliográfica) | não implementado | [G17b] | `Geier2017b` |
+
+### Texto-base para a seção de métodos
+
+Os parágrafos abaixo resumem o método com as citações já no lugar, para servir de ponto de partida
+na seção de métodos de um artigo. Revise os parâmetros (resolução, ν, Re, modelo efetivo) conforme
+o caso simulado: por exemplo, se ω < 1,75 o código troca o K17 pelo cumulante clássico.
+
+**Em português:**
+
+> As simulações foram feitas com um código próprio de lattice-Boltzmann em Python/NumPy
+> \cite{Noleto2026lbm3d, Harris2020}, na rede D3Q27 \cite{Kruger2017}. A colisão usa o operador de
+> cumulantes \cite{Geier2015} com a parametrização K17, que dá precisão de quarta ordem à difusão
+> \cite{Geier2017a}; a viscosidade volumétrica é relaxada com ω₂ = 1. A força de corpo entra com um
+> esquema de segunda ordem, somando metade da força à velocidade macroscópica \cite{Geier2015, Guo2002b}.
+> As paredes planas e móveis usam bounce-back a meio caminho \cite{Ladd1994}; as superfícies curvas,
+> bounce-back interpolado linear \cite{Bouzidi2001}; e a saída tem pressão imposta por extrapolação
+> de não-equilíbrio \cite{Guo2002a}. As forças sobre os corpos são calculadas por troca de
+> quantidade de movimento \cite{Mei2002}. O código foi validado com a solução em série do duto
+> retangular \cite{White2006}, com o caso 3D-1Z de Schäfer e Turek \cite{Schafer1996} e com o
+> arraste no arranjo cúbico de esferas \cite{Sangani1982, Bogner2015}.
+
+**Em inglês:**
+
+> Simulations were carried out with an in-house lattice Boltzmann code written in Python/NumPy
+> \cite{Noleto2026lbm3d, Harris2020} on the D3Q27 lattice \cite{Kruger2017}. Collisions are
+> computed with the cumulant operator \cite{Geier2015} using the K17 parametrization for
+> fourth-order accurate diffusion \cite{Geier2017a}, with the bulk relaxation rate set to ω₂ = 1.
+> Body forces are included through a second-order scheme in which half of the force is added to
+> the macroscopic velocity \cite{Geier2015, Guo2002b}. Planar and moving walls are modelled with
+> half-way bounce-back \cite{Ladd1994}, curved surfaces with linearly interpolated bounce-back
+> \cite{Bouzidi2001}, and the outlet pressure is imposed by non-equilibrium extrapolation
+> \cite{Guo2002a}. Forces on immersed bodies are obtained by momentum exchange \cite{Mei2002}. The
+> code was validated against the series solution for rectangular duct flow \cite{White2006}, the
+> 3D-1Z benchmark of Schäfer and Turek \cite{Schafer1996}, and the drag on a simple cubic array of
+> spheres \cite{Sangani1982, Bogner2015}.
+
+### Lista completa
+
+**Este código**
+* [lbm3d] L. Noleto, *lbm3d: solver de lattice-Boltzmann D3Q27 com operador de colisão de
+  cumulantes parametrizado (K17) para escoamentos laminares tridimensionais*, código-fonte em
+  Python/NumPy, Universidade de Brasília, 2026. Antes de citar, ajuste no `referencias.bib` o
+  título, a versão (commit) e onde o código pode ser obtido.
+
+**Método numérico**
+* [G15] M. Geier, M. Schönherr, A. Pasquali, M. Krafczyk, *The cumulant lattice Boltzmann
+  equation in three dimensions: Theory and validation*, Comput. Math. Appl. 70 (4) (2015) 507–547.
+  [doi:10.1016/j.camwa.2015.05.001](https://doi.org/10.1016/j.camwa.2015.05.001)
+* [G17] M. Geier, A. Pasquali, M. Schönherr, *Parametrization of the cumulant lattice Boltzmann
+  method for fourth order accurate diffusion. Part I: Derivation and validation*, J. Comput. Phys.
+  348 (2017) 862–888. [doi:10.1016/j.jcp.2017.05.040](https://doi.org/10.1016/j.jcp.2017.05.040)
+* [G17b] M. Geier, A. Pasquali, M. Schönherr, *Parametrization of the cumulant lattice Boltzmann
+  method for fourth order accurate diffusion. Part II: Application to flow around a sphere at drag
+  crisis*, J. Comput. Phys. 348 (2017) 889–898.
+  [doi:10.1016/j.jcp.2017.07.004](https://doi.org/10.1016/j.jcp.2017.07.004)
+* [VF] VirtualFluids, código de pesquisa em lattice-Boltzmann do iRMB, TU Braunschweig.
+  <https://git.rz.tu-bs.de/irmb/VirtualFluids>
+* [KKK17] T. Krüger, H. Kusumaatmaja, A. Kuzmin, O. Shardt, G. Silva, E.M. Viggen, *The Lattice
+  Boltzmann Method: Principles and Practice*, Springer, Cham, 2017.
+  [doi:10.1007/978-3-319-44649-3](https://doi.org/10.1007/978-3-319-44649-3)
+
+**Condições de contorno e forçamento**
+* [L94] A.J.C. Ladd, *Numerical simulations of particulate suspensions via a discretized Boltzmann
+  equation. Part 1. Theoretical foundation*, J. Fluid Mech. 271 (1994) 285–309.
+  [doi:10.1017/S0022112094001771](https://doi.org/10.1017/S0022112094001771)
+* [B01] M. Bouzidi, M. Firdaouss, P. Lallemand, *Momentum transfer of a Boltzmann-lattice fluid with
+  boundaries*, Phys. Fluids 13 (11) (2001) 3452–3459.
+  [doi:10.1063/1.1399290](https://doi.org/10.1063/1.1399290)
+* [G02] Z.-L. Guo, C.-G. Zheng, B.-C. Shi, *Non-equilibrium extrapolation method for velocity and
+  pressure boundary conditions in the lattice Boltzmann method*, Chinese Phys. 11 (4) (2002)
+  366–374. [doi:10.1088/1009-1963/11/4/310](https://doi.org/10.1088/1009-1963/11/4/310)
+* [GZS02] Z. Guo, C. Zheng, B. Shi, *Discrete lattice effects on the forcing term in the lattice
+  Boltzmann method*, Phys. Rev. E 65 (4) (2002) 046308.
+  [doi:10.1103/PhysRevE.65.046308](https://doi.org/10.1103/PhysRevE.65.046308)
+* [M02] R. Mei, D. Yu, W. Shyy, L.-S. Luo, *Force evaluation in the lattice Boltzmann method
+  involving curved geometry*, Phys. Rev. E 65 (4) (2002) 041203.
+  [doi:10.1103/PhysRevE.65.041203](https://doi.org/10.1103/PhysRevE.65.041203)
+
+**Casos de validação**
+* [W06] F.M. White, *Viscous Fluid Flow*, 3ª ed., McGraw-Hill, Nova York, 2006 (Eq. 3-48).
+  ISBN 978-0-07-240231-5.
+* [ST96] M. Schäfer, S. Turek, F. Durst, E. Krause, R. Rannacher, *Benchmark computations of
+  laminar flow around a cylinder*, in: E.H. Hirschel (ed.), *Flow Simulation with High-Performance
+  Computers II*, Notes Numer. Fluid Mech. 52, Vieweg+Teubner, 1996, pp. 547–566.
+  [doi:10.1007/978-3-322-89849-4_39](https://doi.org/10.1007/978-3-322-89849-4_39)
+* [SA82] A.S. Sangani, A. Acrivos, *Slow flow through a periodic array of spheres*, Int. J.
+  Multiphase Flow 8 (4) (1982) 343–360.
+  [doi:10.1016/0301-9322(82)90047-7](https://doi.org/10.1016/0301-9322%2882%2990047-7)
+* [H59] H. Hasimoto, *On the periodic fundamental solutions of the Stokes equations and their
+  application to viscous flow past a cubic array of spheres*, J. Fluid Mech. 5 (2) (1959) 317–328.
+  [doi:10.1017/S0022112059000222](https://doi.org/10.1017/S0022112059000222)
+* [BMR15] S. Bogner, S. Mohanty, U. Rüde, *Drag correlation for dilute and moderately dense
+  fluid-particle systems using the lattice Boltzmann method*, Int. J. Multiphase Flow 68 (2015)
+  71–79. [doi:10.1016/j.ijmultiphaseflow.2014.10.001](https://doi.org/10.1016/j.ijmultiphaseflow.2014.10.001)
+  ([arXiv:1401.2025](https://arxiv.org/abs/1401.2025))
+* [AK05] S. Albensoeder, H.C. Kuhlmann, *Accurate three-dimensional lid-driven cavity flow*,
+  J. Comput. Phys. 206 (2) (2005) 536–558.
+  [doi:10.1016/j.jcp.2004.12.024](https://doi.org/10.1016/j.jcp.2004.12.024)
+* [K87] H.C. Ku, R.S. Hirsh, T.D. Taylor, *A pseudospectral method for solution of the
+  three-dimensional incompressible Navier-Stokes equations*, J. Comput. Phys. 70 (2) (1987) 439–462.
+  [doi:10.1016/0021-9991(87)90190-2](https://doi.org/10.1016/0021-9991%2887%2990190-2)
+
+**Software**
+* [NumPy] C.R. Harris et al., *Array programming with NumPy*, Nature 585 (7825) (2020) 357–362.
+  [doi:10.1038/s41586-020-2649-2](https://doi.org/10.1038/s41586-020-2649-2)
+* [Matplotlib] J.D. Hunter, *Matplotlib: A 2D graphics environment*, Comput. Sci. Eng. 9 (3) (2007)
+  90–95. [doi:10.1109/MCSE.2007.55](https://doi.org/10.1109/MCSE.2007.55)
