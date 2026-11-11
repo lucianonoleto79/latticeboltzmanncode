@@ -600,8 +600,8 @@ def graficos_calor(case, sim, pasta, r):
                 a.set_xlabel("frequência (ciclos na amostra)")
                 a.set_ylabel("Magnitude |FFT|")
                 a.grid(alpha=0.3)
-                a.set_title("(c) pico em %d ciclos; St = D/(T U) = %.4f"
-                            % (int(np.argmax(F)), case.D / (per * case.U)), fontsize=9)
+                a.set_title("(c) pico em %d ciclos; St = D/(2 T U) = %.4f (Nu oscila 2x por ciclo)"
+                            % (int(np.argmax(F)), case.D / (2 * per * case.U)), fontsize=9)
                 arqs.append(_salvar(fig, os.path.join(pasta, "nusselt_fft.png")))
         return arqs
     # --- metodo com solido: Figs. 6 e 7 ---

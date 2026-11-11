@@ -162,6 +162,17 @@ def test_calor_criterio_estacionario_e_resultado(tmp_path):
     assert est["terminou"] and est["convergiu"]
 
 
+def test_ciclos_completos_com_deriva():
+    """Periodo do Nu_inst achado mesmo com deriva lenta (inicio do transiente)."""
+    n = 16000
+    t = np.arange(n)
+    x = 5.0 + 0.2 * np.exp(-t / 3000.0) + 0.004 * np.sin(2 * np.pi * t / 410.0)
+    ini, per = lbm3d.ciclos_completos(x, 9)
+    assert ini is not None and abs(per - 410) < 5
+    assert abs((n - ini) - 9 * per) <= 1
+    assert lbm3d.ciclos_completos(np.full(n, 3.0))[0] is None
+
+
 def test_com_solido_ajuste_h():
     """O ajuste de h por minimos quadrados recupera h de uma curva exponencial exata."""
     a = lbm3d.parse_args(["--case", "calor", "--res", "6", "--Ds", "8", "--Re", "10",

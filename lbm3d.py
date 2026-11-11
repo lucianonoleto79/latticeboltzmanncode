@@ -1233,27 +1233,32 @@ def nu_churchill_bernstein(Re, Pr=PR_AR):
 
 
 def ciclos_completos(serie, ncic=9):
-    """Indice inicial da janela final com `ncic` ciclos completos do sinal (FFT).
-    Devolve (inicio, periodo em passos) ou (None, None) se nao houver oscilacao."""
+    """Indice inicial da janela final com `ncic` ciclos completos do sinal.
+    O periodo vem do pico da FFT do trecho final (40% da serie) sem a tendencia linear
+    (a deriva lenta do inicio nao pode dominar o espectro) e e refinado pelos
+    cruzamentos ascendentes da media.  Devolve (inicio, periodo em passos) ou
+    (None, None) se nao houver oscilacao."""
     x = np.asarray(serie, float)
     n = x.size
     if n < 64:
         return None, None
-    y = x[n // 2:] - x[n // 2:].mean()
-    if not np.any(y):
+    m0 = int(0.6 * n)
+    y = x[m0:]
+    t = np.arange(y.size)
+    y = y - np.polyval(np.polyfit(t, y, 1), t)
+    if not np.any(np.abs(y) > 1e-12 * max(abs(x[-1]), 1.0)):
         return None, None
     F = np.abs(np.fft.rfft(y * np.hanning(y.size)))
-    F[0] = 0.0
+    F[:3] = 0.0                       # tendencia residual e janelas com menos de 3 ciclos
+    if F.size < 4:
+        return None, None
     k = int(np.argmax(F))
-    if k < 2:
+    if F[k] <= 0:
         return None, None
     periodo = y.size / float(k)
-    # refina pelo cruzamento por zero da media (subindo) nos ultimos ciclos
-    z = x - x[n // 2:].mean()
-    subidas = np.where((z[:-1] < 0) & (z[1:] >= 0))[0]
-    subidas = subidas[subidas >= n // 2]
+    subidas = np.where((y[:-1] < 0) & (y[1:] >= 0))[0]
     if subidas.size >= 3:
-        difs = np.diff(subidas)
+        difs = np.diff(subidas).astype(float)
         difs = difs[np.abs(difs - periodo) < 0.3 * periodo]
         if difs.size:
             periodo = float(np.mean(difs))
@@ -1569,7 +1574,8 @@ class CilindroCalor(Case):
         elif self.transiente:
             nu, per, ini = self.nu_medio_transiente()
             r["periodo_passos"] = per
-            r["Strouhal"] = (self.D / (per * self.U)) if per else None
+            # Nu oscila duas vezes por ciclo de desprendimento (um vortice de cada lado)
+            r["Strouhal"] = (self.D / (2 * per * self.U)) if per else None
             r["ciclos_media"] = 9 if ini is not None else 0
         return r
 
