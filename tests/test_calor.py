@@ -149,14 +149,14 @@ def test_calor_criterio_estacionario_e_resultado(tmp_path):
     a = ["--case", "calor", "--res", "5", "--Ds", "8", "--Re", "10", "--report-every", "50"]
     a = lbm3d.parse_args(a + ["--no-gui"])
     case = lbm3d.CASES["calor"](a)
-    case.tol_nu = 1e-5                       # criterio frouxo para o teste ser rapido
+    case.tol_nu = 1e-3                       # criterio frouxo para o teste ser rapido
     lbm3d.CASES["_teste_calor"] = lambda args: case
     try:
         sim, out = rodar(tmp_path, "--case", "_teste_calor", "--report-every", "50", "--max-iter", "20000")
     finally:
         lbm3d.CASES.pop("_teste_calor")
     r = json.load(open(os.path.join(out, "resultado_calor.json")))
-    assert "Eq. 16" in r["parada"]
+    assert "Eq. 16 adaptada" in r["parada"]
     assert 1.0 < r["Nu"] < 5.0                # dominio pequeno: so a ordem de grandeza
     est = json.load(open(os.path.join(out, "estado.json")))
     assert est["terminou"] and est["convergiu"]

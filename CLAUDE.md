@@ -65,7 +65,7 @@ Antes de qualquer simulação (caso novo ou nova rodada de um existente):
 
 * Casos do artigo [CN26] (convecção forçada 2D sobre cilindros): `--forma`, `--Re`, `--metodo
   sem_solido|com_solido`, `--res` (D em nós), `--u-lattice`.  Os critérios de parada são os do
-  artigo (Eq. 16 em janela de 5 D/U para os estacionários; duração em D/U para os transientes;
+  artigo (Eq. 16 adaptada ao LBM para os estacionários: média varia < 1e-5 em 10 D/U, por 5 D/U; duração em D/U para os transientes;
   1 − θ ≥ 0,98 no método com sólido).  O resultado vai para `resultado_calor.json`.
 * O núcleo em C (`lbm_kernel.c`, compilado em `build/`) é usado automaticamente; qualquer
   mudança na colisão precisa ser feita nos dois (NumPy e C) e conferida por `tests/test_calor.py`.

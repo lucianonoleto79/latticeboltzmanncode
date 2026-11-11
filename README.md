@@ -126,9 +126,15 @@ Domínio (Fig. 2 de [CN26]): entrada semicircular de diâmetro Ds, com u = U e T
 laterais retas, que também são entrada; a saída é reta, a Ds/2 do centro, com ρ = 1 e ∂T/∂x = 0.
 
 **Critérios de parada (os do artigo):**
-* `sem_solido` estacionário (Re < 50): Eq. 16, |Nu − Nu₀|/Nu < 10⁻⁸ com a média de 0,8 i_f a i_f.
-  No LBM, as ondas acústicas fazem Nu − Nu₀ cruzar o zero, por isso o critério precisa valer em
-  todos os passos de uma janela de 5 D/U.
+* `sem_solido` estacionário (Re < 50): Eq. 16 adaptada ao LBM. O Nu é a média de 0,8 i_f a i_f
+  (Eq. 11), como no artigo.
+  * O artigo para quando |Nu − Nu₀|/Nu < 10⁻⁸ entre passos consecutivos. Esse critério é natural
+    para o solver incompressível implícito do artigo.
+  * No LBM, que é fracamente compressível, o Nu_inst carrega uma flutuação acústica residual
+    (~10⁻⁵) que não decai, e a variação passo a passo da média fica num patamar ~3·10⁻⁸.
+  * Aqui, a simulação para quando a média varia menos de 10⁻⁵ em 10 D/U, mantido por 5 D/U
+    seguidos, ou seja, Nu convergido em 5 algarismos. Em Re = 10 (D = 5), isso ocorre em 129 D/U,
+    perto dos ~140 D/U do artigo, e o Nu fica igual em 5 algarismos ao de 198 D/U.
 * `sem_solido` transiente (Re ≥ 50): roda a duração em D/U e faz a média em 9 ciclos completos
   (período pela FFT, como na Fig. 5 de [CN26]).
 * `com_solido`: para quando 1 − θ ≥ 0,98, com θ medido no centro do sólido. h vem do ajuste por

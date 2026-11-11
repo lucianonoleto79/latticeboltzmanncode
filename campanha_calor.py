@@ -88,7 +88,7 @@ def custo(c):
         nu_ref = lbm3d.nu_churchill_bernstein(c["Re"])
         tdu = 3.9 * cs * c["Re"] * lbm3d.PR_AR / (4 * nu_ref) + 10
     else:
-        tdu = {1: 90.0, 10: 160.0, 100: 153.0, 200: 131.0}[c["Re"]]
+        tdu = {1: 180.0, 10: 140.0, 100: 153.0, 200: 131.0}[c["Re"]]
     return n, tdu * c["D"] / U
 
 

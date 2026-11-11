@@ -1497,7 +1497,13 @@ class CilindroCalor(Case):
                 self._parou = "duracao de %.0f D/U atingida" % self.duracao
                 return True
             return False
-        # estacionario: |Nu - Nu0| / Nu < 1e-8 (Eq. 16), Nu = media de 0,8 if a if
+        # estacionario: Eq. 16 de [CN26] adaptada ao LBM.  Nu = media de 0,8 if a if (Eq. 11).
+        # No artigo (solver incompressivel implicito) para-se com |Nu - Nu0|/Nu < 1e-8 entre
+        # passos consecutivos.  No LBM (fracamente compressivel) o Nu_inst carrega uma
+        # flutuacao acustica residual ~1e-5 que nao decai, e a variacao passo a passo da
+        # media fica num patamar ~3e-8: o criterio literal nunca e atingido de forma util.
+        # Aqui: |Nu(if) - Nu(if - 10 D/U)| / Nu < 1e-5 em todos os passos de 5 D/U seguidos
+        # (Nu convergido em 5 algarismos).
         if n < 20 or tempo < 20.0:
             return False
         if not hasattr(self, "_cum") or self._cum_n != n - 1:
@@ -1511,20 +1517,22 @@ class CilindroCalor(Case):
         def media(m):
             ii = int(0.8 * m)
             return (c[m] - c[ii]) / max(m - ii, 1)
-        nu1, nu0 = media(n), media(n - 1)
-        # No LBM as ondas acusticas fazem Nu - Nu0 oscilar e cruzar o zero: o criterio da
-        # Eq. 16 precisa valer em todos os passos de uma janela de `janela_nu` D/U seguidos.
+        dlt = max(1, int(round(self.intervalo_nu * self.D / self.U)))
+        if n <= dlt + 1:
+            return False
+        nu1, nu0 = media(n), media(n - dlt)
         if nu1 > 0 and abs(nu1 - nu0) / nu1 < self.tol_nu:
             self._ok_seq = getattr(self, "_ok_seq", 0) + 1
         else:
             self._ok_seq = 0
         if self._ok_seq >= self.janela_nu * self.D / self.U:
-            self._parou = ("|Nu - Nu0|/Nu < %.0e (Eq. 16) em todos os passos dos ultimos %g D/U"
-                           % (self.tol_nu, self.janela_nu))
+            self._parou = ("|Nu - Nu(-%g D/U)|/Nu < %.0e em todos os passos dos ultimos %g D/U (Eq. 16 adaptada)"
+                           % (self.intervalo_nu, self.tol_nu, self.janela_nu))
             return True
         return False
 
-    tol_nu = 1e-8
+    tol_nu = 1e-5
+    intervalo_nu = 10.0
     janela_nu = 5.0
 
     def progresso(self, sim):
