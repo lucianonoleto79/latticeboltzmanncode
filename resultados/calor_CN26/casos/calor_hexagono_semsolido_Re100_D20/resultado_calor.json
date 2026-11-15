@@ -1,0 +1,25 @@
+{
+ "forma": "hexagono",
+ "metodo": "sem_solido",
+ "Re": 100.0,
+ "Pr": 0.7296,
+ "D": 20,
+ "Ds_D": 40,
+ "U": 0.05,
+ "nu": 0.01,
+ "alfa": 0.013706140350877192,
+ "malha": [
+  802,
+  803,
+  1
+ ],
+ "nos_fluido": 570969,
+ "instantes": 61200,
+ "Nu": 4.951066103852979,
+ "tempo_D_U": 153.0,
+ "parada": "duracao de 153 D/U atingida",
+ "C_D_medio": 1.4293794995112052,
+ "periodo_passos": 1253.7777777777778,
+ "Strouhal": 0.1595179014533853,
+ "ciclos_media": 9
+}

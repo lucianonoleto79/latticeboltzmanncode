@@ -1,0 +1,61 @@
+{
+ "caso": "calor",
+ "pasta": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_quadrado45_semsolido_Re100_D20",
+ "malha": [
+  802,
+  803,
+  1
+ ],
+ "nos": 644006,
+ "nos_fluido": 571121,
+ "nu": 0.01,
+ "omega": 1.8867924528301885,
+ "forca": [
+  0.0,
+  0.0,
+  0.0
+ ],
+ "colisao": {
+  "model": "k17",
+  "w1": 1.8867924528301885,
+  "limiter": null,
+  "w2": 1.0,
+  "w3": 0.45530893821235807,
+  "w4": 0.07866184448462939,
+  "w5": 0.18419100431101798,
+  "A": -0.4408683443136405,
+  "B": 0.3534578968211116
+ },
+ "argumentos": {
+  "case": "calor",
+  "model": "k17",
+  "res": 20,
+  "res_z": 0,
+  "chi": 0.5,
+  "Re": 100.0,
+  "nu": 0.0,
+  "u_lattice": 0.05,
+  "u_adv": 0.0,
+  "limiter": null,
+  "max_iter": 20000000,
+  "tol": 1e-07,
+  "save_every": 0,
+  "checkpoint_every": 5000,
+  "outdir": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_quadrado45_semsolido_Re100_D20",
+  "restart": "",
+  "no_gui": true,
+  "no_figs": false,
+  "preprocess_only": false,
+  "report_every": 1000,
+  "forma": "quadrado45",
+  "metodo": "sem_solido",
+  "Pr": 0.7296,
+  "Ds": 0.0,
+  "ks_kf": 0.0,
+  "Cs_Cf": 0.0,
+  "duracao": 0.0,
+  "max_time": 0.0
+ },
+ "dx_fisico": 0.05,
+ "unidade": "m"
+}

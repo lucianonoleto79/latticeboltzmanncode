@@ -269,3 +269,15 @@ def test_conjugado_temperatura_uniforme_se_mantem():
         sim.step()
     T = th.temperatura()
     assert np.nanmax(np.abs(T - 1.0)) < 1e-10, np.nanmax(np.abs(T - 1.0))
+
+
+def test_strouhal_pela_sustentacao():
+    """St vem do periodo de C_L, mesmo quando Nu oscila na frequencia do desprendimento."""
+    t = np.arange(40000)
+    per = 1000.0
+    cl = 0.3 * np.sin(2 * np.pi * t / per)
+    st = lbm3d.strouhal_cl(cl, D=20, U=0.05)
+    assert abs(st - 20 / (per * 0.05)) < 5e-3 * st      # periodo pelos cruzamentos: ~0,1%
+    assert abs(lbm3d.c_l_rms(cl) - 0.3 / np.sqrt(2)) < 1e-3
+    assert lbm3d.strouhal_cl(np.zeros(5), 20, 0.05) is None
+    assert lbm3d.c_l_rms([]) is None

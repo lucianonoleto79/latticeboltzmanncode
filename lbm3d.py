@@ -1274,6 +1274,21 @@ def ciclos_completos(serie, ncic=9):
     return n - tam, periodo
 
 
+def strouhal_cl(serie_cl, D, U):
+    """St = f D / U com f = frequencia de C_L (trecho final, mesmo metodo de ciclos_completos)."""
+    _, per = ciclos_completos(serie_cl)
+    return D / (per * U) if per else None
+
+
+def c_l_rms(serie_cl):
+    """Valor RMS de C_L nos 40% finais da serie (amplitude do desprendimento)."""
+    x = np.asarray(serie_cl, float)
+    if x.size < 10:
+        return None
+    x = x[int(0.6 * x.size):]
+    return float(np.std(x))
+
+
 class CilindroCalor(Case):
     """Conveccao forcada 2D sobre um cilindro isotermico ou conjugado [CN26]."""
     name = "calor"
@@ -1593,8 +1608,11 @@ class CilindroCalor(Case):
         elif self.transiente:
             nu, per, ini = self.nu_medio_transiente()
             r["periodo_passos"] = per
-            # Nu oscila duas vezes por ciclo de desprendimento (um vortice de cada lado)
-            r["Strouhal"] = (self.D / (2 * per * self.U)) if per else None
+            # Strouhal pelo periodo de C_L (um ciclo de desprendimento).  Em corpos simetricos
+            # Nu oscila duas vezes por ciclo; nos assimetricos (hexagono a 45 graus), uma.
+            r["Strouhal"] = strouhal_cl(self.serie_cl, self.D, self.U)
+            r["Strouhal_Nu"] = (self.D / (2 * per * self.U)) if per else None
+            r["C_L_rms"] = c_l_rms(self.serie_cl)
             r["ciclos_media"] = 9 if ini is not None else 0
         return r
 

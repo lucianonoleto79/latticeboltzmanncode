@@ -1,0 +1,138 @@
+==============================================================================
+lbm3d  2026-11-12 16:43:58  |  pasta do caso: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_placa_semsolido_Re200_D20
+Pre-processamento (dominio, contorno, malha): 8 arquivos em 3.6 s
+Caso: calor | malha (602, 603, 1) (363006 nos) | modelo k17 | omega = 1.9417 | nu = 0.00500
+  taxas K17: w3=0.2589 w4=0.0500 w5=0.0916 A=-0.4721 B=0.2564
+Controles: Ctrl+C = menu (continuar/salvar/pausar/sair) | arquivos SALVAR / PAUSAR / PARAR em /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_placa_semsolido_Re200_D20
+Residuos: res(u) = ||u^n - u^(n-1000)|| / ||u^n||  (parada: res(u) < 1.0e-07); componentes normalizadas por ||u^n||; res(rho) = ||drho|| / ||rho||
+[contador] 0h01m00s | it 787 | 13.1 it/s | 2% | restante ~1h05m50s
+ iteracao     res(u)    res(ux)    res(uy)    res(uz)   res(rho)   MLUPS      tempo  grandezas monitoradas
+     1000  7.594e-02  6.620e-02  3.720e-02  0.000e+00  8.811e-04    4.74   0h01m16s  Nu_inst=10.4491  Nu=10.3819  C_D=1.83632  C_L=0.0099687
+[contador] 0h02m00s | it 1575 | 13.1 it/s | 3% | restante ~1h04m52s
+     2000  4.071e-02  3.384e-02  2.263e-02  0.000e+00  1.061e-03    4.74   0h02m33s  Nu_inst=9.52804  Nu=10.0008  C_D=1.472  C_L=0.00414688
+[contador] 0h03m00s | it 2363 | 13.0 it/s | 5% | restante ~1h03m52s
+     3000  2.948e-02  2.476e-02  1.599e-02  0.000e+00  7.716e-04    4.74   0h03m49s  Nu_inst=8.84664  Nu=9.14166  C_D=1.26797  C_L=-0.0163622
+[contador] 0h04m01s | it 3152 | 13.0 it/s | 6% | restante ~1h02m52s
+[contador] 0h05m01s | it 3939 | 13.1 it/s | 8% | restante ~1h01m51s
+     4000  2.583e-02  2.146e-02  1.438e-02  0.000e+00  5.593e-04    4.74   0h05m06s  Nu_inst=8.42253  Nu=8.852  C_D=1.1711  C_L=0.00573721
+[contador] 0h06m01s | it 4722 | 13.0 it/s | 9% | restante ~1h00m52s
+     5000  2.641e-02  2.047e-02  1.668e-02  0.000e+00  4.842e-04    4.74   0h06m23s  Nu_inst=8.12734  Nu=8.44583  C_D=1.26324  C_L=0.0459756
+[contador] 0h07m02s | it 5511 | 13.1 it/s | 11% | restante ~0h59m53s
+     6000  4.219e-02  3.227e-02  2.718e-02  0.000e+00  3.759e-04    4.73   0h07m40s  Nu_inst=7.90701  Nu=8.30132  C_D=1.11731  C_L=-0.00131557
+[contador] 0h08m02s | it 6296 | 13.0 it/s | 12% | restante ~0h58m54s
+     7000  6.085e-02  3.975e-02  4.608e-02  0.000e+00  4.233e-04    4.73   0h08m56s  Nu_inst=7.72527  Nu=7.9018  C_D=1.28299  C_L=-0.0978264
+[contador] 0h09m03s | it 7086 | 12.9 it/s | 14% | restante ~0h57m55s
+[contador] 0h10m04s | it 7882 | 13.0 it/s | 15% | restante ~0h56m54s
+     8000  1.182e-01  7.900e-02  8.793e-02  0.000e+00  4.534e-04    4.73   0h10m13s  Nu_inst=8.15366  Nu=7.83964  C_D=1.48165  C_L=0.0941993
+[contador] 0h11m04s | it 8663 | 13.0 it/s | 17% | restante ~0h55m55s
+     9000  1.824e-01  1.039e-01  1.499e-01  0.000e+00  5.869e-04    4.73   0h11m30s  Nu_inst=8.63684  Nu=8.13076  C_D=2.15763  C_L=-0.246788
+[contador] 0h12m05s | it 9441 | 12.8 it/s | 18% | restante ~0h55m01s
+    10000  2.271e-01  1.053e-01  2.012e-01  0.000e+00  6.491e-04    4.72   0h12m49s  Nu_inst=9.41245  Nu=8.60338  C_D=2.47686  C_L=0.416081
+[contador] 0h13m06s | it 10213 | 12.6 it/s | 19% | restante ~0h54m08s
+[contador] 0h14m06s | it 10983 | 12.8 it/s | 21% | restante ~0h53m11s
+    11000  2.459e-01  1.092e-01  2.203e-01  0.000e+00  7.265e-04    4.71   0h14m07s  Nu_inst=9.57302  Nu=8.41489  C_D=3.10781  C_L=-0.575237
+[contador] 0h15m07s | it 11759 | 12.8 it/s | 22% | restante ~0h52m15s
+    12000  2.604e-01  1.175e-01  2.324e-01  0.000e+00  8.201e-04    4.70   0h15m25s  Nu_inst=9.56996  Nu=8.56201  C_D=3.2434  C_L=0.525501
+[contador] 0h16m08s | it 12533 | 12.8 it/s | 24% | restante ~0h51m19s
+    13000  2.692e-01  1.188e-01  2.416e-01  0.000e+00  9.237e-04    4.70   0h16m44s  Nu_inst=9.60687  Nu=8.75156  C_D=3.14274  C_L=-0.393785
+[contador] 0h17m09s | it 13302 | 12.5 it/s | 25% | restante ~0h50m25s
+    14000  2.707e-01  1.181e-01  2.436e-01  0.000e+00  1.036e-03    4.66   0h18m09s  Nu_inst=9.67031  Nu=8.7836  C_D=2.90955  C_L=0.265114
+[contador] 0h18m09s | it 14001 | 11.8 it/s | 27% | restante ~0h49m49s
+[contador] 0h19m10s | it 14774 | 12.7 it/s | 28% | restante ~0h48m50s
+    15000  2.544e-01  1.149e-01  2.270e-01  0.000e+00  1.027e-03    4.66   0h19m28s  Nu_inst=9.61415  Nu=9.31082  C_D=2.69768  C_L=-0.19106
+[contador] 0h20m11s | it 15544 | 12.8 it/s | 30% | restante ~0h47m52s
+    16000  2.417e-01  1.070e-01  2.167e-01  0.000e+00  9.203e-04    4.65   0h20m47s  Nu_inst=9.56023  Nu=9.3914  C_D=2.64373  C_L=0.202502
+[contador] 0h21m11s | it 16309 | 12.7 it/s | 31% | restante ~0h46m54s
+    17000  2.382e-01  1.037e-01  2.144e-01  0.000e+00  1.394e-03    4.65   0h22m05s  Nu_inst=9.41729  Nu=9.49776  C_D=2.62847  C_L=-0.288763
+[contador] 0h22m12s | it 17081 | 12.6 it/s | 33% | restante ~0h45m55s
+[contador] 0h23m13s | it 17862 | 12.8 it/s | 34% | restante ~0h44m54s
+    18000  2.379e-01  1.035e-01  2.142e-01  0.000e+00  1.015e-03    4.65   0h23m24s  Nu_inst=9.18127  Nu=9.60203  C_D=2.67301  C_L=0.386956
+[contador] 0h24m14s | it 18643 | 12.8 it/s | 36% | restante ~0h43m53s
+    19000  2.318e-01  1.022e-01  2.080e-01  0.000e+00  1.198e-03    4.65   0h24m42s  Nu_inst=9.20165  Nu=9.62146  C_D=2.7095  C_L=-0.475626
+[contador] 0h25m14s | it 19415 | 12.8 it/s | 37% | restante ~0h42m53s
+    20000  2.225e-01  1.030e-01  1.972e-01  0.000e+00  1.039e-03    4.65   0h26m01s  Nu_inst=9.41987  Nu=9.60913  C_D=2.65833  C_L=0.512224
+[contador] 0h26m15s | it 20182 | 12.5 it/s | 39% | restante ~0h41m55s
+[contador] 0h27m16s | it 20952 | 12.7 it/s | 40% | restante ~0h40m55s
+    21000  2.131e-01  1.047e-01  1.855e-01  0.000e+00  1.053e-03    4.65   0h27m19s  Nu_inst=9.52324  Nu=9.58389  C_D=2.43723  C_L=-0.468874
+[contador] 0h28m16s | it 21731 | 12.8 it/s | 41% | restante ~0h39m55s
+    22000  2.055e-01  9.918e-02  1.800e-01  0.000e+00  9.715e-04    4.65   0h28m38s  Nu_inst=9.51407  Nu=9.5416  C_D=2.21539  C_L=0.338848
+[contador] 0h29m17s | it 22503 | 12.8 it/s | 43% | restante ~0h38m55s
+    23000  2.049e-01  1.002e-01  1.787e-01  0.000e+00  8.598e-04    4.65   0h29m57s  Nu_inst=9.47438  Nu=9.49302  C_D=2.13172  C_L=-0.122118
+[contador] 0h30m18s | it 23273 | 12.6 it/s | 44% | restante ~0h37m55s
+    24000  1.988e-01  9.314e-02  1.756e-01  0.000e+00  1.074e-03    4.65   0h31m15s  Nu_inst=9.34313  Nu=9.45531  C_D=2.26728  C_L=-0.104921
+[contador] 0h31m19s | it 24049 | 12.7 it/s | 46% | restante ~0h36m55s
+[contador] 0h32m19s | it 24818 | 12.8 it/s | 47% | restante ~0h35m55s
+    25000  2.040e-01  9.485e-02  1.806e-01  0.000e+00  8.047e-04    4.64   0h32m33s  Nu_inst=9.18457  Nu=9.4215  C_D=2.46866  C_L=0.286539
+[contador] 0h33m20s | it 25605 | 13.2 it/s | 49% | restante ~0h34m53s
+ iteracao     res(u)    res(ux)    res(uy)    res(uz)   res(rho)   MLUPS      tempo  grandezas monitoradas
+    26000  2.131e-01  1.016e-01  1.874e-01  0.000e+00  1.074e-03    4.65   0h33m51s  Nu_inst=9.07435  Nu=9.38873  C_D=2.5973  C_L=-0.417565
+[contador] 0h34m20s | it 26372 | 12.5 it/s | 50% | restante ~0h33m53s
+    27000  2.088e-01  1.038e-01  1.811e-01  0.000e+00  1.008e-03    4.64   0h35m10s  Nu_inst=9.21178  Nu=9.35948  C_D=2.53864  C_L=0.482272
+[contador] 0h35m20s | it 27140 | 13.0 it/s | 52% | restante ~0h32m54s
+[contador] 0h36m21s | it 27908 | 12.9 it/s | 53% | restante ~0h31m54s
+    28000  2.003e-01  1.004e-01  1.733e-01  0.000e+00  8.917e-04    4.64   0h36m28s  Nu_inst=9.46868  Nu=9.33962  C_D=2.31215  C_L=-0.427342
+[contador] 0h37m21s | it 28688 | 13.1 it/s | 55% | restante ~0h30m52s
+    29000  2.014e-01  1.024e-01  1.735e-01  0.000e+00  1.150e-03    4.65   0h37m45s  Nu_inst=9.47877  Nu=9.32926  C_D=2.10577  C_L=0.251719
+[contador] 0h38m21s | it 29475 | 13.1 it/s | 56% | restante ~0h29m50s
+    30000  2.007e-01  9.585e-02  1.764e-01  0.000e+00  7.720e-04    4.65   0h39m01s  Nu_inst=9.2987  Nu=9.32224  C_D=2.10886  C_L=-0.0114046
+[contador] 0h39m21s | it 30254 | 12.9 it/s | 58% | restante ~0h28m48s
+    31000  2.078e-01  9.956e-02  1.824e-01  0.000e+00  1.001e-03    4.65   0h40m18s  Nu_inst=9.21832  Nu=9.31026  C_D=2.34321  C_L=-0.209207
+[contador] 0h40m21s | it 31037 | 13.0 it/s | 59% | restante ~0h27m46s
+[contador] 0h41m21s | it 31820 | 13.0 it/s | 61% | restante ~0h26m45s
+    32000  2.171e-01  1.047e-01  1.902e-01  0.000e+00  8.434e-04    4.65   0h41m35s  Nu_inst=9.13024  Nu=9.30681  C_D=2.56456  C_L=0.373351
+[contador] 0h42m22s | it 32604 | 13.0 it/s | 62% | restante ~0h25m43s
+    33000  2.105e-01  9.956e-02  1.855e-01  0.000e+00  7.769e-04    4.66   0h42m52s  Nu_inst=9.12929  Nu=9.30313  C_D=2.58657  C_L=-0.467406
+[contador] 0h43m22s | it 33388 | 13.1 it/s | 64% | restante ~0h24m41s
+    34000  2.007e-01  1.023e-01  1.727e-01  0.000e+00  8.627e-04    4.66   0h44m09s  Nu_inst=9.33666  Nu=9.29372  C_D=2.428  C_L=0.470119
+[contador] 0h44m22s | it 34176 | 13.0 it/s | 65% | restante ~0h23m39s
+[contador] 0h45m23s | it 34955 | 13.1 it/s | 67% | restante ~0h22m39s
+    35000  1.951e-01  9.562e-02  1.701e-01  0.000e+00  9.668e-04    4.66   0h45m27s  Nu_inst=9.509  Nu=9.28478  C_D=2.183  C_L=-0.342964
+[contador] 0h46m23s | it 35731 | 13.0 it/s | 68% | restante ~0h21m38s
+    36000  1.927e-01  9.759e-02  1.661e-01  0.000e+00  9.624e-04    4.66   0h46m44s  Nu_inst=9.36977  Nu=9.28338  C_D=2.06206  C_L=0.111331
+[contador] 0h47m24s | it 36525 | 13.1 it/s | 70% | restante ~0h20m36s
+    37000  1.977e-01  9.401e-02  1.740e-01  0.000e+00  9.330e-04    4.66   0h48m01s  Nu_inst=9.22009  Nu=9.28326  C_D=2.22211  C_L=0.135507
+[contador] 0h48m25s | it 37314 | 12.9 it/s | 71% | restante ~0h19m34s
+    38000  2.073e-01  1.015e-01  1.807e-01  0.000e+00  9.460e-04    4.66   0h49m18s  Nu_inst=9.10434  Nu=9.28344  C_D=2.47314  C_L=-0.33207
+[contador] 0h49m26s | it 38102 | 13.0 it/s | 73% | restante ~0h18m33s
+[contador] 0h50m26s | it 38895 | 13.1 it/s | 74% | restante ~0h17m30s
+    39000  2.023e-01  9.641e-02  1.778e-01  0.000e+00  7.480e-04    4.66   0h50m34s  Nu_inst=9.09807  Nu=9.27878  C_D=2.55878  C_L=0.451211
+[contador] 0h51m27s | it 39690 | 13.1 it/s | 76% | restante ~0h16m28s
+    40000  1.970e-01  1.018e-01  1.686e-01  0.000e+00  7.726e-04    4.67   0h51m51s  Nu_inst=9.31921  Nu=9.27492  C_D=2.4338  C_L=-0.471512
+[contador] 0h52m28s | it 40458 | 12.3 it/s | 77% | restante ~0h15m29s
+    41000  1.915e-01  9.283e-02  1.675e-01  0.000e+00  8.649e-04    4.65   0h53m23s  Nu_inst=9.46619  Nu=9.27395  C_D=2.18829  C_L=0.356773
+[contador] 0h53m29s | it 41069 | 11.1 it/s | 78% | restante ~0h14m45s
+[contador] 0h54m29s | it 41785 | 12.4 it/s | 80% | restante ~0h13m50s
+    42000  1.938e-01  9.322e-02  1.699e-01  0.000e+00  7.798e-04    4.64   0h54m46s  Nu_inst=9.35061  Nu=9.27168  C_D=2.03592  C_L=-0.117875
+[contador] 0h55m29s | it 42566 | 13.0 it/s | 81% | restante ~0h12m49s
+    43000  1.965e-01  9.192e-02  1.736e-01  0.000e+00  8.453e-04    4.64   0h56m03s  Nu_inst=9.22678  Nu=9.26583  C_D=2.21131  C_L=-0.135268
+[contador] 0h56m30s | it 43360 | 13.1 it/s | 83% | restante ~0h11m46s
+    44000  2.028e-01  9.594e-02  1.787e-01  0.000e+00  8.262e-04    4.64   0h57m19s  Nu_inst=9.091  Nu=9.26535  C_D=2.46088  C_L=0.333783
+[contador] 0h57m30s | it 44154 | 13.1 it/s | 84% | restante ~0h10m44s
+[contador] 0h58m31s | it 44950 | 13.2 it/s | 86% | restante ~0h09m41s
+    45000  1.952e-01  9.399e-02  1.711e-01  0.000e+00  7.864e-04    4.65   0h58m35s  Nu_inst=9.06903  Nu=9.26267  C_D=2.53378  C_L=-0.450348
+[contador] 0h59m31s | it 45729 | 13.0 it/s | 87% | restante ~0h08m41s
+    46000  1.900e-01  9.711e-02  1.633e-01  0.000e+00  7.472e-04    4.64   1h00m00s  Nu_inst=9.31735  Nu=9.25546  C_D=2.38158  C_L=0.46004
+[contador] 1h00m32s | it 46180 | 5.8 it/s | 88% | restante ~0h08m09s
+[contador] 1h01m33s | it 46698 | 8.2 it/s | 89% | restante ~0h07m30s
+    47000  1.914e-01  9.837e-02  1.641e-01  0.000e+00  1.008e-03    4.58   1h02m04s  Nu_inst=9.44758  Nu=9.25043  C_D=2.12962  C_L=-0.3172
+[contador] 1h02m33s | it 47311 | 10.5 it/s | 90% | restante ~0h06m43s
+[contador] 1h03m34s | it 47981 | 11.3 it/s | 92% | restante ~0h05m51s
+    48000  2.010e-01  9.637e-02  1.764e-01  0.000e+00  9.136e-04    4.57   1h03m36s  Nu_inst=9.31911  Nu=9.25039  C_D=2.04425  C_L=0.0627261
+[contador] 1h04m35s | it 48744 | 12.6 it/s | 93% | restante ~0h04m50s
+    49000  2.089e-01  1.027e-01  1.820e-01  0.000e+00  1.064e-03    4.57   1h04m55s  Nu_inst=9.1611  Nu=9.24959  C_D=2.24998  C_L=0.18191
+[contador] 1h05m35s | it 49500 | 12.6 it/s | 94% | restante ~0h03m50s
+    50000  2.027e-01  9.318e-02  1.800e-01  0.000e+00  1.133e-03    4.57   1h06m15s  Nu_inst=9.04593  Nu=9.24655  C_D=2.48236  C_L=-0.365471
+[contador] 1h06m35s | it 50247 | 12.3 it/s | 96% | restante ~0h02m51s
+[contador] 1h07m36s | it 50997 | 12.4 it/s | 97% | restante ~0h01m51s
+ iteracao     res(u)    res(ux)    res(uy)    res(uz)   res(rho)   MLUPS      tempo  grandezas monitoradas
+    51000  1.934e-01  9.620e-02  1.678e-01  0.000e+00  9.069e-04    4.56   1h07m36s  Nu_inst=9.16572  Nu=9.24588  C_D=2.55223  C_L=0.467277
+[contador] 1h08m36s | it 51728 | 11.8 it/s | 99% | restante ~0h00m53s
+    52000  1.903e-01  8.955e-02  1.679e-01  0.000e+00  1.378e-03    4.56   1h08m58s  Nu_inst=9.40814  Nu=9.24608  C_D=2.36703  C_L=-0.453859
+Criterio de parada do caso atingido na iteracao 52400: duracao de 131 D/U atingida
+Checkpoint: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_placa_semsolido_Re200_D20/checkpoint/checkpoint.npz   (continue com: python lbm3d.py --restart /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_placa_semsolido_Re200_D20)
+Campo e imagens do escoamento: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_placa_semsolido_Re200_D20/escoamento/final
+==============================================================================
+VALIDACAO
+Vertical Plate, Re = 200, metodo sem_solido (D = 20, Ds = 30 D): Nu = 9.2472   instantes = 52400   (duracao de 131 D/U atingida)
+==============================================================================
+[contador] 1h09m34s | it 52400 | 10.5 it/s | 100% | TERMINOU  (tempo total de simulacao: 1h09m34s)

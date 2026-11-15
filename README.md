@@ -140,7 +140,7 @@ laterais retas, que também são entrada; a saída é reta, a Ds/2 do centro, co
 * `com_solido`: para quando 1 − θ ≥ 0,98, com θ medido no centro do sólido. h vem do ajuste por
   mínimos quadrados da Eq. 14 em [round(0,99 i_f), i_f].
 
-**Saída:** `resultado_calor.json` (Nu, Nu_ref, diferença, Biot, nº de instantes, Strouhal),
+**Saída:** `resultado_calor.json` (Nu, Nu_ref, diferença, Biot, nº de instantes, Strouhal pelo período de C_L, C_L rms),
 `graficos/nusselt.csv` (Nu_inst, θ do centro, C_D, C_L a cada passo) e os gráficos no formato do
 artigo:
 * `graficos/nusselt_historia.png`, `nusselt_7periodos.png` e `nusselt_fft.png` (Figs. 5 e 10);
@@ -153,7 +153,8 @@ O VTK inclui o campo `theta`.
 
 Resultados versionados em [`resultados/`](resultados) (índice e lista de arquivos em
 [`resultados/README.md`](resultados/README.md)), todos com o modelo K17 e parâmetros do benchmark
-(nenhum é ilustrativo).
+(nenhum é ilustrativo; no caso de calor, as diferenças de parâmetros em relação ao artigo
+estão indicadas na própria entrada).
 
 ### Duto retangular 24 × 16 — `duct_24x16`
 Duto periódico com seção 24 × 16 nós, ν = 0,02, forçado por gradiente de pressão (u_max = 0,05), até
@@ -204,6 +205,51 @@ python lbm3d.py --case spheres --res 48 --chi 0.5
 ```
 
 [Pasta](resultados/spheres_L48_chi0.5) · ![Esferas L48: convergência](resultados/spheres_L48_chi0.5/graficos/convergencia.png)
+
+### Convecção forçada sobre cilindros, campanha de [CN26] — `calor_CN26`
+Os 48 casos do artigo Cunha & Noleto (2026), em 2D (nz = 1), com Pr = 0,7296 e os domínios da
+Tabela 1. Foram rodados:
+* círculo com os dois métodos (sem sólido e com sólido conjugado), Re = 1, 10, 100 e 200, em três
+  malhas cada: D = 5/7/10 nós para Re ≤ 10 e D = 10/14/20 para Re ≥ 100;
+* as seis seções não circulares da Fig. 9, sem sólido, na malha fina, nos mesmos quatro Re.
+
+U = 0,02 (Re = 1) ou 0,05 em unidades de rede. A campanha levou ~38 h de relógio, com 3 processos
+simultâneos.
+
+**Método sem sólido, malha fina:** Nu = 0,820 / 1,868 / 5,125 / 7,153 para Re = 1 / 10 / 100 / 200.
+O artigo dá 0,798 / 1,837 / 5,109 / 7,394. Contra a correlação de referência (Eq. 17), a diferença
+é de 3,7 / 0,8 / 1,6 / 1,3 %; no artigo, 0,9 / 0,9 / 1,9 / 2,1 %.
+
+**Método com sólido, malha fina:** Nu = 0,778 / 1,756 / 4,931 / 7,211, contra 0,793 / 1,863 /
+5,082 / 7,414 no artigo. A diferença para a Eq. 17 é de 1,7 / 5,2 / 5,4 / 0,5 %.
+
+**Seções não circulares:** os Nu diferem em média 5,8 % dos da Tabela 6 (21 de 24 acima), com a mesma ordem
+entre as seções. A diferença vai de 0,2 % (elipse) a 15 % (quadrado em Re = 200). Nas correlações
+Nu = C Re^m Pr^(1/3), o expoente m fica a ≤ 0,013 do ajuste feito aos dados do artigo.
+
+**Strouhal (pela sustentação C_L):** 0,166 e 0,197 para o círculo em Re = 100 e 200.
+
+**O que não foi verificado ou difere do artigo:**
+* No método com sólido, o Nu depende mais da malha em Re ≥ 100. Na malha grossa (D = 10), a
+  camada limite térmica tem menos de um nó; o artigo mostra o mesmo comportamento na Tabela 3.
+* Em Re = 1 e 10, as propriedades do sólido não são as do cobre: (ρc_p)s/(ρc_p)f = 277 e 104, com
+  ks/kf = 157, para que o caso termine em tempo viável. Isso não altera o Nu, mas o Biot fica
+  ~2,5·10⁻³, contra ~2,5·10⁻⁵ no artigo. Continua ≪ 0,1, o que mantém válida a hipótese de
+  sistema concentrado.
+* O critério estacionário é a Eq. 16 adaptada ao LBM (média com 5 algarismos estáveis).
+* Na elipse em Re = 100 quase não há desprendimento (C_L rms = 0,007), então o St desse caso não é
+  significativo.
+* O artigo não traz Strouhal para comparar.
+
+```bash
+python campanha_calor.py --plano completo --rodar --processos 3 --menores-primeiro
+python campanha_calor.py --relatorio        # tabelas 2–6 e Fig. 12 em resultados/calor_CN26/
+```
+
+[Pasta](resultados/calor_CN26) ·
+[Comparação completa (formato das Tabelas 2–6 e da Fig. 12)](resultados/calor_CN26/comparacao_CN26.md) ·
+![Nu: LBM × CN26](resultados/calor_CN26/nusselt_lbm_x_artigo.png)
+![Temperatura, círculo, Re = 100](resultados/calor_CN26/casos/calor_circulo_semsolido_Re100_D20/temperatura.png)
 
 ## Resíduos
 

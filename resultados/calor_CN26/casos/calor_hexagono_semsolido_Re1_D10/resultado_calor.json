@@ -1,0 +1,22 @@
+{
+ "forma": "hexagono",
+ "metodo": "sem_solido",
+ "Re": 1.0,
+ "Pr": 0.7296,
+ "D": 10,
+ "Ds_D": 80,
+ "U": 0.02,
+ "nu": 0.2,
+ "alfa": 0.2741228070175439,
+ "malha": [
+  802,
+  803,
+  1
+ ],
+ "nos_fluido": 571219,
+ "instantes": 49898,
+ "Nu": 0.7576491597190955,
+ "tempo_D_U": 99.796,
+ "parada": "|Nu - Nu(-10 D/U)|/Nu < 1e-05 em todos os passos dos ultimos 5 D/U (Eq. 16 adaptada)",
+ "C_D_medio": 11.159940807867029
+}

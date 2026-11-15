@@ -1,5 +1,5 @@
 # pastas de casos rodados localmente (checkpoints e campos VTK chegam a centenas de MB)
-casos/
+/casos/
 saida_*/
 # dados brutos: nunca vao para o repositorio
 *.npz

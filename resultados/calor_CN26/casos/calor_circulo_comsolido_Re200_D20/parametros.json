@@ -1,0 +1,61 @@
+{
+ "caso": "calor",
+ "pasta": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_comsolido_Re200_D20",
+ "malha": [
+  602,
+  603,
+  1
+ ],
+ "nos": 363006,
+ "nos_fluido": 321033,
+ "nu": 0.005,
+ "omega": 1.941747572815534,
+ "forca": [
+  0.0,
+  0.0,
+  0.0
+ ],
+ "colisao": {
+  "model": "k17",
+  "w1": 1.941747572815534,
+  "limiter": null,
+  "w2": 1.0,
+  "w3": 0.2588558195385538,
+  "w4": 0.049963107410140116,
+  "w5": 0.09164489860616407,
+  "A": -0.4721493676802827,
+  "B": 0.25637296908947693
+ },
+ "argumentos": {
+  "case": "calor",
+  "model": "k17",
+  "res": 20,
+  "res_z": 0,
+  "chi": 0.5,
+  "Re": 200.0,
+  "nu": 0.0,
+  "u_lattice": 0.05,
+  "u_adv": 0.0,
+  "limiter": null,
+  "max_iter": 20000000,
+  "tol": 1e-07,
+  "save_every": 0,
+  "checkpoint_every": 5000,
+  "outdir": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_comsolido_Re200_D20",
+  "restart": "",
+  "no_gui": true,
+  "no_figs": false,
+  "preprocess_only": false,
+  "report_every": 1000,
+  "forma": "circulo",
+  "metodo": "com_solido",
+  "Pr": 0.7296,
+  "Ds": 0.0,
+  "ks_kf": 157.0,
+  "Cs_Cf": 16.9,
+  "duracao": 0.0,
+  "max_time": 0.0
+ },
+ "dx_fisico": 0.05,
+ "unidade": "m"
+}

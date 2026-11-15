@@ -1,0 +1,24 @@
+{
+ "forma": "circulo",
+ "metodo": "sem_solido",
+ "Re": 1.0,
+ "Pr": 0.7296,
+ "D": 10,
+ "Ds_D": 80,
+ "U": 0.02,
+ "nu": 0.2,
+ "alfa": 0.2741228070175439,
+ "malha": [
+  802,
+  803,
+  1
+ ],
+ "nos_fluido": 571233,
+ "instantes": 49806,
+ "Nu": 0.8200084668998227,
+ "tempo_D_U": 99.612,
+ "parada": "|Nu - Nu(-10 D/U)|/Nu < 1e-05 em todos os passos dos ultimos 5 D/U (Eq. 16 adaptada)",
+ "C_D_medio": 10.93597511568709,
+ "Nu_ref": 0.7910020923194891,
+ "dif_pct": 3.667041448054439
+}

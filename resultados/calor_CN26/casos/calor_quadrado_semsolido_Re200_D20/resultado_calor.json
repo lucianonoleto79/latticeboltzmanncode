@@ -1,0 +1,25 @@
+{
+ "forma": "quadrado",
+ "metodo": "sem_solido",
+ "Re": 200.0,
+ "Pr": 0.7296,
+ "D": 20,
+ "Ds_D": 30,
+ "U": 0.05,
+ "nu": 0.005,
+ "alfa": 0.006853070175438596,
+ "malha": [
+  602,
+  603,
+  1
+ ],
+ "nos_fluido": 320977,
+ "instantes": 52400,
+ "Nu": 5.975500395920222,
+ "tempo_D_U": 131.0,
+ "parada": "duracao de 131 D/U atingida",
+ "C_D_medio": 1.3431613869132955,
+ "periodo_passos": 1157.9411764705883,
+ "Strouhal": 0.17272034544069087,
+ "ciclos_media": 9
+}

@@ -25,6 +25,8 @@ import time
 
 import numpy as np
 
+import lbm3d
+
 AQUI = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, AQUI)
 
@@ -92,11 +94,28 @@ def custo(c):
     return n, tdu * c["D"] / U
 
 
+def strouhal_de(r):
+    """(St por C_L, St pelo Nu, C_L rms); recalcula de nusselt.csv nas rodadas sem St por C_L."""
+    if "Strouhal_Nu" in r:
+        return r.get("Strouhal"), r.get("Strouhal_Nu"), r.get("C_L_rms")
+    st_nu = r.get("Strouhal")
+    p = os.path.join(r.get("_pasta", ""), "graficos", "nusselt.csv")
+    if not os.path.exists(p):
+        return None, st_nu, None
+    a = np.genfromtxt(p, delimiter=",", names=True)
+    if a.size < 10 or "C_L" not in (a.dtype.names or ()):
+        return None, st_nu, None
+    cl = a["C_L"]
+    return lbm3d.strouhal_cl(cl, r["D"], r["U"]), st_nu, lbm3d.c_l_rms(cl)
+
+
 def resultado(c):
     p = os.path.join(c["pasta"], "resultado_calor.json")
     if os.path.exists(p):
         with open(p) as fh:
-            return json.load(fh)
+            r = json.load(fh)
+        r["_pasta"] = c["pasta"]
+        return r
     return None
 
 
@@ -249,18 +268,25 @@ def relatorio(lista, saida):
 
     # transientes: Strouhal
     L.extend(["## Escoamentos transientes (Re = 100 e 200, sem sólido, malha fina): Strouhal e C_D", "",
-              "| Seção | Re | St **LBM** | C_D médio **LBM** | instantes |", "|---|---|---|---|---|"])
+              "| Seção | Re | St **LBM** | St(Nu) **LBM** | C_L rms **LBM** | C_D médio **LBM** | instantes |", "|---|---|---|---|---|---|---|"])
     for f in ["circulo"] + FORMAS_NC:
         for Re in (100, 200):
             r = porchave.get((f, "sem_solido", Re, "Fine" if f == "circulo" else nivel_nc.get((f, Re), "Fine")))
             if r:
-                L.append("| %s | %d | %s | %s | %s |" % (COL_T6.get(f, "Circular"), Re, fmt(r.get("Strouhal"), 4),
-                                                         fmt(r.get("C_D_medio"), 3), "{:,}".format(r["instantes"])))
+                st, st_nu, rms = strouhal_de(r)
+                L.append("| %s | %d | %s | %s | %s | %s | %s |" % (
+                    COL_T6.get(f, "Circular"), Re, fmt(st, 4), fmt(st_nu, 4), fmt(rms, 3),
+                    fmt(r.get("C_D_medio"), 3), "{:,}".format(r["instantes"])))
+    L.extend(["", "St pelo período de C_L (um ciclo de desprendimento); St(Nu) = D/(2 T_Nu U), que só vale para "
+              "corpos simétricos em relação ao escoamento (Nu oscila duas vezes por ciclo). No hexágono a 45° "
+              "Nu oscila uma vez por ciclo. Com C_L rms ≈ 0 (elipse, Re = 100) o desprendimento é "
+              "praticamente nulo e o St não é significativo.", ""])
     L.append("")
     with open(os.path.join(saida, "comparacao_CN26.md"), "w", encoding="utf-8") as fh:
         fh.write("\n".join(L) + "\n")
     with open(os.path.join(saida, "resultados.json"), "w") as fh:
-        json.dump({c["tag"]: R[c["tag"]] for c in lista}, fh, indent=1, default=float)
+        json.dump({c["tag"]: {k: v for k, v in (R[c["tag"]] or {}).items() if k != "_pasta"} for c in lista},
+                  fh, indent=1, default=float)
     figuras_relatorio(lista, porchave, corr, nivel_nc, saida)
     print("\n".join(L))
     print("\nGravado em", saida)

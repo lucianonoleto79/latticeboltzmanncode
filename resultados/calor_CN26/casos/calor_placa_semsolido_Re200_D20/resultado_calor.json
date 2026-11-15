@@ -1,0 +1,25 @@
+{
+ "forma": "placa",
+ "metodo": "sem_solido",
+ "Re": 200.0,
+ "Pr": 0.7296,
+ "D": 20,
+ "Ds_D": 30,
+ "U": 0.05,
+ "nu": 0.005,
+ "alfa": 0.006853070175438596,
+ "malha": [
+  602,
+  603,
+  1
+ ],
+ "nos_fluido": 321319,
+ "instantes": 52400,
+ "Nu": 9.247180305071693,
+ "tempo_D_U": 131.0,
+ "parada": "duracao de 131 D/U atingida",
+ "C_D_medio": 2.3246691707949965,
+ "periodo_passos": 1200.4375,
+ "Strouhal": 0.16660592492320508,
+ "ciclos_media": 9
+}
