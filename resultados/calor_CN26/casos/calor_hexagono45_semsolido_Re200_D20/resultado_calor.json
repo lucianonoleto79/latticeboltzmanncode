@@ -1,0 +1,25 @@
+{
+ "forma": "hexagono45",
+ "metodo": "sem_solido",
+ "Re": 200.0,
+ "Pr": 0.7296,
+ "D": 20,
+ "Ds_D": 30,
+ "U": 0.05,
+ "nu": 0.005,
+ "alfa": 0.006853070175438596,
+ "malha": [
+  602,
+  603,
+  1
+ ],
+ "nos_fluido": 321063,
+ "instantes": 52400,
+ "Nu": 7.237472556561483,
+ "tempo_D_U": 131.0,
+ "parada": "duracao de 131 D/U atingida",
+ "C_D_medio": 1.33630390226256,
+ "periodo_passos": 972.7142857142857,
+ "Strouhal": 0.20561022176531063,
+ "ciclos_media": 9
+}

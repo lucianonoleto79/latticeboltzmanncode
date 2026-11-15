@@ -1,0 +1,18 @@
+{
+ "caso": "duct",
+ "pasta": "resultados/duct_24x16",
+ "it": 12600,
+ "residuo": 9.390421160544568e-08,
+ "residuos": {
+  "res": 9.390421160544568e-08,
+  "res_ux": 9.39042099119318e-08,
+  "res_uy": 1.4457337140603201e-11,
+  "res_uz": 1.0442297078654444e-11,
+  "res_rho": 1.289427902880281e-13
+ },
+ "tol": 1e-07,
+ "convergiu": true,
+ "terminou": true,
+ "divergiu": false,
+ "checkpoint": "resultados/duct_24x16/checkpoint/checkpoint.npz"
+}

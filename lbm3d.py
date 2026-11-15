@@ -35,21 +35,34 @@ Casos de teste / validacao:
               343-360 (valores tabelados em Bogner et al., IJMF 68 (2015) 71-79)
   cavity    : cavidade cubica com tampa movel (demonstracao)
 
-Acompanhamento da convergencia: a cada 100 it. uma linha e acrescentada a
-<saida>/convergencia.csv e o painel <saida>/convergencia.html e regravado:
-abra-o no navegador (recarrega sozinho) ou use  python acompanhar.py <saida> --servir
+Organizacao dos resultados: cada caso tem a sua pasta, casos/<caso>_<parametros>/
+(ex.: casos/cylinder_D10_Re20), com
+  dominio/     imagens da geometria (vista 3D e cortes)
+  contorno/    mapa das condicoes de contorno + condicoes_contorno.txt
+  malha/       malha (corte com os nos, detalhe junto a parede) + malha.txt
+  escoamento/  final/ e parcial_itN/ : imagens do escoamento + campo .vtk (ParaView)
+  graficos/    residuos, grandezas, validacao, convergencia.csv e painel convergencia.html
+  checkpoint/  checkpoint.npz (para continuar a simulacao)
+  parametros.json, execucao.log, estado.json, validacao.txt, LEIAME.txt
 
-Controles (janela grafica):
-  botao/tecla  P  : pausar / continuar
-  botao/tecla  S  : salvar resultados parciais agora (VTK + checkpoint)
-  caixa "Auto-salvar": salva automaticamente a cada 100 iteracoes
-  botao/tecla  Q  : salvar checkpoint e sair (reinicie com --restart)
-Sem janela (--no-gui): Ctrl+C salva o checkpoint e sai.
+Residuos: a cada 100 it. o terminal mostra uma tabela com res(u) (criterio de parada),
+res(ux), res(uy), res(uz), res(rho), MLUPS, tempo e as grandezas do caso; a mesma linha vai
+para graficos/convergencia.csv e o painel graficos/convergencia.html e regravado.
+
+Salvar resultados parciais e interromper:
+  janela grafica : botao/tecla P pausar/continuar, S salvar parcial, Q salvar e sair;
+                   caixa "Auto-salvar parciais" (a cada --save-every it.)
+  terminal       : Ctrl+C abre um menu (continuar / salvar parcial / pausar / salvar e sair)
+  qualquer modo  : arquivos SALVAR, PAUSAR, PARAR na pasta do caso
+                   (python acompanhar.py <pasta> --salvar | --pausar | --continuar | --parar);
+                   SIGTERM = salvar e sair; SIGUSR1 = salvar parcial
+  continuar      : python lbm3d.py --restart <pasta do caso>
 
 Exemplos:
   python lbm3d.py --case duct
+  python lbm3d.py --case cylinder --res 10 --preprocess-only   # so dominio/contorno/malha
   python lbm3d.py --case cylinder --res 10
-  python lbm3d.py --restart saida_cylinder/checkpoint.npz
+  python lbm3d.py --restart casos/cylinder_D10_Re20
   python lbm3d.py --case spheres --res 48 --no-gui --max-time 320   # para em 320 min
 """
 
@@ -310,6 +323,69 @@ def stream(src, dst):
 
 
 # ---------------------------------------------------------------------------
+# Nucleo em C (lbm_kernel.c): colisao + propagacao fundidas, ~10x mais rapido que o
+# NumPy.  Compilado na primeira execucao (cc -O3) em build/; sem compilador o codigo
+# usa as funcoes NumPy acima, com o mesmo resultado (conferido em tests/).
+# Desligue com a variavel de ambiente LBM_SEM_C=1.
+# ---------------------------------------------------------------------------
+_KERNEL = None
+MODELOS_C = {"bgk": 0, "cumulant": 1, "k17": 2}
+
+
+def kernel_c():
+    """Carrega (compilando se preciso) o nucleo em C; devolve None se indisponivel."""
+    global _KERNEL
+    if _KERNEL is not None:
+        return _KERNEL or None
+    _KERNEL = False
+    if os.environ.get("LBM_SEM_C"):
+        return None
+    import ctypes
+    import hashlib
+    import subprocess
+    aqui = os.path.dirname(os.path.abspath(__file__))
+    fonte = os.path.join(aqui, "lbm_kernel.c")
+    if not os.path.exists(fonte):
+        return None
+    h = hashlib.sha1(open(fonte, "rb").read()).hexdigest()[:12]
+    pasta = os.path.join(aqui, "build")
+    lib = os.path.join(pasta, "lbm_kernel_%s.so" % h)
+    if not os.path.exists(lib):
+        os.makedirs(pasta, exist_ok=True)
+        tmp = lib + ".%d.tmp" % os.getpid()
+        cc = os.environ.get("CC", "cc")
+        cmd = [cc, "-O3", "-march=native", "-fPIC", "-shared", "-o", tmp, fonte, "-lm"]
+        try:
+            subprocess.run(cmd, check=True, capture_output=True, timeout=300)
+            os.replace(tmp, lib)
+        except Exception as e:  # sem compilador: segue em NumPy
+            print("AVISO: nucleo em C nao compilado (%s); usando NumPy" % e)
+            return None
+    try:
+        so = ctypes.CDLL(lib)
+    except OSError as e:
+        print("AVISO: nucleo em C nao carregado (%s); usando NumPy" % e)
+        return None
+    pd = np.ctypeslib.ndpointer(dtype=np.float64, flags="C_CONTIGUOUS")
+    pu = np.ctypeslib.ndpointer(dtype=np.uint8, flags="C_CONTIGUOUS")
+    ci = ctypes.c_int
+    so.collide_stream.argtypes = [pd, pd, pu, ci, ci, ci, pd, pd, pd, pd, pd, pd]
+    so.collide_stream.restype = None
+    so.thermal_collide_stream.argtypes = [pd, pd, pu, ci, ci, ci, pd, pd, pd, pd, pd, pd, pd, ctypes.c_double]
+    so.thermal_collide_stream.restype = None
+    _KERNEL = so
+    return so
+
+
+def prm_c(prm):
+    """Parametros da colisao no formato do nucleo em C."""
+    lim = prm.get("limiter")
+    return np.array([MODELOS_C[prm["model"]], prm["w1"], prm["w2"], prm["w3"], prm["w4"], prm["w5"],
+                     prm["A"], prm["B"], 0.0 if lim is None else 1.0,
+                     0.0 if lim is None else float(lim)], dtype=np.float64)
+
+
+# ---------------------------------------------------------------------------
 # Condicoes de contorno de parede (lista de "links" fluido -> solido)
 #   f_dbar(xf, t+1) = A1 f*_d(xf) + A2 f*_d(xf - c_d) + A3 f*_dbar(xf) + mw
 #   q = 1/2 (meio caminho) : A1 = 1                                  [L94]
@@ -322,6 +398,7 @@ class Links:
         self.n = np.zeros(0, np.int64)
         self.d = np.zeros(0, np.int64)
         self.n2 = np.zeros(0, np.int64)
+        self.ns = np.zeros(0, np.int64)
         self.A1 = np.zeros(0)
         self.A2 = np.zeros(0)
         self.A3 = np.zeros(0)
@@ -346,6 +423,25 @@ class Links:
         g = P[d, n] + N[OPP[d], n]
         return (CV[d] * g[:, None]).sum(axis=0)
 
+    # --- nucleo em C: a pos-colisao f*_d(n) esta em fnew[d, n + c_d] -------------
+    #   f*_d(x_f)        = N[d, ns]   (ns = no solido x_f + c_d)
+    #   f*_d(x_f - c_d)  = N[d, n]
+    #   f*_dbar(x_f)     = N[dbar, n2] (n2 = x_f - c_d)
+    def apply_c(self, fnew):
+        if self.n.size == 0:
+            return
+        N = fnew.reshape(27, -1)
+        db = OPP[self.d]
+        N[db, self.n] = (self.A1 * N[self.d, self.ns] + self.A2 * N[self.d, self.n]
+                         + self.A3 * N[db, self.n2] + self.mw)
+
+    def force_c(self, fnew, tag):
+        sel = self.tag == tag
+        N = fnew.reshape(27, -1)
+        d, n, ns = self.d[sel], self.n[sel], self.ns[sel]
+        g = N[d, ns] + N[OPP[d], n]
+        return (CV[d] * g[:, None]).sum(axis=0)
+
 
 def build_links(solid, wall_velocity=None, curved=None):
     """solid: mascara booleana.  wall_velocity(i,j,k,xm,ym,zm) -> (ux,uy,uz) no
@@ -354,7 +450,7 @@ def build_links(solid, wall_velocity=None, curved=None):
     shape = solid.shape
     fluid = ~solid
     idx = np.arange(solid.size).reshape(shape)
-    lists = {k: [] for k in ("n", "d", "n2", "A1", "A2", "A3", "mw", "tag")}
+    lists = {k: [] for k in ("n", "d", "n2", "ns", "A1", "A2", "A3", "mw", "tag")}
     for d in range(27):
         if d == 13:
             continue
@@ -368,6 +464,7 @@ def build_links(solid, wall_velocity=None, curved=None):
         bi, bj, bk = (ii - c[0]) % shape[0], (jj - c[1]) % shape[1], (kk - c[2]) % shape[2]
         n = idx[ii, jj, kk]
         n2 = idx[bi, bj, bk]
+        ns = idx[si, sj, sk]
         back_fluid = fluid[bi, bj, bk]
         A1 = np.ones(n.size)
         A2 = np.zeros(n.size)
@@ -377,9 +474,10 @@ def build_links(solid, wall_velocity=None, curved=None):
             cm = curved["mask"][si, sj, sk]
             if cm.any():
                 q = curved["q"](ii[cm] - 0.5, jj[cm] - 0.5, kk[cm] - 0.5, *c)
-                a1 = np.where(q < 0.5, 2 * q, 1.0 / (2 * q))
-                a2 = np.where(q < 0.5, 1 - 2 * q, 0.0)
-                a3 = np.where(q < 0.5, 0.0, (2 * q - 1) / (2 * q))
+                with np.errstate(divide="ignore", invalid="ignore"):   # q = 0 cai no ramo q < 1/2
+                    a1 = np.where(q < 0.5, 2 * q, 1.0 / (2 * q))
+                    a2 = np.where(q < 0.5, 1 - 2 * q, 0.0)
+                    a3 = np.where(q < 0.5, 0.0, (2 * q - 1) / (2 * q))
                 bad = (q < 0.5) & ~back_fluid[cm]  # vizinho atras nao e fluido
                 a1[bad], a2[bad] = 1.0, 0.0
                 A1[cm], A2[cm], A3[cm] = a1, a2, a3
@@ -390,7 +488,7 @@ def build_links(solid, wall_velocity=None, curved=None):
                                kk - 0.5 + 0.5 * c[2])
             mw = -6.0 * W.ravel()[d] * (c[0] * uw[0] + c[1] * uw[1] + c[2] * uw[2])
             mw = np.broadcast_to(mw, n.shape).copy()
-        for key, val in (("n", n), ("d", np.full(n.size, d)), ("n2", n2), ("A1", A1),
+        for key, val in (("n", n), ("d", np.full(n.size, d)), ("n2", n2), ("ns", ns), ("A1", A1),
                          ("A2", A2), ("A3", A3), ("mw", mw), ("tag", tag)):
             lists[key].append(val)
     for key, val in lists.items():
@@ -408,10 +506,22 @@ class Case:
     name = "base"
     steady = True
     slice_axis = 2
+    periodico = ""          # direcoes periodicas (texto), ex.: "x" ou "x, y, z"
+    dx_fisico = None        # espacamento fisico da malha (quando o caso tem unidades fisicas)
+    unidade = None
+    centro_obstaculo = None  # (x, y, z) em indices de no, para os cortes das figuras
 
     def __init__(self, args):
         self.args = args
         self.force = (0.0, 0.0, 0.0)
+
+    def tag(self):
+        """Nome da pasta do caso em casos/ (identifica os parametros principais)."""
+        return self.name
+
+    def descricao_contorno(self):
+        """Linhas de texto descrevendo as condicoes de contorno (contorno/condicoes_contorno.txt)."""
+        return []
 
     def post_stream(self, sim, fpost, fnew):
         pass
@@ -432,6 +542,7 @@ class ShearWave(Case):
     name = "shearwave"
     steady = False
     slice_axis = 0
+    periodico = "x, y, z"
 
     def __init__(self, args):
         super().__init__(args)
@@ -450,6 +561,15 @@ class ShearWave(Case):
         self.decay_time = 1.0 / (self.nu * self.kw ** 2)
         if not args.max_iter:
             args.max_iter = int(round(self.decay_time / 100.0)) * 100
+
+    def tag(self):
+        return "shearwave_N%d" % self.N
+
+    def descricao_contorno(self):
+        return ["Dominio totalmente periodico (x, y, z): nao ha paredes.",
+                "Condicao inicial: u_x = U0 sin(2 pi y / N), U0 = %g, u_z = %g (adveccao), rho = 1."
+                % (self.U0, self.ushift),
+                "Solucao exata: amplitude decai com exp(-nu k^2 t), k = 2 pi / N."]
 
     def initial(self):
         rho = np.ones(self.shape)
@@ -478,6 +598,7 @@ class Duct(Case):
     """Duto retangular periodico em x, forcado por forca de corpo (gradiente de pressao)."""
     name = "duct"
     slice_axis = 0
+    periodico = "x"
 
     def __init__(self, args):
         super().__init__(args)
@@ -501,6 +622,16 @@ class Duct(Case):
         self.G = G
         self.force = (G, 0.0, 0.0)
         self.uex = self.analytic(G)
+
+    def tag(self):
+        return "duct_%dx%d" % (self.Ny, self.Nz)
+
+    def descricao_contorno(self):
+        return ["Entrada/saida (x): periodicas; o escoamento e mantido por forca de corpo",
+                "  G = -dp/dx = %.6e (unidades de rede) aplicada pelo termo de forca do cumulante [G15]." % self.G,
+                "Paredes y = +-a e z = +-b: nao deslizamento, bounce-back no meio caminho [L94]",
+                "  (camada de nos solidos fantasma em j = 0, j = Ny+1, k = 0, k = Nz+1).",
+                "Condicao inicial: fluido em repouso, rho = 1."]
 
     def analytic(self, G, nterms=101):
         """F.M. White, Viscous Fluid Flow (2006), Eq. (3-48), -a<y<a, -b<z<b."""
@@ -557,6 +688,7 @@ class Cylinder(Case):
     name = "cylinder"
     slice_axis = 2
     measure_force = True
+    unidade = "m"
     REF = {"C_D": (6.05, 6.25), "C_L": (0.008, 0.010), "dp": (0.165, 0.175)}
 
     def __init__(self, args):
@@ -572,6 +704,8 @@ class Cylinder(Case):
         self.omega = 1.0 / (3.0 * self.nu + 0.5)
         self.shape = (Lx + 1, H + 2, H + 2)
         self.xc, self.yc, self.R = 5.0 * D, 2.0 * D, 0.5 * D
+        self.dx_fisico = 0.1 / D  # D fisico = 0.1 m
+        self.centro_obstaculo = (self.xc + 0.5, self.yc + 0.5, None)
         nx, ny, nz = self.shape
         X, Y = np.meshgrid(np.arange(nx) - 0.5, np.arange(ny) - 0.5, indexing="ij")
         cyl2d = (X - self.xc) ** 2 + (Y - self.yc) ** 2 < self.R ** 2
@@ -596,6 +730,42 @@ class Cylinder(Case):
 
         self.links = build_links(self.solid, wall_velocity,
                                  dict(mask=cyl, q=qfun, tag=1))
+
+    def tag(self):
+        return "cylinder_D%d_Re%g" % (self.D, self.Re)
+
+    def mascara_saida(self):
+        m = np.zeros(self.shape, bool)
+        m[-1] = ~self.solid[-1]
+        return m
+
+    def descricao_contorno(self):
+        return ["Entrada (x = 0): parede movel com perfil parabolico [L94] (Schaefer & Turek 3D-1Z)",
+                "  U(y, z) = 16 Um y z (H - y)(H - z) / H^4,  Um = %.4g (rede) = 0.45 m/s,"
+                " U_media = 4 Um / 9 = %.4g." % (self.Um, self.Ubar),
+                "Saida (x = L): pressao imposta rho = 1 por extrapolacao de nao-equilibrio [G02].",
+                "Paredes do canal (y = 0, H; z = 0, H): nao deslizamento, bounce-back meio caminho [L94].",
+                "Cilindro (D = %d nos, centro em x = %.1f, y = %.1f): nao deslizamento com bounce-back"
+                " interpolado linear [B01];" % (self.D, self.xc, self.yc),
+                "  forca no corpo por troca de quantidade de movimento [M02] -> C_D, C_L.",
+                "Re = U_media D / nu = %g;  nu = %.5g (rede)." % (self.Re, self.nu),
+                "Condicao inicial: perfil de entrada em todo o canal, rho = 1."]
+
+    def figura_contorno(self, pasta, figura, salvar):
+        """Perfil de velocidade imposto na entrada."""
+        fig = figura(11, 4.2)
+        H, dx = self.H, self.dx_fisico
+        y = np.linspace(0, H, 200)
+        a = fig.add_subplot(1, 2, 1)
+        a.plot(self.inflow(y, H / 2.0) / self.Um * 0.45, y * dx, "b-")
+        a.set_xlabel("u_x na entrada [m/s]"); a.set_ylabel("y [m]  (z = H/2)"); a.grid(alpha=0.3)
+        a = fig.add_subplot(1, 2, 2)
+        Y, Z = np.meshgrid(y, y, indexing="ij")
+        im = a.contourf(Y * dx, Z * dx, self.inflow(Y, Z) / self.Um * 0.45, 20, cmap="viridis")
+        fig.colorbar(im, ax=a, label="u_x [m/s]")
+        a.set_aspect("equal"); a.set_xlabel("y [m]"); a.set_ylabel("z [m]")
+        fig.suptitle("Perfil de velocidade imposto na entrada (Schaefer & Turek 3D-1Z)")
+        return [salvar(fig, os.path.join(pasta, "perfil_entrada.png"))]
 
     def inflow(self, y, z):
         H = self.H
@@ -682,6 +852,15 @@ class Cavity(Case):
 
         self.links = build_links(s, wall_velocity)
 
+    def tag(self):
+        return "cavity_N%d_Re%g" % (self.N, self.Re)
+
+    def descricao_contorno(self):
+        return ["Tampa (z = N): parede movel com u = (%g, 0, 0) [L94]." % self.U,
+                "Demais paredes: nao deslizamento, bounce-back no meio caminho [L94].",
+                "Re = U N / nu = %g;  nu = %.5g (rede)." % (self.Re, self.nu),
+                "Condicao inicial: fluido em repouso, rho = 1."]
+
     def initial(self):
         z = np.zeros(self.shape)
         return np.ones(self.shape), z, z.copy(), z.copy()
@@ -714,6 +893,7 @@ class SphereArray(Case):
     name = "spheres"
     slice_axis = 1
     measure_force = True
+    periodico = "x, y, z"
     REF = {0.2: 1.385, 0.3: 1.70, 0.4: 2.150, 0.5: 2.845, 0.6: 3.974, 0.7: 6.00,
            0.8: 10.05, 0.9: 19.16}
 
@@ -730,6 +910,7 @@ class SphereArray(Case):
         x = np.arange(L) - 0.5
         X, Y, Z = np.meshgrid(x, x, x, indexing="ij")
         self.c0 = 0.5 * L - 0.5  # centro entre nos (geometria simetrica)
+        self.centro_obstaculo = (self.c0 + 0.5,) * 3
         sph = (X - self.c0) ** 2 + (Y - self.c0) ** 2 + (Z - self.c0) ** 2 < self.R ** 2
         self.solid = sph
         self.phi = np.pi * self.chi ** 3 / 6.0
@@ -747,6 +928,18 @@ class SphereArray(Case):
         Cref = self.reference()
         self.g = 1e-4 * 3.0 * np.pi * self.nu * self.d * Cref / L ** 3
         self.force = (self.g, 0.0, 0.0)
+
+    def tag(self):
+        return "spheres_L%d_chi%g" % (self.L, self.chi)
+
+    def descricao_contorno(self):
+        return ["Celula periodica L^3 (L = %d) em x, y, z: arranjo cubico simples infinito." % self.L,
+                "Esfera de diametro d = chi L = %.2f nos (chi = %g, fracao solida phi = %.4f):"
+                % (self.d, self.chi, self.phi),
+                "  nao deslizamento com bounce-back interpolado linear [B01];",
+                "  forca por troca de quantidade de movimento [M02].",
+                "Escoamento forcado por aceleracao uniforme g = %.4e em x (forca de corpo [G15])." % self.g,
+                "Condicao inicial: fluido em repouso, rho = 1."]
 
     def reference(self):
         if round(self.chi, 3) in self.REF:
@@ -790,8 +983,668 @@ class SphereArray(Case):
                    self.solid.mean()))
 
 
+# ---------------------------------------------------------------------------
+# Transferencia de calor
+#
+# Energia E = C T (C = capacidade termica volumetrica relativa a do fluido) num
+# reticulado D3Q7 com colisao TRT, acoplada ao escoamento pela velocidade u:
+#     dE/dt + div(T u) = div(k grad T)
+# com g_0^eq = E - T + w0 T e g_i^eq = w_i T (1 + c_i.u / cs2), cs2 = 1/4, w0 = 1/4,
+# w_i = 1/8.  A condutividade (relativa a do fluido) entra pela taxa antissimetrica:
+# k = cs2 (tau- - 1/2) (no fluido, k = alfa); a simetrica sai do parametro "magico"
+# Lambda = (tau+ - 1/2)(tau- - 1/2) = 1/4 [G05], que mantem a solucao estavel e
+# precisa mesmo com tau- grande (solido muito condutor).
+#   * fluido: C = 1, k = 1 (alfa do fluido);  solido (problema conjugado): C = Cs/Cf,
+#     k = ks/kf, u = 0.  Um unico campo cobre fluido e solido, como no metodo "com
+#     solido" do artigo de Cunha & Noleto (2026) [CN26]; o fluxo e continuo na interface.
+#   * parede isotermica (Dirichlet): anti-bounce-back interpolado linear [LMK13]
+#       q < 1/2 : g_ib(xf) = -2q g_i*(xf) + (2q-1) g_i*(xf - c_i) + 2 w_i Tw
+#       q >= 1/2: g_ib(xf) = -g_i*(xf)/(2q) + (2q-1)/(2q) g_ib*(xf) + w_i Tw / q
+#   * calor que sai do fluido para a parede (por passo e por unidade de profundidade):
+#       Q = soma_links [ g_i*(xf) - g_ib(xf, t+1) ]   (balanco exato de energia)
+# ---------------------------------------------------------------------------
+CT = np.array([(0, 0, 0), (1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)])
+WT = np.array([0.25] + [0.125] * 6)
+OPPT = np.array([0, 2, 1, 4, 3, 6, 5])
+CS2T = 0.25
+LAMBDA_TRT = 0.25
+
+
+def equilibrio_termico(T, C, u, Tref=0.0):
+    """g^eq para energia C T e velocidade u (u: (3,) + shape); fluxo advectivo (T - Tref) u."""
+    g = np.empty((7,) + T.shape)
+    g[0] = C * T - T + WT[0] * T
+    for i in range(1, 7):
+        cu = CT[i, 0] * u[0] + CT[i, 1] * u[1] + CT[i, 2] * u[2]
+        g[i] = WT[i] * (T + (T - Tref) * cu / CS2T)
+    return g
+
+
+def passo_termico_numpy(g, gout, ativo, C, wm, wp, u, T, Tref=0.0):
+    """Mesma conta de thermal_collide_stream (lbm_kernel.c), em NumPy."""
+    E = g.sum(axis=0)
+    T[...] = np.where(ativo, E / C, 0.0)
+    q = g.copy()
+    q[0] -= wp * (q[0] - (E - T + WT[0] * T))
+    ep = WT[1] * T
+    for ax in range(3):
+        gp, gm = q[1 + 2 * ax].copy(), q[2 + 2 * ax].copy()
+        sp, am = 0.5 * (gp + gm), 0.5 * (gp - gm)
+        em = WT[1] * (T - Tref) * 4.0 * u[ax]
+        ds, da = wp * (sp - ep), wm * (am - em)
+        q[1 + 2 * ax] = gp - ds - da
+        q[2 + 2 * ax] = gm - ds + da
+    q[:, ~ativo.astype(bool)] = 0.0
+    for i in range(7):
+        gout[i] = np.roll(q[i], tuple(CT[i]), axis=(0, 1, 2))
+
+
+class LinksTermicos:
+    """Paredes isotermicas (Dirichlet) do campo de temperatura, por link."""
+
+    def __init__(self):
+        for k in ("n", "i", "n2", "ns", "tag"):
+            setattr(self, k, np.zeros(0, np.int64))
+        for k in ("B1", "B2", "B3", "Bw"):
+            setattr(self, k, np.zeros(0))
+
+    def apply(self, gout):
+        """gout: populacoes propagadas; a pos-colisao g*_i(n) esta em gout[i, n + c_i]."""
+        if self.n.size == 0:
+            return
+        G = gout.reshape(7, -1)
+        ib = OPPT[self.i]
+        G[ib, self.n] = (self.B1 * G[self.i, self.ns] + self.B2 * G[self.i, self.n]
+                         + self.B3 * G[ib, self.n2] + self.Bw)
+
+    def calor(self, gout, tag):
+        """Calor que sai do fluido para a parede `tag` neste passo (apos apply)."""
+        sel = self.tag == tag
+        if not sel.any():
+            return 0.0
+        G = gout.reshape(7, -1)
+        i, n, ns = self.i[sel], self.n[sel], self.ns[sel]
+        return float((G[i, ns] - G[OPPT[i], n]).sum())
+
+
+def build_links_termicos(ativo, paredes):
+    """ativo: mascara do dominio termico.  paredes: lista de dicts com
+    mask (nos de parede), Tw (temperatura), q (funcao (x, y, z, cx, cy, cz) -> q, ou None
+    para meio caminho) e tag.  Coordenadas dos nos: (i - 0.5, j - 0.5, k - 0.5)."""
+    L = LinksTermicos()
+    shape = ativo.shape
+    idx = np.arange(ativo.size).reshape(shape)
+    listas = {k: [] for k in ("n", "i", "n2", "ns", "tag", "B1", "B2", "B3", "Bw")}
+    for i in range(1, 7):
+        c = CT[i]
+        viz_inativo = ~np.roll(ativo, tuple(-c), axis=(0, 1, 2))
+        base = ativo & viz_inativo
+        if not base.any():
+            continue
+        for par in paredes:
+            viz_par = np.roll(par["mask"], tuple(-c), axis=(0, 1, 2))
+            m = base & viz_par
+            if not m.any():
+                continue
+            ii, jj, kk = np.nonzero(m)
+            si, sj, sk = (ii + c[0]) % shape[0], (jj + c[1]) % shape[1], (kk + c[2]) % shape[2]
+            bi, bj, bk = (ii - c[0]) % shape[0], (jj - c[1]) % shape[1], (kk - c[2]) % shape[2]
+            if par.get("q") is not None:
+                q = np.clip(par["q"](ii - 0.5, jj - 0.5, kk - 0.5, *c), 1e-6, 1.0)
+            else:
+                q = np.full(ii.size, 0.5)
+            atras = ativo[bi, bj, bk]
+            Tw, w = par["Tw"], WT[i]
+            B1 = np.where(q < 0.5, -2 * q, -1.0 / (2 * q))
+            B2 = np.where(q < 0.5, 2 * q - 1, 0.0)
+            B3 = np.where(q < 0.5, 0.0, (2 * q - 1) / (2 * q))
+            Bw = np.where(q < 0.5, 2 * w * Tw, w * Tw / q)
+            ruim = (q < 0.5) & ~atras          # sem vizinho atras: meio caminho
+            B1[ruim], B2[ruim], Bw[ruim] = -1.0, 0.0, 2 * w * Tw
+            for k, v in (("n", idx[ii, jj, kk]), ("i", np.full(ii.size, i)), ("n2", idx[bi, bj, bk]),
+                         ("ns", idx[si, sj, sk]), ("tag", np.full(ii.size, par.get("tag", 0))),
+                         ("B1", B1), ("B2", B2), ("B3", B3), ("Bw", Bw)):
+                listas[k].append(v)
+            base = base & ~m
+    for k, v in listas.items():
+        if v:
+            setattr(L, k, np.concatenate(v))
+    return L
+
+
+class Termico:
+    """Campo de temperatura acoplado a uma Simulation (criado por case.criar_termico)."""
+
+    def __init__(self, sim, ativo, C, k, T0, paredes, alfa, Tref=0.0):
+        """Tref: temperatura de referencia do fluxo advectivo (T - Tref) u.  Use a
+        temperatura da superficie do solido no regime em que se mede Nu: o erro da
+        divergencia discreta de u (grande na interface, onde u cai a zero) e
+        proporcional a T - Tref."""
+        case = sim.case
+        self.Tref = float(Tref)
+        self.shape = case.shape
+        self.alfa = alfa
+        self.ativo = np.ascontiguousarray(ativo, dtype=np.uint8)
+        self.C = np.ascontiguousarray(np.where(ativo, C, 1.0), dtype=np.float64)
+        taum = 0.5 + np.where(ativo, k, 1.0) * alfa / CS2T
+        taup = 0.5 + LAMBDA_TRT / (taum - 0.5)
+        self.wm = np.ascontiguousarray(1.0 / taum)
+        self.wp = np.ascontiguousarray(1.0 / taup)
+        self.T = np.ascontiguousarray(np.where(ativo, T0, 0.0), dtype=np.float64)
+        u0 = np.where(case.solid[None], 0.0, sim.u)
+        self.g = np.ascontiguousarray(equilibrio_termico(self.T, self.C, u0, self.Tref))
+        self.g[:, ~ativo] = 0.0
+        self.gtmp = np.empty_like(self.g)
+        self.links = build_links_termicos(ativo.astype(bool), paredes)
+        self.so = sim.so
+
+    def passo(self, sim):
+        sh = self.shape
+        if self.so is not None:
+            u = sim.u
+            self.so.thermal_collide_stream(self.g, self.gtmp, self.ativo, sh[0], sh[1], sh[2], self.C,
+                                           self.wm, self.wp, u[0], u[1], u[2], self.T, self.Tref)
+        else:
+            u = np.where(sim.case.solid[None], 0.0, sim.u)
+            passo_termico_numpy(self.g, self.gtmp, self.ativo, self.C, self.wm, self.wp, u, self.T,
+                                self.Tref)
+        self.links.apply(self.gtmp)
+        sim.case.saida_termica(self.gtmp)
+        sim.case.apos_passo_termico(sim, self)
+        self.g, self.gtmp = self.gtmp, self.g
+
+    def temperatura(self):
+        """Temperatura no instante atual (a partir de g)."""
+        E = self.g.sum(axis=0)
+        return np.where(self.ativo.astype(bool), E / self.C, np.nan)
+
+
+# ---------------------------------------------------------------------------
+# Caso: conveccao forcada sobre cilindros (circular e nao circulares), 2D, como em
+#   [CN26] F. Alfaia da Cunha, L.G. Noleto, "Nusselt number calculation methods based on
+#   CFD simulations applied to forced convection over cylinders", Results in
+#   Engineering 32 (2026) 112960.
+# Dominio da Fig. 2 de [CN26]: entrada semicircular de diametro Ds (u = U, T = Tinf),
+# laterais retas (entrada), saida reta a Ds/2 do centro (rho = 1, dT/dx = 0).  Escoamento
+# 2D numa camada de nos (nz = 1, periodico em z).  D = altura da secao (Fig. 9 de [CN26]).
+# Metodos de calculo de Nu [CN26]:
+#   sem_solido : parede isotermica (Tw); Nu_inst = Q D / (k_f P (Tinf - Tw)); media
+#                temporal (Eq. 11): estacionario -> criterio |Nu - Nu0|/Nu < 1e-8 (Eq. 16)
+#                com media de 0,8 if a if; transiente -> media em ciclos completos.
+#   com_solido : solido conjugado (sistema concentrado), T no centro; h por minimos
+#                quadrados de T_CFD - T_REF(h), T_REF = Tinf + (Ti - Tinf) exp(-b t),
+#                b = h P / (C_s A) (Eq. 14), com ii = round(0,99 if); para quando 1 - theta >= 0,98.
+# Temperaturas adimensionais: theta = (T - Tw)/(Tinf - Tw); em graus C: 15 + 20 theta.
+# ---------------------------------------------------------------------------
+FORMAS = ("circulo", "elipse", "placa", "hexagono", "hexagono45", "quadrado", "quadrado45")
+NOME_FORMA = {"circulo": "Circular cylinder", "elipse": "Ellipse", "placa": "Vertical Plate",
+              "hexagono": "Hexagon", "hexagono45": "Hexagon (tilted 45°)", "quadrado": "Square",
+              "quadrado45": "Square (tilted 45°)"}
+DS_PADRAO = {1.0: 80, 10.0: 80, 100.0: 40, 200.0: 30}      # Tabela 1 de [CN26]
+PR_AR = 0.7296                                              # ar a 25 C [CN26]
+
+
+def geometria_forma(forma, D):
+    """(funcao dentro(x, y) com x, y relativos ao centro; perimetro; area) da secao com
+    altura D (direcao transversal ao escoamento), como na Fig. 9 de [CN26]."""
+    r = 0.5 * D
+    if forma == "circulo":
+        return (lambda x, y: x * x + y * y < r * r), np.pi * D, np.pi * r * r
+    if forma == "elipse":           # razao de aspecto 2,5:1, eixo maior no escoamento
+        a, b = 1.25 * D, r
+        h = ((a - b) / (a + b)) ** 2
+        per = np.pi * (a + b) * (1 + 3 * h / (10 + np.sqrt(4 - 3 * h)))   # Ramanujan
+        return (lambda x, y: (x / a) ** 2 + (y / b) ** 2 < 1.0), per, np.pi * a * b
+    if forma == "placa":            # placa vertical de espessura D/10
+        e = D / 10.0
+        return (lambda x, y: (np.abs(x) < 0.5 * e) & (np.abs(y) < r)), 2 * (D + e), D * e
+    if forma == "quadrado":
+        return (lambda x, y: (np.abs(x) < r) & (np.abs(y) < r)), 4 * D, D * D
+    if forma == "quadrado45":       # losango: diagonal D na vertical
+        return (lambda x, y: np.abs(x) + np.abs(y) < r), 2 * np.sqrt(2) * D, 0.5 * D * D
+    if forma in ("hexagono", "hexagono45"):
+        if forma == "hexagono":     # vertices apontando para o escoamento, faces em y = +-D/2
+            s, ang = D / np.sqrt(3.0), 0.0
+        else:                       # hexagono girado de 45 graus, altura total D
+            ang = np.radians(45.0)
+            alt = max(np.sin(ang + np.radians(60 * m)) for m in range(6)) * 2
+            s = D / alt
+        ap = np.sqrt(3.0) / 2 * s
+
+        def dentro(x, y, s=s, ap=ap, ang=ang):
+            xr = np.cos(ang) * x + np.sin(ang) * y      # gira os pontos de -ang
+            yr = -np.sin(ang) * x + np.cos(ang) * y
+            return (np.abs(yr) < ap) & (np.abs(yr) < np.sqrt(3.0) * (s - np.abs(xr)))
+        return dentro, 6 * s, 1.5 * np.sqrt(3.0) * s * s
+    raise ValueError("forma desconhecida: %s" % forma)
+
+
+def q_bissecao(dentro, xc, yc):
+    """Fracao q do link ate a superficie (bissecao; secoes convexas)."""
+    def q(x, y, z, cx, cy, cz):
+        x0, y0 = np.asarray(x, float) - xc, np.asarray(y, float) - yc
+        lo, hi = np.zeros(x0.shape), np.ones(x0.shape)
+        for _ in range(48):
+            mid = 0.5 * (lo + hi)
+            dm = dentro(x0 + mid * cx, y0 + mid * cy)
+            hi = np.where(dm, mid, hi)
+            lo = np.where(dm, lo, mid)
+        return 0.5 * (lo + hi)
+    return q
+
+
+def nu_churchill_bernstein(Re, Pr=PR_AR):
+    """Eq. 17 de [CN26] (Churchill & Bernstein 1977, sem o fator de Re alto)."""
+    return 0.3 + 0.62 * Re ** 0.5 * Pr ** (1 / 3.0) / (1 + (0.4 / Pr) ** (2 / 3.0)) ** 0.25
+
+
+def ciclos_completos(serie, ncic=9):
+    """Indice inicial da janela final com `ncic` ciclos completos do sinal.
+    O periodo vem do pico da FFT do trecho final (40% da serie) sem a tendencia linear
+    (a deriva lenta do inicio nao pode dominar o espectro) e e refinado pelos
+    cruzamentos ascendentes da media.  Devolve (inicio, periodo em passos) ou
+    (None, None) se nao houver oscilacao."""
+    x = np.asarray(serie, float)
+    n = x.size
+    if n < 64:
+        return None, None
+    m0 = int(0.6 * n)
+    y = x[m0:]
+    t = np.arange(y.size)
+    y = y - np.polyval(np.polyfit(t, y, 1), t)
+    if not np.any(np.abs(y) > 1e-12 * max(abs(x[-1]), 1.0)):
+        return None, None
+    F = np.abs(np.fft.rfft(y * np.hanning(y.size)))
+    F[:3] = 0.0                       # tendencia residual e janelas com menos de 3 ciclos
+    if F.size < 4:
+        return None, None
+    k = int(np.argmax(F))
+    if F[k] <= 0:
+        return None, None
+    periodo = y.size / float(k)
+    subidas = np.where((y[:-1] < 0) & (y[1:] >= 0))[0]
+    if subidas.size >= 3:
+        difs = np.diff(subidas).astype(float)
+        difs = difs[np.abs(difs - periodo) < 0.3 * periodo]
+        if difs.size:
+            periodo = float(np.mean(difs))
+    tam = int(round(ncic * periodo))
+    if tam >= n:
+        return None, periodo
+    return n - tam, periodo
+
+
+def strouhal_cl(serie_cl, D, U):
+    """St = f D / U com f = frequencia de C_L (trecho final, mesmo metodo de ciclos_completos)."""
+    _, per = ciclos_completos(serie_cl)
+    return D / (per * U) if per else None
+
+
+def c_l_rms(serie_cl):
+    """Valor RMS de C_L nos 40% finais da serie (amplitude do desprendimento)."""
+    x = np.asarray(serie_cl, float)
+    if x.size < 10:
+        return None
+    x = x[int(0.6 * x.size):]
+    return float(np.std(x))
+
+
+class CilindroCalor(Case):
+    """Conveccao forcada 2D sobre um cilindro isotermico ou conjugado [CN26]."""
+    name = "calor"
+    steady = False                  # parada pelos criterios de Nu de [CN26] (case.parar)
+    slice_axis = 2
+    measure_force = True
+    termico_ativo = True
+
+    def __init__(self, args):
+        super().__init__(args)
+        self.forma = args.forma
+        self.metodo = args.metodo
+        self.Re = args.Re if args.Re else 100.0
+        self.Pr = args.Pr
+        D = args.res or 20
+        self.D = D
+        self.Ds = args.Ds if args.Ds else DS_PADRAO.get(float(self.Re), 40)
+        self.U = args.u_lattice if args.u_lattice else 0.05
+        self.nu = self.U * D / self.Re
+        self.alfa = self.nu / self.Pr
+        self.omega = 1.0 / (3.0 * self.nu + 0.5)
+        self.transiente = self.Re >= 50.0           # desprendimento de vortices a partir de Re ~ 50
+        R = 0.5 * self.Ds * D
+        nx = int(np.ceil(2 * R)) + 2
+        ny = int(np.ceil(2 * R)) + 3
+        self.shape = (nx, ny, 1)
+        self.xc = nx - 1.5 - R                      # saida (ultima coluna) em x = xc + R
+        self.yc = 0.5 * (ny - 1) - 0.5              # eixo de simetria
+        self.R = R
+        self.centro_obstaculo = (self.xc + 0.5, self.yc + 0.5, None)
+        self.dx_fisico = 1.0 / D                    # D = 1 m em [CN26]
+        self.unidade = "m"
+        dentro, self.perimetro, self.area = geometria_forma(self.forma, D)
+        self._dentro = dentro
+        X, Y = np.meshgrid(np.arange(nx) - 0.5, np.arange(ny) - 0.5, indexing="ij")
+        xr, yr = X - self.xc, Y - self.yc
+        corpo = dentro(xr, yr)
+        dominio = ((xr * xr + yr * yr < R * R) | ((xr >= 0) & (np.abs(yr) < R))) & (xr <= R + 1e-9)
+        self.corpo = corpo[:, :, None]
+        self.externo = (~dominio)[:, :, None]
+        self.solid = self.externo | self.corpo
+        self.qfun = q_bissecao(dentro, self.xc, self.yc)
+        U = self.U
+        externo = self.externo
+
+        def wall_velocity(si, sj, sk, xm, ym, zm):
+            return (U * externo[si, sj, sk], 0.0, 0.0)
+
+        self.links = build_links(self.solid, wall_velocity, dict(mask=self.corpo, q=self.qfun, tag=1))
+        # propriedades do solido (com_solido): razoes ks/kf e (rho cp)s/(rho cp)f
+        self.ks = args.ks_kf if args.ks_kf else 157.0
+        self.Cs = args.Cs_Cf if args.Cs_Cf else 16.9
+        self.area_discreta = float(self.corpo.sum())
+        # series por passo
+        self.serie_nu, self.serie_tc, self.serie_cd, self.serie_cl = [], [], [], []
+        self.duracao = args.duracao if args.duracao else (
+            {100.0: 153.0, 200.0: 131.0}.get(float(self.Re), 150.0))   # em D/U (como em [CN26])
+        self._parou = ""
+
+    # --- identificacao / descricao -----------------------------------------
+    def tag(self):
+        return "calor_%s_%s_Re%g_D%d" % (self.forma, "comsolido" if self.metodo == "com_solido"
+                                         else "semsolido", self.Re, self.D)
+
+    def descricao_contorno(self):
+        L = ["Conveccao forcada 2D sobre %s (D = %d nos = altura da secao), Re = %g, Pr = %.4f [CN26]."
+             % (NOME_FORMA[self.forma], self.D, self.Re, self.Pr),
+             "Dominio (Fig. 2 de [CN26]): entrada semicircular de diametro Ds = %g D + laterais retas,"
+             " saida reta a Ds/2 do centro; camada unica em z (periodica)." % self.Ds,
+             "Entrada (arco e laterais): parede movel u = (U, 0, 0), U = %g [L94]; T = Tinf (theta = 1),"
+             " anti-bounce-back [LMK13]." % self.U,
+             "Saida: rho = 1 por extrapolacao de nao-equilibrio [G02]; dT/dx = 0 (copia do plano anterior).",
+             "Cilindro: nao deslizamento, bounce-back interpolado [B01]; forca por troca de q. mov. [M02]."]
+        if self.metodo == "com_solido":
+            L.append("Metodo COM SOLIDO [CN26]: solido conjugado no mesmo campo de energia, ks/kf = %g,"
+                     " (rho cp)s/(rho cp)f = %g; T inicial do solido theta = 0; h pelo ajuste do"
+                     " sistema concentrado (Eq. 14)." % (self.ks, self.Cs))
+        else:
+            L.append("Metodo SEM SOLIDO [CN26]: parede isotermica theta = 0 (15 C), anti-bounce-back"
+                     " interpolado [LMK13]; Nu pelo calor trocado nos links.")
+        L.append("nu = %.5g, alfa = %.5g (rede); omega = %.4f; Ma = %.3f."
+                 % (self.nu, self.alfa, self.omega, np.sqrt(3) * self.U))
+        L.append("Condicao inicial: u = U e theta = 1 no fluido%s." %
+                 ("; perturbacao assimetrica pequena em u_y atras do corpo" if self.transiente else ""))
+        return L
+
+    # --- inicializacao --------------------------------------------------------
+    def initial(self):
+        nx, ny, nz = self.shape
+        rho = np.ones(self.shape)
+        ux = np.where(self.solid, 0.0, self.U)
+        uy = np.zeros(self.shape)
+        if self.transiente:
+            X, Y = np.meshgrid(np.arange(nx) - 0.5, np.arange(ny) - 0.5, indexing="ij")
+            pert = 0.05 * self.U * np.exp(-((X - self.xc - self.D) ** 2 + (Y - self.yc - 0.25 * self.D) ** 2)
+                                          / (0.5 * self.D) ** 2)
+            uy = np.where(self.solid, 0.0, pert[:, :, None])
+        return rho, ux, uy, np.zeros(self.shape)
+
+    def criar_termico(self, sim):
+        com = self.metodo == "com_solido"
+        ativo = ~self.externo if com else ~self.solid
+        C = np.where(self.corpo, self.Cs, 1.0) if com else np.ones(self.shape)
+        k = np.where(self.corpo, self.ks, 1.0) if com else np.ones(self.shape)
+        T0 = np.where(self.corpo, 0.0, 1.0)
+        paredes = [dict(mask=self.externo, Tw=1.0, q=None, tag=0)]
+        if not com:
+            paredes.append(dict(mask=self.corpo, Tw=0.0, q=self.qfun, tag=1))
+        # Tref do fluxo advectivo (T - Tref) u = temperatura da superficie do solido no regime
+        # medido: parede (theta = 0) sem solido; Tinf (theta = 1) com solido, que e a
+        # temperatura que o solido atinge no fim (trecho usado no ajuste de h).  Com Tref = 0
+        # o metodo com solido tinha uma fonte espuria -T div(u) na interface (u cai a zero no
+        # corpo) e o solido parava em 1 - theta ~ 0,95 em Re = 200.
+        return Termico(sim, ativo, C, k, T0, paredes, self.alfa, Tref=1.0 if com else 0.0)
+
+    # --- contorno a cada passo ------------------------------------------------
+    def post_stream(self, sim, fpost, fnew):
+        fb = fnew[:, :, :, -2]
+        rho, ux, uy, uz = macroscopic(fb)
+        fnew[:, :, :, -1] = equilibrium(np.ones_like(rho), ux, uy, uz) + fb - equilibrium(rho, ux, uy, uz)
+
+    def saida_termica(self, gout):
+        gout[:, -1] = gout[:, -2]
+
+    def t_centro(self, th):
+        """Temperatura (theta) no centro do corpo, interpolacao bilinear."""
+        x, y = self.xc + 0.5, self.yc + 0.5          # em indices de no
+        i0, j0 = int(np.floor(x)), int(np.floor(y))
+        wx, wy = x - i0, y - j0
+        T = th.T[:, :, 0]
+        return float((1 - wx) * (1 - wy) * T[i0, j0] + wx * (1 - wy) * T[i0 + 1, j0]
+                     + (1 - wx) * wy * T[i0, j0 + 1] + wx * wy * T[i0 + 1, j0 + 1])
+
+    def apos_passo_termico(self, sim, th):
+        F = sim.body_force
+        norm = 0.5 * self.U ** 2 * self.D
+        self.serie_cd.append(float(F[0] / norm))
+        self.serie_cl.append(float(F[1] / norm))
+        if self.metodo == "com_solido":
+            self.serie_tc.append(self.t_centro(th))     # T no instante t (antes do passo)
+            self.serie_nu.append(np.nan)
+        else:
+            Q = th.links.calor(th.gtmp, 1)              # calor que sai do fluido para o cilindro
+            self.serie_nu.append(Q * self.D / (self.alfa * self.perimetro * (1.0 - 0.0)))
+
+    # --- Nu medio (metodo sem solido) -----------------------------------------
+    def nu_medio_estacionario(self, frac=0.8):
+        s = self.serie_nu
+        n = len(s)
+        if n < 2:
+            return np.nan
+        ii = int(frac * n)
+        return float(np.mean(s[ii:]))
+
+    def nu_medio_transiente(self, ncic=9):
+        ini, per = ciclos_completos(self.serie_nu, ncic)
+        if ini is None:
+            return self.nu_medio_estacionario(0.8), per, None
+        return float(np.mean(self.serie_nu[ini:])), per, ini
+
+    # --- metodo com solido ---------------------------------------------------
+    def theta_solido(self):
+        return self.serie_tc[-1] if self.serie_tc else 0.0
+
+    def ajuste_h(self, frac_ini=0.99):
+        """h (rede) por minimos quadrados em [round(0,99 if), if] (Eq. 14 de [CN26])."""
+        tc = np.asarray(self.serie_tc, float)
+        n = tc.size
+        if n < 10:
+            return np.nan, None
+        ii = int(round(frac_ini * n))
+        ii = min(max(ii, 0), n - 2)
+        t = np.arange(n, dtype=float)[ii:]
+        Tcfd = tc[ii:]
+        fator = self.perimetro / (self.Cs * self.area_discreta)
+
+        def soma(h):   # T = Tinf + (Ti - Tinf) exp(-b t), Tinf = 1, Ti = 0  ->  1 - exp(-b t)
+            return float(np.sum((Tcfd - (1.0 - np.exp(-h * fator * t))) ** 2))
+        lo, hi = np.log(1e-8), np.log(10.0)
+        g = 0.5 * (np.sqrt(5) - 1)
+        a, b = hi - g * (hi - lo), lo + g * (hi - lo)
+        fa, fb = soma(np.exp(a)), soma(np.exp(b))
+        for _ in range(200):
+            if fa < fb:
+                hi, b, fb = b, a, fa
+                a = hi - g * (hi - lo)
+                fa = soma(np.exp(a))
+            else:
+                lo, a, fa = a, b, fb
+                b = lo + g * (hi - lo)
+                fb = soma(np.exp(b))
+        h = float(np.exp(0.5 * (lo + hi)))
+        return h, (ii, t, Tcfd, soma)
+
+    def nusselt(self):
+        """Nu do metodo escolhido (o que [CN26] chama de Nu_num)."""
+        if self.metodo == "com_solido":
+            h, _ = self.ajuste_h()
+            return h * self.D / self.alfa
+        if self.transiente:
+            return self.nu_medio_transiente()[0]
+        return self.nu_medio_estacionario()
+
+    # --- monitoramento / parada -----------------------------------------------
+    def report(self, sim):
+        out = {"Nu_inst": self.serie_nu[-1] if self.serie_nu else np.nan,
+               "Nu": self.nusselt() if self.metodo == "sem_solido" or len(self.serie_tc) > 10 else np.nan,
+               "C_D": float(np.mean(self.serie_cd[-50:])) if self.serie_cd else np.nan,
+               "C_L": self.serie_cl[-1] if self.serie_cl else np.nan}
+        if self.metodo == "com_solido":
+            out["1-theta"] = self.theta_solido()
+            out.pop("Nu_inst")
+        return out
+
+    def ref_ranges(self):
+        if self.forma == "circulo":
+            r = nu_churchill_bernstein(self.Re, self.Pr)
+            return {"Nu": (r, r)}
+        return {}
+
+    def parar(self, sim):
+        """Criterios de parada de [CN26]; chamado a cada passo."""
+        n = len(self.serie_tc) if self.metodo == "com_solido" else len(self.serie_nu)
+        if self.metodo == "com_solido":
+            if n and self.serie_tc[-1] >= 0.98:     # 1 - theta >= 0,98 (theta da Eq. 14)
+                self._parou = "1 - theta = %.4f >= 0,98" % self.serie_tc[-1]
+                return True
+            return False
+        tempo = sim.it * self.U / self.D            # em D/U
+        if self.transiente:
+            if tempo >= self.duracao:
+                self._parou = "duracao de %.0f D/U atingida" % self.duracao
+                return True
+            return False
+        # estacionario: Eq. 16 de [CN26] adaptada ao LBM.  Nu = media de 0,8 if a if (Eq. 11).
+        # No artigo (solver incompressivel implicito) para-se com |Nu - Nu0|/Nu < 1e-8 entre
+        # passos consecutivos.  No LBM (fracamente compressivel) o Nu_inst carrega uma
+        # flutuacao acustica residual ~1e-5 que nao decai, e a variacao passo a passo da
+        # media fica num patamar ~3e-8: o criterio literal nunca e atingido de forma util.
+        # Aqui: |Nu(if) - Nu(if - 10 D/U)| / Nu < 1e-5 em todos os passos de 5 D/U seguidos
+        # (Nu convergido em 5 algarismos).
+        if n < 20 or tempo < 20.0:
+            return False
+        if not hasattr(self, "_cum") or self._cum_n != n - 1:
+            c = np.concatenate([[0.0], np.cumsum(self.serie_nu)])
+            self._cum, self._cum_n = list(c), n
+        else:
+            self._cum.append(self._cum[-1] + self.serie_nu[-1])
+            self._cum_n = n
+        c = self._cum
+
+        def media(m):
+            ii = int(0.8 * m)
+            return (c[m] - c[ii]) / max(m - ii, 1)
+        dlt = max(1, int(round(self.intervalo_nu * self.D / self.U)))
+        if n <= dlt + 1:
+            return False
+        nu1, nu0 = media(n), media(n - dlt)
+        if nu1 > 0 and abs(nu1 - nu0) / nu1 < self.tol_nu:
+            self._ok_seq = getattr(self, "_ok_seq", 0) + 1
+        else:
+            self._ok_seq = 0
+        if self._ok_seq >= self.janela_nu * self.D / self.U:
+            self._parou = ("|Nu - Nu(-%g D/U)|/Nu < %.0e em todos os passos dos ultimos %g D/U (Eq. 16 adaptada)"
+                           % (self.intervalo_nu, self.tol_nu, self.janela_nu))
+            return True
+        return False
+
+    tol_nu = 1e-5
+    intervalo_nu = 10.0
+    janela_nu = 5.0
+
+    def progresso(self, sim):
+        """Fracao concluida (0-1) para o contador; None se nao estimavel."""
+        if self.metodo == "com_solido":
+            th = 1.0 - self.theta_solido()
+            if th <= 0 or th >= 1:
+                return None
+            return float(min(1.0, np.log(th) / np.log(0.02)))
+        if self.transiente:
+            return float(min(1.0, sim.it * self.U / self.D / self.duracao))
+        return None
+
+    # --- persistencia -----------------------------------------------------------
+    def estado_extra(self, sim):
+        th = sim.termico
+        return {"g": th.g, "serie_nu": np.asarray(self.serie_nu), "serie_tc": np.asarray(self.serie_tc),
+                "serie_cd": np.asarray(self.serie_cd), "serie_cl": np.asarray(self.serie_cl)}
+
+    def carregar_extra(self, sim, data):
+        if "g" in data.files:
+            sim.termico.g = np.ascontiguousarray(data["g"])
+            sim.termico.gtmp = np.empty_like(sim.termico.g)
+        for k in ("serie_nu", "serie_tc", "serie_cd", "serie_cl"):
+            if k in data.files:
+                setattr(self, k, [float(v) for v in data[k]])
+
+    # --- resultado final ----------------------------------------------------------
+    def resultado(self, sim):
+        """Dicionario com os resultados do caso (gravado em resultado_calor.json)."""
+        Nu = self.nusselt()
+        r = {"forma": self.forma, "metodo": self.metodo, "Re": self.Re, "Pr": self.Pr, "D": self.D,
+             "Ds_D": self.Ds, "U": self.U, "nu": self.nu, "alfa": self.alfa, "malha": list(self.shape),
+             "nos_fluido": int((~self.solid).sum()), "instantes": int(sim.it), "Nu": Nu,
+             "tempo_D_U": sim.it * self.U / self.D, "parada": self._parou,
+             "C_D_medio": float(np.mean(self.serie_cd[len(self.serie_cd) // 2:])) if self.serie_cd else None}
+        if self.forma == "circulo":
+            ref = nu_churchill_bernstein(self.Re, self.Pr)
+            r["Nu_ref"] = ref
+            r["dif_pct"] = 100 * abs(Nu - ref) / ref
+        if self.metodo == "com_solido":
+            h, _ = self.ajuste_h()
+            r["h_rede"] = h
+            r["Biot"] = h * 0.5 * self.D / (self.ks * self.alfa)   # Bi = h Lc / ks, Lc = raio
+            r["ks_kf"], r["Cs_Cf"] = self.ks, self.Cs
+            r["Nu_todos_instantes"] = self.ajuste_h(0.0)[0] * self.D / self.alfa
+        elif self.transiente:
+            nu, per, ini = self.nu_medio_transiente()
+            r["periodo_passos"] = per
+            # Strouhal pelo periodo de C_L (um ciclo de desprendimento).  Em corpos simetricos
+            # Nu oscila duas vezes por ciclo; nos assimetricos (hexagono a 45 graus), uma.
+            r["Strouhal"] = strouhal_cl(self.serie_cl, self.D, self.U)
+            r["Strouhal_Nu"] = (self.D / (2 * per * self.U)) if per else None
+            r["C_L_rms"] = c_l_rms(self.serie_cl)
+            r["ciclos_media"] = 9 if ini is not None else 0
+        return r
+
+    def finish(self, sim, outdir):
+        r = self.resultado(sim)
+        pasta = os.path.dirname(outdir.rstrip("/")) if os.path.basename(outdir.rstrip("/")) == "graficos" else outdir
+        with open(os.path.join(pasta, "resultado_calor.json"), "w") as fh:
+            json.dump(r, fh, indent=1, default=float)
+        np.savetxt(os.path.join(outdir, "nusselt.csv"),
+                   np.c_[np.arange(1, len(self.serie_cd) + 1), np.asarray(self.serie_nu)[:len(self.serie_cd)],
+                         (np.asarray(self.serie_tc) if self.serie_tc else np.full(len(self.serie_cd), np.nan))[:len(self.serie_cd)],
+                         self.serie_cd, self.serie_cl],
+                   delimiter=",", header="inst,Nu_inst,theta_centro,C_D,C_L", comments="", fmt="%.10g")
+        try:
+            import figuras
+            figuras.graficos_calor(self, sim, outdir, r)
+        except Exception as e:
+            print("AVISO: graficos de calor nao gerados (%s)" % e)
+        txt = ("%s, Re = %g, metodo %s (D = %d, Ds = %g D): Nu = %.4f"
+               % (NOME_FORMA[self.forma], self.Re, self.metodo, self.D, self.Ds, r["Nu"]))
+        if "Nu_ref" in r:
+            txt += "   Nu_ref (Eq. 17) = %.3f   dif = %.2f%%" % (r["Nu_ref"], r["dif_pct"])
+        if "Biot" in r:
+            txt += "   Bi = %.2e" % r["Biot"]
+        txt += "   instantes = %d   (%s)" % (r["instantes"], r["parada"] or "max-iter")
+        return txt
+
+
+RESIDUOS = ("res", "res_ux", "res_uy", "res_uz", "res_rho")
+
 CASES = {"shearwave": ShearWave, "duct": Duct, "cylinder": Cylinder, "cavity": Cavity,
-         "spheres": SphereArray}
+         "spheres": SphereArray, "calor": CilindroCalor}
 
 
 # ---------------------------------------------------------------------------
@@ -808,12 +1661,25 @@ class Simulation:
         self.f = equilibrium(rho, ux, uy, uz)
         self.ftmp = np.empty_like(self.f)
         self.it = 0
-        self.hist = {"it": [], "res": []}
+        self.hist = {k: [] for k in ("it",) + RESIDUOS}
         self.rho, self.u = rho, np.stack([ux, uy, uz])
         self.u_prev = self.u.copy()
+        self.rho_prev = self.rho.copy()
         self.body_force = np.zeros(3)
+        self.so = None if getattr(args, "sem_c", False) else kernel_c()
+        if self.so is not None:
+            self.f = np.ascontiguousarray(self.f)
+            self.ftmp = np.empty_like(self.f)
+            self.rho = np.ascontiguousarray(self.rho, dtype=np.float64)
+            self.u = np.ascontiguousarray(self.u, dtype=np.float64)
+            self.solid_u8 = np.ascontiguousarray(case.solid, dtype=np.uint8)
+            self._prm_c = prm_c(self.prm)
+            self._forca_c = np.array(case.force, dtype=np.float64)
+        self.termico = case.criar_termico(self) if hasattr(case, "criar_termico") else None
 
     def step(self):
+        if self.so is not None:
+            return self._step_c()
         case = self.case
         # colisao em fatias de planos x: os temporarios do numpy cabem no cache (~3x mais rapido)
         nx, ny, nz = case.shape
@@ -828,6 +1694,23 @@ class Simulation:
         case.post_stream(self, self.f, self.ftmp)
         if getattr(case, "measure_force", False):
             self.body_force = case.links.force(self.f, self.ftmp, 1)
+        if self.termico is not None:
+            self.termico.passo(self)
+        self.f, self.ftmp = self.ftmp, self.f
+        self.it += 1
+
+    def _step_c(self):
+        """Mesmo passo de step(), com colisao + propagacao no nucleo em C."""
+        case = self.case
+        sh = case.shape
+        self.so.collide_stream(self.f, self.ftmp, self.solid_u8, sh[0], sh[1], sh[2],
+                               self._forca_c, self._prm_c, self.rho, self.u[0], self.u[1], self.u[2])
+        case.links.apply_c(self.ftmp)
+        case.post_stream(self, None, self.ftmp)
+        if getattr(case, "measure_force", False):
+            self.body_force = case.links.force_c(self.ftmp, 1)
+        if self.termico is not None:
+            self.termico.passo(self)
         self.f, self.ftmp = self.ftmp, self.f
         self.it += 1
 
@@ -836,25 +1719,43 @@ class Simulation:
         self.rho, self.u = rho, np.stack([ux, uy, uz])
 
     def record(self):
-        """Residuo de convergencia ||u^n - u^(n-100)|| / ||u^n|| nos nos de fluido."""
+        """Residuos nos nos de fluido, entre este relatorio e o anterior (n-100):
+            res     = ||u^n - u^(n-100)||_2 / ||u^n||_2            (criterio de parada)
+            res_ux  = ||ux^n - ux^(n-100)||_2 / ||u^n||_2  (idem uy, uz; res^2 = soma dos tres)
+            res_rho = ||rho^n - rho^(n-100)||_2 / ||rho^n||_2
+        """
         self.update_macros()
         du = (self.u - self.u_prev)[:, self.fluid]
         un = self.u[:, self.fluid]
-        res = np.sqrt(np.sum(du * du) / max(np.sum(un * un), 1e-300))
+        norma = max(np.sum(un * un), 1e-300)
+        res = np.sqrt(np.sum(du * du) / norma)
+        comp = np.sqrt(np.sum(du * du, axis=1) / norma)
+        rf, rp = self.rho[self.fluid], self.rho_prev[self.fluid]
+        res_rho = np.sqrt(np.sum((rf - rp) ** 2) / max(np.sum(rf * rf), 1e-300))
         self.u_prev = self.u.copy()
+        self.rho_prev = self.rho.copy()
         self.hist["it"].append(self.it)
-        self.hist["res"].append(res)
+        for key, val in zip(RESIDUOS, (res, comp[0], comp[1], comp[2], res_rho)):
+            self.hist.setdefault(key, []).append(float(val))
         for key, val in self.case.report(self).items():
             self.hist.setdefault(key, []).append(float(val))
         return res
+
+    def residuos(self):
+        return {k: _ultimo(self.hist[k]) for k in RESIDUOS if self.hist.get(k)}
+
+    def grandezas(self):
+        """Grandezas monitoradas do caso (tudo que nao e iteracao nem residuo)."""
+        return {k: _ultimo(v) for k, v in self.hist.items() if k != "it" and k not in RESIDUOS and len(v)}
 
     # --- E/S ---------------------------------------------------------------
     def save_checkpoint(self, outdir):
         path = os.path.join(outdir, "checkpoint.npz")
         tmp = os.path.join(outdir, "checkpoint_tmp.npz")
-        np.savez(tmp, f=self.f, it=self.it, u_prev=self.u_prev,
+        extra = self.case.estado_extra(self) if hasattr(self.case, "estado_extra") else {}
+        np.savez(tmp, f=self.f, it=self.it, u_prev=self.u_prev, rho_prev=self.rho_prev,
                  args=json.dumps(vars(self.args)),
-                 hist=json.dumps({k: list(map(float, v)) for k, v in self.hist.items()}))
+                 hist=json.dumps({k: list(map(float, v)) for k, v in self.hist.items()}), **extra)
         os.replace(tmp, path)
         return path
 
@@ -865,8 +1766,18 @@ class Simulation:
         self.it = int(data["it"])
         self.u_prev = data["u_prev"].copy()
         self.hist = {k: list(v) for k, v in json.loads(str(data["hist"])).items()}
-        self.hist["it"] = [int(i) for i in self.hist["it"]]
+        self.hist["it"] = [int(i) for i in self.hist.get("it", [])]
+        for k in RESIDUOS:
+            self.hist.setdefault(k, [])
         self.update_macros()
+        # checkpoints antigos nao tinham rho_prev: o primeiro res_rho apos o reinicio fica 0
+        self.rho_prev = data["rho_prev"].copy() if "rho_prev" in data.files else self.rho.copy()
+        if hasattr(self.case, "carregar_extra"):
+            self.case.carregar_extra(self, data)
+        if self.so is not None:
+            self.f = np.ascontiguousarray(self.f)
+            self.rho = np.ascontiguousarray(self.rho)
+            self.u = np.ascontiguousarray(self.u)
 
     def save_vtk(self, outdir):
         path = os.path.join(outdir, "%s_it%07d.vtk" % (self.case.name, self.it))
@@ -885,50 +1796,186 @@ class Simulation:
             fh.write((~self.fluid).transpose(2, 1, 0).astype(">f4").tobytes())
             fh.write(b"\nVECTORS velocity float\n")
             fh.write(u.transpose(3, 2, 1, 0).astype(">f4").tobytes())
+            if self.termico is not None:
+                T = np.nan_to_num(self.termico.temperatura(), nan=0.0)
+                fh.write(b"\nSCALARS theta float 1\nLOOKUP_TABLE default\n")
+                fh.write(T.transpose(2, 1, 0).astype(">f4").tobytes())
             fh.write(b"\n")
         return path
 
 
+
+
 # ---------------------------------------------------------------------------
-# Interface grafica: curva de convergencia + campo de velocidade + controles
+# Organizacao da pasta de cada caso
+# ---------------------------------------------------------------------------
+class Pastas:
+    """casos/<caso>/ com uma subpasta por tipo de resultado."""
+    SUB = ("dominio", "contorno", "malha", "escoamento", "graficos", "checkpoint")
+
+    def __init__(self, raiz):
+        self.raiz = raiz
+        os.makedirs(raiz, exist_ok=True)
+        for s in self.SUB:
+            p = os.path.join(raiz, s)
+            os.makedirs(p, exist_ok=True)
+            setattr(self, s, p)
+
+    def arquivo(self, nome):
+        return os.path.join(self.raiz, nome)
+
+    @property
+    def checkpoint_npz(self):
+        return os.path.join(self.checkpoint, "checkpoint.npz")
+
+
+LEIAME = """Caso {tag} - resultados do lbm3d.py
+{sublinhado}
+
+dominio/      geometria: vista 3D (dominio_3d.png) e cortes fluido/solido (dominio_cortes.png)
+contorno/     condicoes de contorno: mapa nos cortes e em 3D + descricao (condicoes_contorno.txt)
+malha/        malha de calculo: corte com os nos, detalhe junto a parede (links e fracao q), malha.txt
+escoamento/   campos do escoamento: final/ e parcial_itNNNNNNN/ (imagens PNG + campo .vtk p/ ParaView)
+graficos/     convergencia.png (residuos), grandezas.png, validacao, convergencia.csv/.html (painel)
+checkpoint/   checkpoint.npz (estado completo para continuar a simulacao)
+
+parametros.json  parametros da execucao        execucao.log   saida do terminal (residuos)
+estado.json      iteracao/situacao final        validacao.txt  comparacao com a referencia
+
+Continuar a simulacao:   python lbm3d.py --restart {raiz}
+Painel de convergencia:  abra graficos/convergencia.html  (ou: python acompanhar.py {raiz} --servir)
+
+Controle durante a execucao (crie o arquivo vazio nesta pasta, ou use acompanhar.py):
+  SALVAR  -> salva resultado parcial (escoamento/parcial_itN + graficos + checkpoint) e continua
+  PAUSAR  -> pausa enquanto o arquivo existir
+  PARAR   -> salva o checkpoint e encerra (continue com --restart)
+  ex.: python acompanhar.py {raiz} --salvar   |   --pausar   |   --continuar   |   --parar
+"""
+
+CONTROLES = ("SALVAR", "PAUSAR", "PARAR")
+
+
+class _Tee:
+    """Copia a saida do terminal para <caso>/execucao.log."""
+
+    def __init__(self, stream, path):
+        self.stream = stream
+        self.fh = open(path, "a", encoding="utf-8")
+
+    def write(self, s):
+        self.stream.write(s)
+        self.fh.write(s)
+        if "\n" in s:
+            self.fh.flush()
+        return len(s)
+
+    def flush(self):
+        self.stream.flush()
+        self.fh.flush()
+
+    def close_log(self):
+        self.fh.close()
+
+    def __getattr__(self, k):
+        return getattr(self.stream, k)
+
+
+def gravar_parametros(pastas, case, sim_prm, args):
+    dados = {"caso": case.name, "pasta": pastas.raiz, "malha": list(case.shape),
+             "nos": int(np.prod(case.shape)), "nos_fluido": int((~case.solid).sum()),
+             "nu": case.nu, "omega": case.omega, "forca": list(map(float, case.force)),
+             "colisao": {k: (float(v) if isinstance(v, (float, np.floating)) else v)
+                         for k, v in sim_prm.items()},
+             "argumentos": vars(args)}
+    if case.dx_fisico:
+        dados["dx_fisico"] = case.dx_fisico
+        dados["unidade"] = case.unidade
+    with open(pastas.arquivo("parametros.json"), "w", encoding="utf-8") as fh:
+        json.dump(dados, fh, indent=1, default=str)
+    with open(pastas.arquivo("LEIAME.txt"), "w", encoding="utf-8") as fh:
+        titulo = "Caso %s - resultados do lbm3d.py" % case.tag()
+        fh.write(LEIAME.format(tag=case.tag(), sublinhado="=" * len(titulo), raiz=pastas.raiz))
+
+
+def preprocessar(case, pastas, prm):
+    import figuras
+    t = time.time()
+    arqs = figuras.preprocessamento(case, pastas, prm)
+    print("Pre-processamento (dominio, contorno, malha): %d arquivos em %.1f s"
+          % (len(arqs), time.time() - t))
+    return arqs
+
+
+def salvar_parcial(sim, pastas, args, nome=None, checkpoint=True):
+    """Resultado parcial: escoamento/<nome>/ (VTK + imagens), graficos/ e checkpoint."""
+    nome = nome or "parcial_it%07d" % sim.it
+    pasta = os.path.join(pastas.escoamento, nome)
+    os.makedirs(pasta, exist_ok=True)
+    sim.save_vtk(pasta)
+    if not args.no_figs:
+        try:
+            import figuras
+            figuras.figuras_escoamento(sim, pasta)
+            if sim.termico is not None:
+                figuras.figuras_temperatura(sim, pasta)
+            figuras.graficos_convergencia(sim, pastas.graficos, args.tol)
+        except Exception as e:  # imagens nunca interrompem a simulacao
+            print("AVISO: imagens nao geradas (%s)" % e)
+    if checkpoint:
+        sim.save_checkpoint(pastas.checkpoint)
+    return pasta
+
+
+# ---------------------------------------------------------------------------
+# Interface: janela grafica (curvas de residuo + campo), menu no terminal e
+# arquivos de controle (SALVAR / PAUSAR / PARAR na pasta do caso)
 # ---------------------------------------------------------------------------
 class Monitor:
-    def __init__(self, sim, args, outdir):
-        import matplotlib
-        if args.no_gui:
-            matplotlib.use("Agg")
+    CORES = {"res": "k", "res_ux": "#2a78d6", "res_uy": "#1baf7a", "res_uz": "#b87900",
+             "res_rho": "#d03b3b"}
+
+    def __init__(self, sim, args, pastas):
+        self.sim, self.pastas, self.gui = sim, pastas, not args.no_gui
+        self.paused = False
+        self.pausa_arquivo = False
+        self.stop = False
+        self.save_now = False
+        self.menu = False
+        self.autosave = args.save_every > 0
+        self.terminal = (not self.gui) and sys.stdin is not None and sys.stdin.isatty()
+        if not self.gui:
+            import matplotlib
+            matplotlib.use("Agg")  # graficos de validacao sem tela
+            return
         import matplotlib.pyplot as plt
         from matplotlib.widgets import Button, CheckButtons
         self.plt = plt
-        self.sim, self.outdir, self.gui = sim, outdir, not args.no_gui
-        self.paused = False
-        self.stop = False
-        self.save_now = False
-        self.autosave = args.save_every > 0
         self.fig = plt.figure(figsize=(12, 5.5))
         self.ax1 = self.fig.add_axes([0.06, 0.2, 0.42, 0.7])
         self.ax2 = self.fig.add_axes([0.55, 0.2, 0.42, 0.7])
-        self.line, = self.ax1.semilogy([], [], "b.-")
+        self.lines = {k: self.ax1.semilogy([], [], ".-" if k == "res" else "-", color=c,
+                                           lw=1.6 if k == "res" else 0.9, ms=3, label=k)[0]
+                      for k, c in self.CORES.items()}
+        self.ax1.legend(fontsize=7, loc="upper right")
         self.ax1.set_xlabel("iteracao")
-        self.ax1.set_ylabel(r"$\|u^n-u^{n-100}\|_2/\|u^n\|_2$")
+        self.ax1.set_ylabel("residuo")
         self.ax1.grid(True, which="both", alpha=0.3)
         self.img = None
-        self.cbar = None
-        if self.gui:
-            self.bp = Button(self.fig.add_axes([0.06, 0.03, 0.14, 0.07]), "Pausar (P)")
-            self.bs = Button(self.fig.add_axes([0.22, 0.03, 0.14, 0.07]), "Salvar (S)")
-            self.bq = Button(self.fig.add_axes([0.38, 0.03, 0.18, 0.07]), "Salvar e sair (Q)")
-            self.cb = CheckButtons(self.fig.add_axes([0.6, 0.02, 0.25, 0.09]),
-                                   ["Auto-salvar a cada 100 it."], [self.autosave])
-            self.bp.on_clicked(lambda e: self.toggle_pause())
-            self.bs.on_clicked(lambda e: self.request_save())
-            self.bq.on_clicked(lambda e: self.request_stop())
-            self.cb.on_clicked(lambda e: self.toggle_autosave())
-            self.fig.canvas.mpl_connect("key_press_event", self.on_key)
-            self.fig.canvas.mpl_connect("close_event", lambda e: self.request_stop())
-            plt.ion()
-            plt.show(block=False)
+        self.bp = Button(self.fig.add_axes([0.06, 0.03, 0.14, 0.07]), "Pausar (P)")
+        self.bs = Button(self.fig.add_axes([0.22, 0.03, 0.14, 0.07]), "Salvar (S)")
+        self.bq = Button(self.fig.add_axes([0.38, 0.03, 0.18, 0.07]), "Salvar e sair (Q)")
+        self.cb = CheckButtons(self.fig.add_axes([0.6, 0.02, 0.3, 0.09]),
+                               ["Auto-salvar parciais (--save-every)"], [self.autosave])
+        self.bp.on_clicked(lambda e: self.toggle_pause())
+        self.bs.on_clicked(lambda e: self.request_save())
+        self.bq.on_clicked(lambda e: self.request_stop())
+        self.cb.on_clicked(lambda e: self.toggle_autosave())
+        self.fig.canvas.mpl_connect("key_press_event", self.on_key)
+        self.fig.canvas.mpl_connect("close_event", lambda e: self.request_stop())
+        plt.ion()
+        plt.show(block=False)
 
+    # --- acoes ------------------------------------------------------------
     def toggle_pause(self):
         self.paused = not self.paused
         if self.gui:
@@ -937,13 +1984,16 @@ class Monitor:
 
     def toggle_autosave(self):
         self.autosave = not self.autosave
-        print("Auto-salvar:", self.autosave)
+        print("Auto-salvar parciais:", self.autosave)
 
     def request_save(self):
         self.save_now = True
 
     def request_stop(self):
         self.stop = True
+
+    def pausado(self):
+        return self.paused or self.pausa_arquivo
 
     def on_key(self, ev):
         key = (ev.key or "").lower()
@@ -954,48 +2004,142 @@ class Monitor:
         elif key == "q":
             self.request_stop()
 
+    def verificar_controles(self):
+        """Arquivos de controle na pasta do caso (servem para execucoes sem janela,
+        em segundo plano ou remotas).  SALVAR e PARAR sao apagados ao serem atendidos;
+        PAUSAR mantem a simulacao pausada enquanto existir."""
+        raiz = self.pastas.raiz
+        if os.path.exists(os.path.join(raiz, "SALVAR")):
+            _remover(os.path.join(raiz, "SALVAR"))
+            print("[controle] arquivo SALVAR encontrado: salvando resultado parcial")
+            self.save_now = True
+        if os.path.exists(os.path.join(raiz, "PARAR")):
+            _remover(os.path.join(raiz, "PARAR"))
+            print("[controle] arquivo PARAR encontrado: salvando checkpoint e encerrando")
+            self.stop = True
+        pausa = os.path.exists(os.path.join(raiz, "PAUSAR"))
+        if pausa != self.pausa_arquivo:
+            self.pausa_arquivo = pausa
+            print("[controle] %s na iteracao %d" % ("PAUSADO (arquivo PAUSAR)" if pausa else
+                                                    "CONTINUANDO (arquivo PAUSAR removido)", self.sim.it))
+
+    def menu_terminal(self):
+        """Menu aberto pelo Ctrl+C quando a simulacao roda sem janela num terminal."""
+        self.menu = False
+        s = self.sim
+        r = _ultimo(s.hist.get("res", []))
+        print("\n" + "-" * 70)
+        print("Simulacao interrompida na iteracao %d (ultimo residuo %.3e)" % (s.it, r))
+        print("  [c] continuar                     [s] salvar resultado parcial e continuar")
+        print("  [p] pausar / continuar            [q] salvar checkpoint e sair")
+        anterior = signal.getsignal(signal.SIGINT)
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+        try:
+            op = input("opcao [c/s/p/q] (Enter = c; Ctrl+C = q): ").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            op = "q"
+        finally:
+            signal.signal(signal.SIGINT, anterior)
+        print("-" * 70)
+        if op.startswith("s"):
+            self.save_now = True
+            self.paused = False
+        elif op.startswith("q"):
+            self.stop = True
+        elif op.startswith("p"):
+            self.toggle_pause()
+            if self.paused:
+                print("(pausado: Ctrl+C abre o menu de novo)")
+        else:
+            self.paused = False
+
     def events(self, dt=0.001):
         if self.gui:
+            c = getattr(self, "contador", None)
+            if c is not None and time.time() - getattr(self, "_t_titulo", 0.0) >= 1.0:
+                self._t_titulo = time.time()
+                try:
+                    self.fig.suptitle(c.texto(c._estado("pausado" if self.pausado() else "rodando")),
+                                      fontsize=10, color="#2a78d6")
+                    self.fig.canvas.draw_idle()
+                except Exception:
+                    pass
             self.fig.canvas.flush_events()
-            if dt > 0.01:
-                time.sleep(dt)
+        if dt > 0.01:
+            time.sleep(dt)
 
     def update(self):
+        if not self.gui:
+            return
         s = self.sim
-        self.line.set_data(s.hist["it"], s.hist["res"])
+        for k, ln in self.lines.items():
+            if s.hist.get(k):
+                n = min(len(s.hist["it"]), len(s.hist[k]))
+                ln.set_data(s.hist["it"][len(s.hist["it"]) - n:], s.hist[k][len(s.hist[k]) - n:])
         self.ax1.relim()
         self.ax1.autoscale_view()
-        extra = [k for k in s.hist if k not in ("it", "res")]
-        txt = "  ".join("%s=%.5g" % (k, s.hist[k][-1]) for k in extra)
-        self.ax1.set_title("Convergencia (it=%d)  %s" % (s.it, txt), fontsize=9)
+        txt = "  ".join("%s=%.5g" % kv for kv in s.grandezas().items())
+        self.ax1.set_title("Residuos (it=%d)  %s" % (s.it, txt), fontsize=9)
         ax = s.case.slice_axis
         n = s.u.shape[1 + ax] // 2
         umag = np.sqrt((s.u ** 2).sum(axis=0))
         sl = np.take(np.where(s.fluid, umag, np.nan), n, axis=ax).T
         if self.img is None:
-            self.img = self.ax2.imshow(sl, origin="lower", cmap="jet", aspect="equal")
-            self.cbar = self.fig.colorbar(self.img, ax=self.ax2, shrink=0.8)
+            self.img = self.ax2.imshow(sl, origin="lower", cmap="viridis", aspect="equal")
+            self.fig.colorbar(self.img, ax=self.ax2, shrink=0.8)
             names = "xyz".replace("xyz"[ax], "")
             self.ax2.set_xlabel(names[0]); self.ax2.set_ylabel(names[1])
         else:
             self.img.set_data(sl)
             self.img.set_clim(np.nanmin(sl), np.nanmax(sl))
         self.ax2.set_title("|u| no plano %s = %d" % ("xyz"[ax], n))
-        if self.gui:
-            self.fig.canvas.draw_idle()
-            self.plt.pause(0.001)
-
-    def savefig(self):
-        self.fig.savefig(os.path.join(self.outdir, "convergencia.png"), dpi=110)
+        self.fig.canvas.draw_idle()
+        self.plt.pause(0.001)
 
 
-def log_convergence(outdir, sim, args, mlups):
-    """Acrescenta uma linha a <outdir>/convergencia.csv a cada relatorio (100 it.).
-    Tambem regrava <outdir>/convergencia.html (painel no navegador, recarrega sozinho);
-de outro terminal:  python acompanhar.py <outdir> [--servir]"""
-    path = os.path.join(outdir, "convergencia.csv")
+def _remover(path):
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
+def _ultimo(seq, padrao=float("nan")):
+    """Ultimo elemento de uma lista/serie, ou `padrao` se estiver vazia (nunca IndexError)."""
+    try:
+        return seq[-1] if len(seq) else padrao
+    except TypeError:
+        return padrao
+
+
+def _colunas_csv(path):
+    """Cabecalho de colunas de um convergencia.csv existente (ou None)."""
+    try:
+        with open(path) as fh:
+            for linha in fh:
+                if linha.startswith("it,"):
+                    return linha.strip().split(",")
+    except OSError:
+        pass
+    return None
+
+
+def log_convergence(pasta, sim, args, mlups):
+    """Acrescenta uma linha a <pasta>/convergencia.csv a cada relatorio (100 it.) e regrava
+    <pasta>/convergencia.html (painel no navegador, recarrega sozinho).  <pasta> e a
+    subpasta graficos/ do caso; de outro terminal:  python acompanhar.py <caso> [--servir]"""
+    path = os.path.join(pasta, "convergencia.csv")
     keys = [k for k in sim.hist if k not in ("it", "res")]
     new = not os.path.exists(path)
+    if not new:
+        # colunas fixas pelo cabecalho do arquivo: grandezas novas sao ignoradas e as que
+        # faltarem viram nan, para todas as linhas terem o mesmo numero de colunas
+        cols = _colunas_csv(path)
+        if cols is None or cols[:4] != ["it", "res", "tempo_unix", "mlups"]:
+            os.replace(path, path + ".antigo")
+            new = True
+        else:
+            keys = cols[4:]
     with open(path, "a") as fh:
         if new:
             refs = "".join(" ref_%s=%.6g:%.6g" % (k, lo, hi)
@@ -1004,15 +2148,146 @@ de outro terminal:  python acompanhar.py <outdir> [--servir]"""
                      % (sim.case.name, args.tol, args.max_iter, int(sim.case.steady),
                         sim.prm["model"], refs))
             fh.write(",".join(["it", "res", "tempo_unix", "mlups"] + keys) + "\n")
-        fh.write(",".join(["%d" % sim.it, "%.6e" % sim.hist["res"][-1], "%.3f" % time.time(),
-                           "%.4f" % mlups] + ["%.8g" % sim.hist[k][-1] for k in keys]) + "\n")
-    try:  # painel HTML <outdir>/convergencia.html (abra no navegador; recarrega sozinho)
+        fh.write(",".join(["%d" % sim.it, "%.6e" % _ultimo(sim.hist.get("res", [])), "%.3f" % time.time(),
+                           "%.4f" % mlups] + ["%.8g" % _ultimo(sim.hist.get(k, [])) for k in keys]) + "\n")
+    try:  # painel HTML (abra no navegador; recarrega sozinho)
         import acompanhar
-        acompanhar.gerar_html(outdir)
+        acompanhar.gerar_html(pasta)
     except Exception as e:  # o painel nunca interrompe a simulacao
         if not getattr(log_convergence, "_avisou", False):
             print("AVISO: painel HTML nao gerado (%s)" % e)
             log_convergence._avisou = True
+
+
+def _fmt_tempo(s):
+    s = int(s)
+    return "%dh%02dm%02ds" % (s // 3600, (s % 3600) // 60, s % 60)
+
+
+class Contador:
+    """Contador do tempo de simulacao, sempre presente em qualquer execucao.
+
+    * terminal interativo: linha viva, atualizada a cada segundo
+        [contador] 0h12m03s | it 12345 | 41.2 it/s | 37% | restante ~0h20m
+    * sem terminal (segundo plano / log): uma linha [contador] a cada minuto em execucao.log
+    * sempre: <pasta do caso>/andamento.json, regravado a cada segundo; o painel HTML
+      (graficos/convergencia.html) e  python acompanhar.py --todos  mostram o contador de
+      todas as simulacoes em curso a partir dele.
+    O tempo acumula entre reinicios (--restart): o total anterior vem de andamento.json."""
+
+    def __init__(self, sim, args, pastas):
+        self.sim, self.args, self.pastas = sim, args, pastas
+        self.path = pastas.arquivo("andamento.json")
+        self.t0 = time.time()
+        self.it0 = sim.it
+        self.antes = 0.0
+        if args.restart and os.path.exists(self.path):
+            try:
+                with open(self.path) as fh:
+                    self.antes = float(json.load(fh).get("decorrido_total_s", 0.0))
+            except (OSError, ValueError, TypeError):
+                self.antes = 0.0
+        self.inicio_total = self.t0 - self.antes
+        self.tty = bool(getattr(sys.__stdout__, "isatty", lambda: False)())
+        self.ultimo = 0.0
+        self.ultimo_log = self.t0
+        self.viva = False
+        self.vel = []          # (tempo, it) para a velocidade recente
+
+    def _estado(self, situacao):
+        sim, args = self.sim, self.args
+        agora = time.time()
+        self.vel.append((agora, sim.it))
+        while len(self.vel) > 2 and agora - self.vel[0][0] > 30.0:
+            self.vel.pop(0)
+        dt = self.vel[-1][0] - self.vel[0][0]
+        its = (self.vel[-1][1] - self.vel[0][1]) / dt if dt > 0 else np.nan
+        frac = None
+        if hasattr(sim.case, "progresso"):
+            try:
+                frac = sim.case.progresso(sim)
+            except Exception:
+                frac = None
+        if frac is None and args.max_iter and not hasattr(sim.case, "parar"):
+            frac = sim.it / float(args.max_iter)
+        decorrido = agora - self.t0
+        restante = np.nan
+        if frac is not None and 0 < frac < 1 and decorrido > 5:
+            prog0 = getattr(self, "_frac0", None)
+            if prog0 is None:
+                self._frac0, self._t_frac0 = frac, agora
+            elif frac > prog0:
+                restante = (agora - self._t_frac0) * (1 - frac) / (frac - prog0)
+        return {"caso": sim.case.tag(), "pasta": self.pastas.raiz, "pid": os.getpid(),
+                "situacao": situacao, "inicio_unix": self.inicio_total, "atualizado_unix": agora,
+                "decorrido_total_s": self.antes + decorrido, "decorrido_execucao_s": decorrido,
+                "it": int(sim.it), "max_iter": int(args.max_iter or 0),
+                "it_por_s": None if not np.isfinite(its) else float(its),
+                "progresso": None if frac is None else float(frac),
+                "restante_s": None if not np.isfinite(restante) else float(restante)}
+
+    def texto(self, e):
+        partes = ["[contador] %s" % _fmt_tempo(e["decorrido_total_s"]), "it %d" % e["it"]]
+        if e["it_por_s"]:
+            partes.append("%.1f it/s" % e["it_por_s"])
+        if e["progresso"] is not None:
+            partes.append("%.0f%%" % (100 * e["progresso"]))
+        if e["restante_s"] is not None:
+            partes.append("restante ~%s" % _fmt_tempo(e["restante_s"]))
+        if e["situacao"] != "rodando":
+            partes.append(e["situacao"].upper())
+        return " | ".join(partes)
+
+    def gravar(self, e):
+        for path in (self.path, os.path.join(self.pastas.graficos, "andamento.json")):
+            tmp = path + ".tmp"
+            try:
+                with open(tmp, "w") as fh:
+                    json.dump(e, fh, indent=1)
+                os.replace(tmp, path)
+            except OSError:
+                pass
+
+    def tick(self, situacao="rodando", forcar=False):
+        agora = time.time()
+        if not forcar and agora - self.ultimo < 1.0:
+            return
+        self.ultimo = agora
+        e = self._estado(situacao)
+        self.gravar(e)
+        if self.tty:
+            sys.__stdout__.write("\r\033[K" + self.texto(e))
+            sys.__stdout__.flush()
+            self.viva = True
+        elif forcar or agora - self.ultimo_log >= 60.0:
+            self.ultimo_log = agora
+            print(self.texto(e))
+
+    def limpar(self):
+        """Apaga a linha viva antes de outra saida no terminal."""
+        if self.viva:
+            sys.__stdout__.write("\r\033[K")
+            sys.__stdout__.flush()
+            self.viva = False
+
+    def final(self, situacao):
+        self.limpar()
+        e = self._estado(situacao)
+        self.gravar(e)
+        print("%s  (tempo total de simulacao: %s)" % (self.texto(e), _fmt_tempo(e["decorrido_total_s"])))
+
+
+CABECALHO = ("%9s %10s %10s %10s %10s %10s %7s %10s  %s"
+             % ("iteracao", "res(u)", "res(ux)", "res(uy)", "res(uz)", "res(rho)", "MLUPS",
+                "tempo", "grandezas monitoradas"))
+
+
+def linha_residuos(sim, mlups, decorrido):
+    r = sim.residuos()
+    g = "  ".join("%s=%.6g" % kv for kv in sim.grandezas().items())
+    return ("%9d %10.3e %10.3e %10.3e %10.3e %10.3e %7.2f %10s  %s"
+            % (sim.it, r.get("res", np.nan), r.get("res_ux", np.nan), r.get("res_uy", np.nan),
+               r.get("res_uz", np.nan), r.get("res_rho", np.nan), mlups, _fmt_tempo(decorrido), g))
 
 
 def parse_args(argv=None):
@@ -1030,38 +2305,111 @@ def parse_args(argv=None):
     p.add_argument("--u-adv", type=float, default=0.0, help="adveccao na onda de cisalhamento")
     p.add_argument("--limiter", type=float, default=None, help="limitador de 3a ordem [G17] (ex.: 0.01)")
     p.add_argument("--max-iter", type=int, default=0)
-    p.add_argument("--tol", type=float, default=1e-7, help="criterio de parada do residuo")
-    p.add_argument("--save-every", type=int, default=100,
-                   help="salvar VTK + checkpoint a cada N iteracoes (0 desliga; GUI pode alternar)")
-    p.add_argument("--outdir", default="")
-    p.add_argument("--restart", default="", help="arquivo checkpoint.npz para reiniciar")
-    p.add_argument("--no-gui", action="store_true", help="sem janela (Ctrl+C salva e sai)")
-    p.add_argument("--report-every", type=int, default=100)
+    p.add_argument("--tol", type=float, default=1e-7, help="criterio de parada do residuo res(u)")
+    p.add_argument("--save-every", type=int, default=1000,
+                   help="salvar resultado parcial (escoamento/parcial_itN: VTK + imagens; graficos; "
+                        "checkpoint) a cada N iteracoes (0 desliga; a janela pode alternar)")
+    p.add_argument("--checkpoint-every", type=int, default=100,
+                   help="regravar checkpoint/checkpoint.npz a cada N iteracoes (0 desliga)")
+    p.add_argument("--outdir", default="",
+                   help="pasta do caso (padrao: casos/<caso>_<parametros>, ex.: casos/cylinder_D10_Re20)")
+    p.add_argument("--restart", default="",
+                   help="continuar de um checkpoint: a pasta do caso ou o arquivo checkpoint.npz")
+    p.add_argument("--no-gui", action="store_true",
+                   help="sem janela (Ctrl+C abre um menu no terminal: continuar/salvar/pausar/sair)")
+    p.add_argument("--no-figs", action="store_true",
+                   help="nao gerar imagens (dominio, contorno, malha, escoamento, graficos PNG)")
+    p.add_argument("--preprocess-only", action="store_true",
+                   help="so gera dominio/, contorno/ e malha/ (confira a montagem do caso) e sai")
+    p.add_argument("--report-every", type=int, default=100,
+                   help="intervalo (it.) entre impressoes dos residuos / linhas do CSV")
+    g = p.add_argument_group("transferencia de calor (--case calor) [CN26]")
+    g.add_argument("--forma", choices=FORMAS, default="circulo", help="secao do cilindro")
+    g.add_argument("--metodo", choices=["sem_solido", "com_solido"], default="sem_solido",
+                   help="calculo de Nu: parede isotermica (sem_solido) ou solido conjugado (com_solido)")
+    g.add_argument("--Pr", type=float, default=PR_AR, help="numero de Prandtl (ar a 25 C: 0,7296)")
+    g.add_argument("--Ds", type=float, default=0.0,
+                   help="tamanho do dominio Ds/D (padrao: 80, 80, 40, 30 para Re = 1, 10, 100, 200)")
+    g.add_argument("--ks-kf", type=float, default=0.0, help="com_solido: condutividade ks/kf (padrao 157)")
+    g.add_argument("--Cs-Cf", type=float, default=0.0,
+                   help="com_solido: capacidade termica volumetrica (rho cp)s/(rho cp)f (padrao 16,9)")
+    g.add_argument("--duracao", type=float, default=0.0,
+                   help="casos transientes: duracao em D/U (padrao 153 para Re=100, 131 para Re=200)")
     p.add_argument("--max-time", type=float, default=0.0,
                    help="limite de tempo de relogio em minutos: ao atingir, salva o checkpoint "
-                        "e encerra (util na nuvem; continue com --restart)")
+                        "e encerra (util em rodadas longas; continue com --restart)")
     return p.parse_args(argv)
+
+
+def localizar_checkpoint(caminho):
+    """Aceita a pasta do caso, a pasta checkpoint/ ou o arquivo .npz."""
+    if os.path.isdir(caminho):
+        for c in (os.path.join(caminho, "checkpoint", "checkpoint.npz"),
+                  os.path.join(caminho, "checkpoint.npz")):
+            if os.path.exists(c):
+                return c
+        raise FileNotFoundError("nenhum checkpoint.npz em %s" % caminho)
+    return caminho
+
+
+def pasta_do_checkpoint(arquivo):
+    d = os.path.dirname(os.path.abspath(arquivo))
+    if os.path.basename(d) == "checkpoint":
+        d = os.path.dirname(d)
+    rel = os.path.relpath(d)
+    return d if rel.startswith("..") else rel
 
 
 def main(argv=None):
     args = parse_args(argv)
-    restart_file = args.restart or None
+    restart_file = localizar_checkpoint(args.restart) if args.restart else None
     if restart_file:
         # parametros fisicos vem do checkpoint; controles de execucao podem ser trocados
         saved = json.loads(str(np.load(restart_file)["args"]))
         given = {a[2:].split("=")[0].replace("-", "_")
                  for a in (sys.argv[1:] if argv is None else argv) if a.startswith("--")}
-        runtime = {"no_gui", "max_iter", "save_every", "tol", "outdir", "report_every", "max_time"}
+        runtime = {"no_gui", "max_iter", "save_every", "tol", "outdir", "report_every", "max_time",
+                   "checkpoint_every", "no_figs", "preprocess_only"}
         for k, v in saved.items():
             if k != "restart" and not (k in runtime and k in given):
                 setattr(args, k, v)
         args.restart = restart_file
+        if "outdir" not in given:
+            args.outdir = pasta_do_checkpoint(restart_file)
 
-    outdir = args.outdir or "saida_%s" % args.case
-    os.makedirs(outdir, exist_ok=True)
     case = CASES[args.case](args)
     if not args.max_iter:
-        args.max_iter = 200000
+        args.max_iter = 20000000 if hasattr(case, "parar") else 200000
+    if not args.outdir:
+        args.outdir = os.path.join("casos", case.tag())
+    pastas = Pastas(args.outdir)
+    for nome in CONTROLES:  # arquivos de controle esquecidos de uma execucao anterior
+        if os.path.exists(pastas.arquivo(nome)):
+            _remover(pastas.arquivo(nome))
+            print("(removido arquivo de controle antigo %s)" % pastas.arquivo(nome))
+
+    stdout_original = sys.stdout
+    sys.stdout = _Tee(stdout_original, pastas.arquivo("execucao.log"))
+    try:
+        return _executar(case, args, pastas, restart_file)
+    finally:
+        sys.stdout.flush()
+        sys.stdout.close_log()
+        sys.stdout = stdout_original
+
+
+def _executar(case, args, pastas, restart_file):
+    print("=" * 78)
+    print("lbm3d  %s  |  pasta do caso: %s" % (time.strftime("%Y-%m-%d %H:%M:%S"), pastas.raiz))
+    prm = collision_parameters(case.omega, args.model, args.limiter)
+    gravar_parametros(pastas, case, prm, args)
+    if args.preprocess_only or (not args.no_figs and not os.path.exists(
+            os.path.join(pastas.dominio, "dominio_3d.png"))):
+        preprocessar(case, pastas, prm)
+    if args.preprocess_only:
+        print("Imagens em %s/{dominio,contorno,malha}/" % pastas.raiz)
+        return None
+
     sim = Simulation(case, args)
     if restart_file:
         sim.load_checkpoint(restart_file)
@@ -1074,43 +2422,88 @@ def main(argv=None):
         print("  taxas K17: w3=%.4f w4=%.4f w5=%.4f A=%.4f B=%.4f"
               % (sim.prm["w3"], sim.prm["w4"], sim.prm["w5"], sim.prm["A"], sim.prm["B"]))
 
-    mon = Monitor(sim, args, outdir)
+    mon = Monitor(sim, args, pastas)
     if not sim.hist["it"]:
         sim.u_prev = sim.u.copy()
+        sim.rho_prev = sim.rho.copy()
 
     def sigint(signum, frame):
-        print("\nInterrompido: salvando checkpoint...")
-        mon.request_stop()
-    signal.signal(signal.SIGINT, sigint)
-    signal.signal(signal.SIGTERM, sigint)  # ex.: cancelamento na nuvem
+        if signum == signal.SIGINT and mon.terminal and not mon.menu and not mon.stop:
+            print("\n(Ctrl+C) abrindo o menu apos a iteracao atual... (Ctrl+C de novo = salvar e sair)")
+            mon.menu = True
+        else:
+            print("\nInterrompido: salvando checkpoint...")
+            mon.menu = False
+            mon.request_stop()
+
+    def sigusr1(signum, frame):
+        print("\n(SIGUSR1) salvando resultado parcial...")
+        mon.request_save()
+
+    try:  # sinais so podem ser tratados na thread principal
+        signal.signal(signal.SIGINT, sigint)
+        signal.signal(signal.SIGTERM, sigint)  # ex.: kill do processo
+        if hasattr(signal, "SIGUSR1"):
+            signal.signal(signal.SIGUSR1, sigusr1)
+    except ValueError:
+        mon.terminal = False
+
+    print("Controles: %s | arquivos SALVAR / PAUSAR / PARAR em %s"
+          % ("botoes/teclas P, S, Q na janela" if mon.gui else
+             "Ctrl+C = menu (continuar/salvar/pausar/sair)" if mon.terminal else
+             "Ctrl+C ou SIGTERM = salvar e sair", pastas.raiz))
+    print("Residuos: res(u) = ||u^n - u^(n-%d)|| / ||u^n||  (parada: res(u) < %.1e); componentes "
+          "normalizadas por ||u^n||; res(rho) = ||drho|| / ||rho||" % (args.report_every, args.tol))
 
     every = args.report_every
     t0, it0 = time.time(), sim.it
     converged = False
+    linhas = 0
+    contador = Contador(sim, args, pastas)
+    mon.contador = contador
+    parar_caso = getattr(case, "parar", None)
     while sim.it < args.max_iter and not mon.stop:
-        if mon.paused:
-            if mon.save_now:
-                mon.save_now = False
-                print("  salvo:", sim.save_vtk(outdir), sim.save_checkpoint(outdir))
+        contador.tick()
+        if mon.menu:
+            contador.limpar()
+            mon.menu_terminal()
+        if mon.save_now:
+            mon.save_now = False
+            contador.limpar()
+            print("  resultado parcial salvo em:", salvar_parcial(sim, pastas, args))
+        if mon.pausado():
+            contador.tick("pausado")
             mon.events(0.1)
+            mon.verificar_controles()
             continue
         sim.step()
+        if parar_caso is not None and parar_caso(sim):
+            converged = True
+            contador.limpar()
+            print("Criterio de parada do caso atingido na iteracao %d: %s"
+                  % (sim.it, getattr(case, "_parou", "")))
+            break
         if sim.it % 10 == 0:
             mon.events()
+            mon.verificar_controles()
         if sim.it % every == 0:
             res = sim.record()
             mlups = n_nodes * (sim.it - it0) / max(time.time() - t0, 1e-9) / 1e6
-            extra = "  ".join("%s=%.6g" % (k, v[-1]) for k, v in sim.hist.items()
-                              if k not in ("it", "res"))
-            print("it %7d  res %.3e  %s  [%.2f MLUPS]" % (sim.it, res, extra, mlups))
-            log_convergence(outdir, sim, args, mlups)
-            if not np.isfinite(res):
+            contador.limpar()
+            if linhas % 25 == 0:
+                print(CABECALHO)
+            linhas += 1
+            print(linha_residuos(sim, mlups, contador.antes + time.time() - t0))
+            log_convergence(pastas.graficos, sim, args, mlups)
+            if not np.isfinite(res) or (sim.termico is not None and not np.isfinite(sim.termico.T).all()):
                 print("Simulacao divergiu (NaN).")
+                res = float("nan")
                 break
             mon.update()
+            if args.checkpoint_every and sim.it % max(args.checkpoint_every, every) == 0:
+                sim.save_checkpoint(pastas.checkpoint)
             if mon.autosave and args.save_every and sim.it % max(args.save_every, every) == 0:
-                sim.save_vtk(outdir)
-                sim.save_checkpoint(outdir)
+                print("  resultado parcial salvo em:", salvar_parcial(sim, pastas, args))
             if case.steady and res < args.tol:
                 converged = True
                 print("Convergiu: residuo %.3e < tol %.1e" % (res, args.tol))
@@ -1118,32 +2511,36 @@ def main(argv=None):
             if args.max_time and time.time() - t0 > 60.0 * args.max_time:
                 print("Limite de tempo (%g min) atingido: salvando checkpoint..." % args.max_time)
                 break
-        if mon.save_now:
-            mon.save_now = False
-            print("  salvo:", sim.save_vtk(outdir), sim.save_checkpoint(outdir))
 
-    ck = sim.save_checkpoint(outdir)
-    vtk = sim.save_vtk(outdir)
+    contador.limpar()
+    ck = sim.save_checkpoint(pastas.checkpoint)
     if sim.it % every:
         sim.record()
-    mon.update()
-    mon.savefig()
-    print("Checkpoint: %s   (reinicie com: python %s --restart %s)" % (ck, sys.argv[0], ck))
-    print("Campo final (ParaView): %s" % vtk)
-    if converged or not case.steady or sim.it >= args.max_iter:
-        msg = case.finish(sim, outdir)
+    res = _ultimo(sim.hist.get("res", []))
+    divergiu = not np.isfinite(res)
+    if parar_caso is not None:   # caso com criterio proprio: so termina pelo criterio ou max-iter
+        terminou = converged or sim.it >= args.max_iter
+    else:
+        terminou = converged or not case.steady or sim.it >= args.max_iter
+    nome = ("final" if terminou and not divergiu else
+            "divergencia_it%07d" % sim.it if divergiu else "parcial_it%07d" % sim.it)
+    pasta = salvar_parcial(sim, pastas, args, nome, checkpoint=False)
+    print("Checkpoint: %s   (continue com: python lbm3d.py --restart %s)" % (ck, pastas.raiz))
+    print("Campo e imagens do escoamento: %s" % pasta)
+    if terminou:
+        msg = case.finish(sim, pastas.graficos)
         if msg and case.steady and not converged:
             msg += "\n  (ATENCAO: max-iter atingido sem convergir; resultado provisorio)"
         if msg:
             print("=" * 78 + "\nVALIDACAO\n" + msg + "\n" + "=" * 78)
-            with open(os.path.join(outdir, "validacao.txt"), "a") as fh:
+            with open(pastas.arquivo("validacao.txt"), "a") as fh:
                 fh.write(msg + "\n")
-    terminou = converged or not case.steady or sim.it >= args.max_iter
-    res = sim.hist["res"][-1] if sim.hist["res"] else float("nan")
-    with open(os.path.join(outdir, "estado.json"), "w") as fh:  # lido pelo fluxo na nuvem
-        json.dump({"caso": case.name, "it": sim.it, "residuo": res, "tol": args.tol,
-                   "convergiu": converged, "terminou": bool(terminou),
-                   "divergiu": not np.isfinite(res)}, fh, indent=1)
+    contador.final("divergiu" if divergiu else "terminou" if terminou else "interrompido")
+    with open(pastas.arquivo("estado.json"), "w") as fh:  # situacao final da execucao
+        json.dump({"caso": case.name, "pasta": pastas.raiz, "it": sim.it, "residuo": res,
+                   "residuos": sim.residuos(), "tol": args.tol, "convergiu": converged,
+                   "terminou": bool(terminou), "divergiu": bool(divergiu),
+                   "checkpoint": ck}, fh, indent=1)
     if mon.gui and not mon.stop:
         mon.plt.ioff()
         mon.plt.show()

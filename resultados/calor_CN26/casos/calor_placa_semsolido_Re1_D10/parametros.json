@@ -1,0 +1,61 @@
+{
+ "caso": "calor",
+ "pasta": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_placa_semsolido_Re1_D10",
+ "malha": [
+  802,
+  803,
+  1
+ ],
+ "nos": 644006,
+ "nos_fluido": 571293,
+ "nu": 0.2,
+ "omega": 0.9090909090909091,
+ "forca": [
+  0.0,
+  0.0,
+  0.0
+ ],
+ "colisao": {
+  "model": "cumulant",
+  "w1": 0.9090909090909091,
+  "limiter": null,
+  "w2": 1.0,
+  "w3": 1.0,
+  "w4": 1.0,
+  "w5": 1.0,
+  "A": 0.0,
+  "B": 0.0
+ },
+ "argumentos": {
+  "case": "calor",
+  "model": "k17",
+  "res": 10,
+  "res_z": 0,
+  "chi": 0.5,
+  "Re": 1.0,
+  "nu": 0.0,
+  "u_lattice": 0.02,
+  "u_adv": 0.0,
+  "limiter": null,
+  "max_iter": 20000000,
+  "tol": 1e-07,
+  "save_every": 0,
+  "checkpoint_every": 5000,
+  "outdir": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_placa_semsolido_Re1_D10",
+  "restart": "",
+  "no_gui": true,
+  "no_figs": false,
+  "preprocess_only": false,
+  "report_every": 1000,
+  "forma": "placa",
+  "metodo": "sem_solido",
+  "Pr": 0.7296,
+  "Ds": 0.0,
+  "ks_kf": 0.0,
+  "Cs_Cf": 0.0,
+  "duracao": 0.0,
+  "max_time": 0.0
+ },
+ "dx_fisico": 0.1,
+ "unidade": "m"
+}

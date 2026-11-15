@@ -2,27 +2,58 @@
 
 Solver de lattice-Boltzmann tridimensional em Python/NumPy, com operador de colisão de
 cumulantes parametrizado (K17, difusão de 4ª ordem), paredes curvas, painel HTML de
-convergência, checkpoint/reinício e casos de validação da literatura. Roda no seu computador
-ou **na nuvem, pelo GitHub Actions** (seção abaixo).
+convergência, checkpoint/reinício e casos de validação da literatura.
 
 ## Estrutura do repositório
 
 ```
-lbm3d.py                    solver (método, casos de teste, checkpoint, VTK, linha de comando)
-acompanhar.py               acompanhamento da convergência (painel HTML, janela, terminal)
+lbm3d.py                    solver (método, casos de teste, transferência de calor, checkpoint, VTK,
+                            contador de tempo, linha de comando)
+lbm_kernel.c                núcleo em C (colisão + propagação e passo térmico), compilado sozinho
+                            em build/ na primeira execução; sem compilador, o lbm3d.py usa NumPy
+figuras.py                  imagens do domínio, condições de contorno, malha, escoamento e gráficos
+acompanhar.py               acompanhamento da convergência (painel HTML, janela, terminal),
+                            controle de uma simulação em andamento (salvar / pausar / parar) e
+                            contador de todas as simulações em curso (--todos)
 painel_template.html        modelo do painel HTML (autocontido, sem internet)
-scripts/resumo_execucao.py  resumo de uma execução na nuvem (página do GitHub Actions)
-tests/test_lbm3d.py         testes rápidos (pytest, ~20 s)
-resultados/                 resultados de validação já obtidos (logs, CSV, gráficos, painéis)
-.github/workflows/
-    testes.yml              roda os testes a cada push / pull request
-    simulacao.yml           roda uma simulação na nuvem, com continuação automática
+tests/test_lbm3d.py         testes rápidos do escoamento (pytest)
+tests/test_calor.py         núcleo em C = NumPy, transferência de calor, contador, robustez (pytest)
+resultados/                 casos simulados, um por pasta (índice em resultados/README.md)
+referencias.bib             referências bibliográficas em BibTeX (seção Referências)
+CLAUDE.md                   instruções para o Claude (documentar simulações, estimar tempo, git)
 requirements.txt            numpy, matplotlib
 requirements-dev.txt        + pytest
 ```
 
-As pastas de saída (`saida_*`, com checkpoints `.npz` e campos `.vtk`, que chegam a centenas de MB)
-não vão para o repositório (`.gitignore`).
+## Organização dos casos
+
+Cada simulação grava tudo numa pasta própria, **`casos/<caso>_<parâmetros>/`** (ex.:
+`casos/cylinder_D10_Re20`, `casos/spheres_L32_chi0.5`, `casos/duct_24x16`; `--outdir` escolhe outra):
+
+```
+casos/cylinder_D10_Re20/
+  LEIAME.txt            o que há em cada subpasta e como continuar/controlar a simulação
+  parametros.json       parâmetros da execução (malha, nu, omega, taxas de colisão, argumentos)
+  execucao.log          cópia da saída do terminal (tabela de resíduos)
+  estado.json           iteração, resíduos e situação (convergiu / interrompida / divergiu)
+  validacao.txt         comparação com a referência da literatura
+  dominio/              dominio_3d.png (vista 3D), dominio_cortes.png (fluido/sólido em 3 cortes)
+  contorno/             contorno_cortes.png, contorno_3d.png (mapa colorido por tipo de condição),
+                        condicoes_contorno.txt (descrição + contagem de nós/links),
+                        perfil_entrada.png (cilindro: perfil de velocidade imposto)
+  malha/                malha_corte.png (nós e linhas da malha), malha_detalhe.png (links
+                        fluido→parede e a fração q do bounce-back interpolado), malha.txt
+  escoamento/           final/ e parcial_itNNNNNNN/: velocidade_cortes.png (|u| em 3 cortes),
+                        componentes_pressao.png (u_x, u_y, u_z, p), linhas_corrente.png, <caso>_itN.vtk
+  graficos/             convergencia.png (resíduos), grandezas.png (C_D, C_L, C, erro L2 ...),
+                        validação do caso, convergencia.csv e o painel convergencia.html
+  checkpoint/           checkpoint.npz (estado completo para continuar)
+```
+
+As imagens do domínio, contorno e malha são geradas no início (≈2 s); para conferir a montagem de um
+caso sem rodá-lo: `python lbm3d.py --case cylinder --res 10 --preprocess-only`. `--no-figs` desliga
+todas as imagens (o VTK continua sendo gravado). A pasta `casos/`, os `.vtk` e os checkpoints não vão
+para o repositório (`.gitignore`).
 
 ## Rodar no seu computador
 
@@ -32,7 +63,7 @@ Requisitos: Python ≥ 3.10, `numpy`, `matplotlib`.
 pip install -r requirements.txt
 python lbm3d.py --case duct                 # validação rápida (solução analítica)
 python lbm3d.py --case cylinder --res 10    # benchmark Schäfer–Turek 3D-1Z
-python lbm3d.py --restart saida_cylinder/checkpoint.npz   # continua de onde parou
+python lbm3d.py --restart casos/cylinder_D10_Re20   # continua de onde parou
 ```
 
 Testes:
@@ -42,79 +73,237 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-## Rodar na nuvem (GitHub Actions)
+## Contador de tempo de simulação
 
-1. Envie o repositório para o GitHub.
-2. Na aba **Actions**, escolha **Simulacao LBM → Run workflow** e preencha o formulário:
+Toda simulação mostra um contador do tempo de simulação (classe `Contador` do `lbm3d.py`; não há
+opção para desligá-lo):
 
-   | Campo | Significado |
-   |---|---|
-   | `caso`, `modelo`, `res`, `chi` | como na linha de comando (`--case`, `--model`, `--res`, `--chi`) |
-   | `extras` | outros argumentos, ex.: `--nu 0.01 --Re 20` |
-   | `tol`, `max_iter` | critério de parada e limite total de iterações |
-   | `tempo_max` | minutos de simulação por execução (padrão 320; o GitHub encerra jobs com 6 h) |
-   | `reiniciar_de` | ID de uma execução anterior, para continuar do checkpoint dela |
-   | `continuar` | se o tempo acabar antes de convergir, dispara sozinho a continuação |
+* **terminal interativo:** linha viva atualizada a cada segundo, apagada antes de cada linha da
+  tabela de resíduos:
+  `[contador] 0h12m03s | it 12345 | 41.2 it/s | 37% | restante ~0h20m`
+  (porcentagem e tempo restante quando o caso sabe estimar o progresso);
+* **sem terminal** (segundo plano, `nohup`, log): uma linha `[contador]` por minuto no `execucao.log`
+  e, ao final, o tempo total de simulação;
+* **`andamento.json`** na pasta do caso (e em `graficos/`), regravado a cada segundo: situação,
+  iteração, tempo decorrido (acumulado entre reinícios com `--restart`), velocidade, progresso e
+  tempo restante;
+* **painel HTML** (`graficos/convergencia.html`): o contador fica no cabeçalho e avança a cada segundo;
+* **janela gráfica:** o contador fica no título;
+* **todas as simulações em curso** (lê os `andamento.json`, atualiza a cada segundo):
 
-   Também pela linha de comando, com o [GitHub CLI](https://cli.github.com):
-   ```bash
-   gh workflow run simulacao.yml -f caso=cylinder -f res=10 -f tol=1e-6
-   ```
-3. A página da execução mostra um resumo (iteração, situação, resultado da validação). Os arquivos
-   ficam no artefato **`resultado`** por 30 dias: `convergencia.html` (abra no navegador),
-   `convergencia.csv`/`.png`, `validacao.txt`, o último `.vtk` (ParaView), `checkpoint.npz` e o log.
+```bash
+python acompanhar.py --todos                     # casos em casos/
+python acompanhar.py --todos --raiz outra/pasta  # outras pastas (pode repetir)
+python acompanhar.py --todos --uma-vez --incluir-terminadas
+```
 
-**Simulações longas.** Ao atingir `tempo_max`, o solver para de forma limpa (`--max-time`), salva o
-checkpoint e o artefato. Com `continuar` marcado, o fluxo dispara uma nova execução com
-`reiniciar_de` apontando para a anterior; a cadeia segue até convergir ou atingir `max_iter`. O
-reinício é bit a bit idêntico a uma execução contínua, e o `convergencia.csv` acumula todas as
-partes. Para interromper uma cadeia, cancele a execução em andamento na aba Actions (o
-solver trata o sinal de cancelamento e normalmente ainda salva o checkpoint) ou desligue o fluxo.
+## Transferência de calor (`--case calor`)
 
-Os executores gratuitos (`ubuntu-latest`, 4 vCPUs) são ilimitados em repositórios públicos; em
-repositórios privados contam na cota mensal de minutos da conta. A velocidade é parecida com a de
-um notebook (~0,7–1 MLUPS): o cilindro com D = 10 leva ~3 h e a esfera com L = 48 ~4 h, cada um numa
-execução só; casos maiores usam a continuação automática.
+Convecção forçada 2D sobre cilindros circulares e não circulares, como em Cunha & Noleto (2026)
+[CN26]: o escoamento é o mesmo solver de cumulantes D3Q27 (numa camada de nós, nz = 1) e a energia
+é um segundo reticulado D3Q7 acoplado pela velocidade (formulação no item 10 da seção
+**Formulação matemática e numérica**).
 
-## Resultados de validação já obtidos
+```bash
+# Nu "sem sólido" (parede isotérmica) e "com sólido" (sólido conjugado, sistema concentrado)
+python lbm3d.py --case calor --forma circulo --Re 100 --res 20
+python lbm3d.py --case calor --forma circulo --Re 100 --res 20 --metodo com_solido
+# seções não circulares da Fig. 9 de [CN26]
+python lbm3d.py --case calor --forma quadrado45 --Re 200 --res 20
+```
 
-Em [`resultados/`](resultados), com o modelo K17:
+| Opção | Significado |
+|---|---|
+| `--forma` | `circulo`, `elipse` (2,5:1), `placa` (vertical, espessura D/10), `hexagono`, `hexagono45`, `quadrado`, `quadrado45`; D é sempre a altura da seção (transversal ao escoamento) |
+| `--Re`, `--Pr` | Re = U D/ν; Pr = 0,7296 (ar a 25 °C) por padrão |
+| `--res`, `--u-lattice` | D em nós e velocidade de entrada em unidades de rede (padrão U = 0,05) |
+| `--Ds` | tamanho do domínio Ds/D (padrão da Tabela 1 de [CN26]: 80, 80, 40, 30 para Re = 1, 10, 100, 200) |
+| `--metodo` | `sem_solido` (parede a 15 °C) ou `com_solido` (sólido conjugado inicialmente a 15 °C) |
+| `--ks-kf`, `--Cs-Cf` | `com_solido`: razões de condutividade e de capacidade térmica volumétrica sólido/fluido |
+| `--duracao` | casos transientes: duração em D/U (padrão 153 para Re = 100 e 131 para Re = 200, como em [CN26]) |
 
-| Caso | Resultado | Referência |
-|---|---|---|
-| Duto 24×16 (ν = 0,02) | erro L2 = 1,7·10⁻³ (BGK: 1,4·10⁻², cumulante clássico: 7,8·10⁻³) | White (2006) |
-| Cilindro 3D-1Z, D = 10 | C_D = 6,230 ✔, Δp = 0,1654 Pa ✔, C_L = 0,0102 (1,7 % acima da faixa) | Schäfer & Turek (1996) |
-| Esferas, L = 32, χ = 0,3 / 0,5 / 0,7 | C = 1,713 / 2,858 / 6,062 (erro +0,8 / +0,5 / +1,0 %) | Sangani & Acrivos (1982) |
-| Esferas, L = 48, χ = 0,5 | C = 2,852 (erro +0,23 %; ordem observada ≈ 1,8) | idem |
+Domínio (Fig. 2 de [CN26]): entrada semicircular de diâmetro Ds, com u = U e T = 35 °C, mais as
+laterais retas, que também são entrada; a saída é reta, a Ds/2 do centro, com ρ = 1 e ∂T/∂x = 0.
 
-## Controles durante a execução
+**Critérios de parada (os do artigo):**
+* `sem_solido` estacionário (Re < 50): Eq. 16 adaptada ao LBM. O Nu é a média de 0,8 i_f a i_f
+  (Eq. 11), como no artigo.
+  * O artigo para quando |Nu − Nu₀|/Nu < 10⁻⁸ entre passos consecutivos. Esse critério é natural
+    para o solver incompressível implícito do artigo.
+  * No LBM, que é fracamente compressível, o Nu_inst carrega uma flutuação acústica residual
+    (~10⁻⁵) que não decai, e a variação passo a passo da média fica num patamar ~3·10⁻⁸.
+  * Aqui, a simulação para quando a média varia menos de 10⁻⁵ em 10 D/U, mantido por 5 D/U
+    seguidos, ou seja, Nu convergido em 5 algarismos. Em Re = 10 (D = 5), isso ocorre em 129 D/U,
+    perto dos ~140 D/U do artigo, e o Nu fica igual em 5 algarismos ao de 198 D/U.
+* `sem_solido` transiente (Re ≥ 50): roda a duração em D/U e faz a média em 9 ciclos completos
+  (período pela FFT, como na Fig. 5 de [CN26]).
+* `com_solido`: para quando 1 − θ ≥ 0,98, com θ medido no centro do sólido. h vem do ajuste por
+  mínimos quadrados da Eq. 14 em [round(0,99 i_f), i_f].
 
-| Ação | Janela gráfica | Sem janela (`--no-gui`) |
-|---|---|---|
-| Curva de convergência a cada 100 it. | gráfico à esquerda (+ fatia de \|u\|) | impressa no terminal; `convergencia.png` no fim |
-| Pausar / continuar | botão **Pausar** ou tecla `P` | — |
-| Salvar resultado parcial agora | botão **Salvar** ou tecla `S` | — |
-| Salvar a cada 100 it. | caixa **Auto-salvar** (padrão: ligada) | `--save-every 100` (padrão) |
-| Parar e reiniciar depois | botão **Salvar e sair** / `Q` / fechar janela | `Ctrl+C` |
-| Reiniciar | `--restart <pasta>/checkpoint.npz` | idem |
+**Saída:** `resultado_calor.json` (Nu, Nu_ref, diferença, Biot, nº de instantes, Strouhal pelo período de C_L, C_L rms),
+`graficos/nusselt.csv` (Nu_inst, θ do centro, C_D, C_L a cada passo) e os gráficos no formato do
+artigo:
+* `graficos/nusselt_historia.png`, `nusselt_7periodos.png` e `nusselt_fft.png` (Figs. 5 e 10);
+* `graficos/solido_perfil_nusselt.png` e `solido_ajuste_h.png` (Figs. 6 e 7);
+* `escoamento/final/temperatura.png` (Figs. 4, 8 e 11).
 
-Cada salvamento grava `<caso>_itNNNNNNN.vtk` (densidade, velocidade e máscara de sólido, para abrir
-no ParaView) e sobrescreve `checkpoint.npz` (populações, iteração e histórico). O reinício reproduz
-bit a bit uma execução contínua. No reinício você pode alterar `--max-iter`, `--tol`, `--save-every`,
-`--no-gui`, `--outdir`, `--max-time`; os parâmetros físicos vêm do checkpoint.
+O VTK inclui o campo `theta`.
 
-`--max-time M` encerra após M minutos salvando o checkpoint (usado na nuvem); `SIGTERM` tem o mesmo
-efeito que `Ctrl+C`. Ao final, `<saída>/estado.json` informa a iteração e se a simulação convergiu.
+## Casos simulados
+
+Resultados versionados em [`resultados/`](resultados) (índice e lista de arquivos em
+[`resultados/README.md`](resultados/README.md)), todos com o modelo K17 e parâmetros do benchmark
+(nenhum é ilustrativo; no caso de calor, as diferenças de parâmetros em relação ao artigo
+estão indicadas na própria entrada).
+
+### Duto retangular 24 × 16 — `duct_24x16`
+Duto periódico com seção 24 × 16 nós, ν = 0,02, forçado por gradiente de pressão (u_max = 0,05), até
+res(u) < 10⁻⁷ (12 600 it., ≈ 40 s no contêiner). **Erro L2 relativo do perfil = 1,694·10⁻³** (erro máximo
+1,17·10⁻³ de u_max) contra a solução em série de White (2006). Rodado com a versão atual do código:
+todas as subpastas estão preenchidas. Os valores de comparação citados antes neste README (BGK: 1,4·10⁻²;
+cumulante clássico: 7,8·10⁻³) não têm arquivos em `resultados/` e não foram reverificados.
+
+```bash
+python lbm3d.py --case duct
+```
+
+[Pasta](resultados/duct_24x16) · ![Duto: perfis LBM × analítico](resultados/duct_24x16/graficos/duct_validacao.png)
+
+### Cilindro Schäfer–Turek 3D-1Z, D = 10 — `cylinder_D10_Re20`
+Canal 2,5 × 0,41 × 0,41 m (malha 251 × 43 × 43, 464 099 nós, dx = 0,01 m), Re = 20, Um = 0,1 (rede).
+**C_D = 6,230 e Δp = 0,1654 Pa dentro das faixas de referência; C_L = 0,0102, 1,7 % acima da faixa**
+[0,008; 0,010]. Rodado antes da reorganização das pastas (por isso só há o log, a validação e o gráfico
+da janela de acompanhamento); `dominio/`, `contorno/` e `malha/` foram regerados com a versão atual, mas
+os campos do escoamento não foram guardados e a rodada não foi repetida com esta versão.
+
+```bash
+python lbm3d.py --case cylinder --res 10
+```
+
+[Pasta](resultados/cylinder_D10_Re20) · ![Cilindro: condições de contorno](resultados/cylinder_D10_Re20/contorno/contorno_cortes.png)
+
+### Arranjo cúbico de esferas, L = 32 — `spheres_L32_chi0.3`, `0.5`, `0.7`
+Célula periódica 32³ com uma esfera de diâmetro χL, ν = 0,02, regime de Stokes (Re_p ≤ 0,11).
+**C = 1,713 / 2,858 / 6,062 para χ = 0,3 / 0,5 / 0,7 (erro +0,77 / +0,47 / +1,04 %)** em relação a
+Sangani & Acrivos (1982), valores tabelados em Bogner et al. (2015). Rodados antes da reorganização:
+há log, CSV e painel de convergência; os campos do escoamento não foram guardados.
+
+```bash
+python lbm3d.py --case spheres --res 32 --chi 0.5     # idem --chi 0.3 e 0.7
+```
+
+[χ = 0,3](resultados/spheres_L32_chi0.3) · [χ = 0,5](resultados/spheres_L32_chi0.5) · [χ = 0,7](resultados/spheres_L32_chi0.7) ·
+![Esferas: malha junto à parede curva](resultados/spheres_L32_chi0.5/malha/malha_detalhe.png)
+
+### Arranjo cúbico de esferas, L = 48, χ = 0,5 — `spheres_L48_chi0.5`
+Mesmo caso com malha 48³. **C = 2,852 (erro +0,23 %)**; com L = 32 o erro era +0,47 %. A "ordem observada
+≈ 1,8" citada anteriormente vem de só duas resoluções e não foi recalculada aqui. Rodado antes da
+reorganização (sem campos do escoamento).
+
+```bash
+python lbm3d.py --case spheres --res 48 --chi 0.5
+```
+
+[Pasta](resultados/spheres_L48_chi0.5) · ![Esferas L48: convergência](resultados/spheres_L48_chi0.5/graficos/convergencia.png)
+
+### Convecção forçada sobre cilindros, campanha de [CN26] — `calor_CN26`
+Os 48 casos do artigo Cunha & Noleto (2026), em 2D (nz = 1), com Pr = 0,7296 e os domínios da
+Tabela 1. Foram rodados:
+* círculo com os dois métodos (sem sólido e com sólido conjugado), Re = 1, 10, 100 e 200, em três
+  malhas cada: D = 5/7/10 nós para Re ≤ 10 e D = 10/14/20 para Re ≥ 100;
+* as seis seções não circulares da Fig. 9, sem sólido, na malha fina, nos mesmos quatro Re.
+
+U = 0,02 (Re = 1) ou 0,05 em unidades de rede. A campanha levou ~38 h de relógio, com 3 processos
+simultâneos.
+
+**Método sem sólido, malha fina:** Nu = 0,820 / 1,868 / 5,125 / 7,153 para Re = 1 / 10 / 100 / 200.
+O artigo dá 0,798 / 1,837 / 5,109 / 7,394. Contra a correlação de referência (Eq. 17), a diferença
+é de 3,7 / 0,8 / 1,6 / 1,3 %; no artigo, 0,9 / 0,9 / 1,9 / 2,1 %.
+
+**Método com sólido, malha fina:** Nu = 0,778 / 1,756 / 4,931 / 7,211, contra 0,793 / 1,863 /
+5,082 / 7,414 no artigo. A diferença para a Eq. 17 é de 1,7 / 5,2 / 5,4 / 0,5 %.
+
+**Seções não circulares:** os Nu diferem em média 5,8 % dos da Tabela 6 (21 de 24 acima), com a mesma ordem
+entre as seções. A diferença vai de 0,2 % (elipse) a 15 % (quadrado em Re = 200). Nas correlações
+Nu = C Re^m Pr^(1/3), o expoente m fica a ≤ 0,013 do ajuste feito aos dados do artigo.
+
+**Strouhal (pela sustentação C_L):** 0,166 e 0,197 para o círculo em Re = 100 e 200.
+
+**O que não foi verificado ou difere do artigo:**
+* No método com sólido, o Nu depende mais da malha em Re ≥ 100. Na malha grossa (D = 10), a
+  camada limite térmica tem menos de um nó; o artigo mostra o mesmo comportamento na Tabela 3.
+* Em Re = 1 e 10, as propriedades do sólido não são as do cobre: (ρc_p)s/(ρc_p)f = 277 e 104, com
+  ks/kf = 157, para que o caso termine em tempo viável. Isso não altera o Nu, mas o Biot fica
+  ~2,5·10⁻³, contra ~2,5·10⁻⁵ no artigo. Continua ≪ 0,1, o que mantém válida a hipótese de
+  sistema concentrado.
+* O critério estacionário é a Eq. 16 adaptada ao LBM (média com 5 algarismos estáveis).
+* Na elipse em Re = 100 quase não há desprendimento (C_L rms = 0,007), então o St desse caso não é
+  significativo.
+* O artigo não traz Strouhal para comparar.
+
+```bash
+python campanha_calor.py --plano completo --rodar --processos 3 --menores-primeiro
+python campanha_calor.py --relatorio        # tabelas 2–6 e Fig. 12 em resultados/calor_CN26/
+```
+
+[Pasta](resultados/calor_CN26) ·
+[Comparação completa (formato das Tabelas 2–6 e da Fig. 12)](resultados/calor_CN26/comparacao_CN26.md) ·
+![Nu: LBM × CN26](resultados/calor_CN26/nusselt_lbm_x_artigo.png)
+![Temperatura, círculo, Re = 100](resultados/calor_CN26/casos/calor_circulo_semsolido_Re100_D20/temperatura.png)
+
+## Resíduos
+
+A cada `--report-every` iterações (padrão 100) o terminal imprime uma linha da tabela:
+
+```
+ iteracao     res(u)    res(ux)    res(uy)    res(uz)   res(rho)   MLUPS      tempo  grandezas monitoradas
+     3000  4.289e-03  4.289e-03  6.284e-07  4.545e-07  5.488e-09    0.67   0h00m08s  L2_error=0.0365582
+```
+
+* `res(u) = ‖uⁿ − uⁿ⁻¹⁰⁰‖₂ / ‖uⁿ‖₂` sobre os nós de fluido — critério de parada (`res(u) < --tol`, padrão 1e-7);
+* `res(ux)`, `res(uy)`, `res(uz)`: a mesma variação por componente, normalizada por `‖uⁿ‖₂`
+  (logo `res(u)² = res(ux)² + res(uy)² + res(uz)²`);
+* `res(rho) = ‖ρⁿ − ρⁿ⁻¹⁰⁰‖₂ / ‖ρⁿ‖₂`;
+* MLUPS, tempo decorrido e as grandezas do caso.
+
+A mesma linha vai para `graficos/convergencia.csv` (colunas `res`, `res_ux`, `res_uy`, `res_uz`,
+`res_rho`) e para `execucao.log`; `graficos/convergencia.png` mostra as curvas.
+(Linha acima: duto 24×16, de `resultados/duct_24x16/execucao.log`.)
+
+## Salvar resultados parciais e interromper
+
+| Ação | Janela gráfica | Terminal (`--no-gui`) | Qualquer modo (outro terminal, segundo plano, remoto) |
+|---|---|---|---|
+| Salvar resultado parcial agora | botão **Salvar** / tecla `S` | `Ctrl+C` → `s` | `python acompanhar.py <pasta> --salvar` (ou crie `<pasta>/SALVAR`); `kill -USR1 <pid>` |
+| Pausar / continuar | botão **Pausar** / tecla `P` | `Ctrl+C` → `p` (de novo `Ctrl+C` → `c`) | `--pausar` / `--continuar` (arquivo `<pasta>/PAUSAR`) |
+| Salvar e parar | botão **Salvar e sair** / `Q` / fechar janela | `Ctrl+C` → `q` (ou `Ctrl+C` duas vezes) | `--parar` (arquivo `<pasta>/PARAR`); `SIGTERM` |
+| Salvar parciais periodicamente | caixa **Auto-salvar parciais** | `--save-every N` (padrão 1000; 0 desliga) | idem |
+| Continuar depois | `python lbm3d.py --restart <pasta do caso>` | idem | idem |
+
+* **Resultado parcial** = `escoamento/parcial_itNNNNNNN/` (imagens + `.vtk`), gráficos atualizados em
+  `graficos/` e `checkpoint/checkpoint.npz`.
+* O checkpoint também é regravado a cada `--checkpoint-every` iterações (padrão 100), para limitar o
+  que se perde se o processo for morto sem aviso.
+* Os arquivos de controle são verificados a cada 10 iterações; `SALVAR` e `PARAR` são apagados ao serem
+  atendidos, e sobras de uma execução anterior são apagadas no início.
+* Sem terminal interativo (ex.: com saída redirecionada para arquivo), `Ctrl+C`/`SIGTERM` salvam e encerram
+  direto, sem menu.
+* Ao parar, a última situação vai para `escoamento/parcial_itN/` (ou `final/`, se terminou) e `estado.json`.
+
+O reinício reproduz bit a bit uma execução contínua. No reinício você pode alterar `--max-iter`,
+`--tol`, `--save-every`, `--checkpoint-every`, `--no-gui`, `--no-figs`, `--outdir`, `--max-time`,
+`--report-every`; os parâmetros físicos vêm do checkpoint. `--max-time M` encerra após M minutos
+salvando o checkpoint (útil para dividir rodadas longas em trechos).
 
 ### Painel HTML de convergência
-A cada 100 iterações o código acrescenta uma linha a `<saída>/convergencia.csv` e regrava
-**`<saída>/convergencia.html`**, uma página autocontida (sem internet, sem bibliotecas externas).
+A cada 100 iterações o código acrescenta uma linha a `graficos/convergencia.csv` e regrava
+**`graficos/convergencia.html`**, uma página autocontida (sem internet, sem bibliotecas externas).
 Basta abri-la no navegador: ela se recarrega sozinha a cada 5 s. Para atualização ao vivo sem
 recarregar (e para acompanhar de outro computador via túnel SSH), sirva a pasta:
 
 ```bash
-python acompanhar.py saida_spheres_L32_chi0.5 --servir        # http://127.0.0.1:8765/convergencia.html
-python acompanhar.py saida_spheres_L32_chi0.5                 # (re)gera o HTML e abre no navegador
+python acompanhar.py casos/spheres_L32_chi0.5 --servir        # http://127.0.0.1:8765/convergencia.html
+python acompanhar.py casos/spheres_L32_chi0.5                 # (re)gera o HTML e abre no navegador
 ```
 
 O painel mostra:
@@ -124,82 +313,498 @@ O painel mostra:
 * curva do resíduo em escala log com a tolerância e a extrapolação;
 * evolução de cada grandeza do caso (C_D, C_L, Δp, C, erro L2 …) com a **faixa de referência da
   literatura** sombreada, a variação relativa nas últimas 500 it., e opção "Tudo"/"Último terço";
-* valores ao passar o mouse e uma tabela com as últimas 30 leituras; tema claro/escuro automático.
+* valores ao passar o mouse e uma tabela com as últimas 30 leituras (incluindo os resíduos por
+  componente); tema claro/escuro automático.
 
 Outros modos: `--janela` (matplotlib), `--texto` (terminal, ex.: via ssh), `--png` (imagem estática).
 
-Resíduo de convergência: `r = ||u^n − u^(n−100)||₂ / ||u^n||₂` sobre os nós de fluido; o caso para
-quando `r < --tol` (padrão 1e-7).
+## Formulação matemática e numérica
 
-## Método e equações
+Esta seção descreve o modelo que o `lbm3d.py` resolve e como ele é discretizado, na ordem em que o
+código executa um passo de tempo. As equações usam unidades de rede (Δx = Δt = 1, ρ₀ = 1); a
+conversão para unidades físicas está no item 9. Entre colchetes estão as referências da lista ao fim
+do README e, quando útil, a função do código que implementa cada parte.
 
-### 1. Equação de lattice-Boltzmann, rede D3Q27
-`f_i(x + c_i, t+1) = f_i*(x, t)`, com `c_i ∈ {−1,0,1}³`, pesos `w = w_a w_b w_c`, sendo `(1/6, 2/3, 1/6)`,
-e `c_s² = 1/3`, `ν = c_s²(1/ω₁ − 1/2)`, `p = c_s² ρ`.
-Macroscópicas: `ρ = Σ f_i`, `ρu = Σ f_i c_i + F/2`.
+### 1. Problema físico
 
-### 2. Colisão de cumulantes [G15]
-Transformação "chimera" para momentos centrais, direção por direção (z, y, x):
+O objetivo é resolver escoamentos laminares, incompressíveis e isotérmicos de um fluido newtoniano,
+com uma força de corpo **F** opcional (gradiente de pressão imposto ou aceleração):
 
-```
-κ₀ = f₋ + f₀ + f₊
-κ₁ = (f₊ − f₋) − u κ₀
-κ₂ = (f₊ + f₋) − 2u (f₊ − f₋) + u² κ₀
-```
+$$
+\nabla\cdot\mathbf u = 0,\qquad
+\frac{\partial \mathbf u}{\partial t} + (\mathbf u\cdot\nabla)\mathbf u
+= -\frac{1}{\rho_0}\nabla p + \nu\,\nabla^2\mathbf u + \frac{\mathbf F}{\rho_0}.
+$$
 
-Cumulantes (k = momentos centrais/ρ): `c₂ = k₂`, `c₃ = k₃`,
-`c₂₁₁ = k₂₁₁ − (k₂₀₀k₀₁₁ + 2k₁₁₀k₁₀₁)`, `c₂₂₀ = k₂₂₀ − (k₂₀₀k₀₂₀ + 2k₁₁₀²)`,
-`c₂₂₁ = k₂₂₁ − (k₂₀₀k₀₂₁ + k₀₂₀k₂₀₁ + 4k₁₁₀k₁₁₁ + 2k₁₀₁k₁₂₀ + 2k₀₁₁k₂₁₀)`,
-`c₂₂₂ = k₂₂₂ − Σk₄k₂ − Σk₃k₃ + 2Σk₂k₂k₂` (as somas de partições estão escritas no código).
+O método de lattice-Boltzmann não resolve essas equações diretamente. Ele evolui funções de
+distribuição de partículas $f_i(\mathbf x,t)$ e, pela expansão de Chapman–Enskog, recupera as
+equações de Navier–Stokes **fracamente compressíveis**, com equação de estado isotérmica
 
-Relaxação de 2ª ordem com correção galileana [G15, Eqs. 58–63]:
+$$
+p = c_s^2\,\rho,\qquad c_s^2 = \tfrac13 .
+$$
 
-```
-∂x ux = −ω₁/2 (2c₂₀₀ − c₀₂₀ − c₀₀₂) − ω₂/2 (c₂₀₀ + c₀₂₀ + c₀₀₂ − 1)
-(c₂₀₀ − c₀₂₀)* = (1−ω₁)(c₂₀₀ − c₀₂₀) − 3(1 − ω₁/2)(ux² ∂x ux − uy² ∂y uy)
-(c₂₀₀ + c₀₂₀ + c₀₀₂)* = traço + ω₂(1 − traço) − 3(1 − ω₂/2)(ux² ∂x ux + uy² ∂y uy + uz² ∂z uz)
-c₁₁₀* = (1 − ω₁) c₁₁₀
-```
+O erro de compressibilidade em relação ao problema incompressível é de ordem $\mathrm{Ma}^2$, com
+$\mathrm{Ma} = U/c_s = \sqrt3\,U$. Por isso as velocidades de rede são mantidas pequenas
+(U ≤ 0,1, ou seja, Ma ≲ 0,17).
 
-Força de corpo: o momento central de 1ª ordem troca de sinal (`−F/2ρ → +F/2ρ`).
+### 2. Rede D3Q27 e equação de lattice-Boltzmann
 
-### 3. Parametrização K17 (difusão de 4ª ordem) [G17], com ω₂ = 1
+**Velocidades discretas.** São as 27 combinações $\mathbf c_i = (a-1,\,b-1,\,c-1)$, com
+$a,b,c \in \{0,1,2\}$. No código as populações ficam no vetor `f[a, b, c, x, y, z]`; o índice
+linear é $d = 9a+3b+c$, e a direção oposta é $\bar d = 26-d$ (`CV`, `OPP`).
 
-```
-ω₃ = 8(ω₁−2)(1+2ω₁) / (7ω₁² − 14ω₁ − 8)          (c₁₂₀ + c₁₀₂, …)
-ω₄ = 8(ω₁−2)(4ω₁−7) / (9ω₁² − 50ω₁ + 56)          (c₁₂₀ − c₁₀₂, …)
-ω₅ = 24(ω₁−2)(3ω₁² − 7ω₁ − 2) / (29ω₁³ − 130ω₁² + 152ω₁ + 48)   (c₁₁₁)
-A  = (4 + 2ω₁ − 3ω₁²) / (2 − 7ω₁ + 5ω₁²)
-B  = (4 + 28ω₁ − 14ω₁²) / (6 − 21ω₁ + 15ω₁²)
-c₀₂₂* = −(1/ω₁ − 1/2)·(2/3)·A·(∂y uy + ∂z uz)      (idem c₂₀₂, c₂₂₀)
-c₁₁₂* = −(1/ω₁ − 1/2)·(1/3)·B·(∂x uy + ∂y ux)      (idem c₁₂₁, c₂₁₁)
-c₅ = c₆ = 0
-```
+**Pesos.** São o produto de pesos 1D, $w_{abc} = w_a w_b w_c$, com $(w_0,w_1,w_2) = (1/6,\,2/3,\,1/6)$
+(`W`):
 
-Essas expressões foram conferidas com o código-fonte aberto do VirtualFluids (TU Braunschweig),
-de onde vêm o K17 e o artigo [G17].
-
-**Faixa de uso:** com ω₂ = 1, A tem um polo em ω₁ = 1 e ω₄ tem um polo em ω₁ ≈ 1,556. Nos testes, o
-K17 só foi estável e mais preciso para **ω₁ ≥ 1,75 (ν ≤ 0,024)**, o regime de baixa viscosidade para o
-qual foi criado. Abaixo disso o código usa automaticamente o cumulante clássico [G15] e avisa.
-
-### 4. Condições de contorno
-* Parede (meio caminho) e parede móvel [L94]: `f_d̄(x_f, t+1) = f_d*(x_f) − 6 w_d ρ_w (c_d·u_w)`
-* Parede curva, interpolação linear [B01], com `q` a fração do link até a parede:
-  `q<½: f_d̄ = 2q f_d*(x_f) + (1−2q) f_d*(x_f − c_d)`; `q≥½: f_d̄ = f_d*/(2q) + (2q−1)/(2q) f_d̄*(x_f)`
-* Saída com `ρ = 1` por extrapolação de não-equilíbrio [G02]:
-  `f(x_b) = f^eq(1, u(x_{b−1})) + f(x_{b−1}) − f^eq(ρ(x_{b−1}), u(x_{b−1}))`
-* Força no corpo por troca de quantidade de movimento [M02]: `F = Σ c_d [f_d*(x_f) + f_d̄(x_f, t+1)]`
-
-## Casos de validação
-
-| Caso | Referência | Grandeza |
+| Grupo | Nº de direções | Peso |
 |---|---|---|
-| `shearwave` | decaimento exato `exp(−ν k² t)` [G17] | erro na viscosidade |
-| `duct` | White (2006), *Viscous Fluid Flow*, Eq. 3-48 | erro L2 do perfil |
-| `cylinder` | Schäfer & Turek (1996), caso 3D-1Z, Re = 20 | C_D ∈ [6,05; 6,25], C_L ∈ [0,008; 0,010], Δp ∈ [0,165; 0,175] Pa |
-| `spheres` | Sangani & Acrivos (1982), arranjo cúbico simples, regime de Stokes | arraste C = f_t/(3πμ d u_s) |
-| `cavity` | demonstração (comparar com Albensoeder & Kuhlmann 2005) | perfis centrais |
+| repouso, $\mathbf c = 0$ | 1 | 8/27 |
+| faces, $\lvert\mathbf c\rvert = 1$ | 6 | 2/27 |
+| arestas, $\lvert\mathbf c\rvert = \sqrt2$ | 12 | 1/54 |
+| vértices, $\lvert\mathbf c\rvert = \sqrt3$ | 8 | 1/216 |
+
+**Equação de evolução.** Cada passo é dividido em colisão (local) e propagação:
+
+$$
+f_i^{*}(\mathbf x,t) = f_i(\mathbf x,t) + \Omega_i\big(f(\mathbf x,t)\big),\qquad
+f_i(\mathbf x+\mathbf c_i,\,t+1) = f_i^{*}(\mathbf x,t).
+$$
+
+**Grandezas macroscópicas** (`macroscopic`). A velocidade inclui metade da força de corpo, o que
+torna o esquema de forçamento de 2ª ordem (item 5):
+
+$$
+\rho = \sum_i f_i,\qquad
+\rho\,\mathbf u = \sum_i f_i\,\mathbf c_i + \tfrac12\,\mathbf F .
+$$
+
+**Viscosidade.** A viscosidade cinemática é dada pela taxa de relaxação de cisalhamento $\omega_1$:
+
+$$
+\nu = c_s^2\left(\frac1{\omega_1}-\frac12\right) = \frac13\left(\frac1{\omega_1}-\frac12\right)
+\quad\Longleftrightarrow\quad
+\omega_1 = \frac{1}{3\nu+\tfrac12}.
+$$
+
+Cada caso escolhe ν (diretamente, ou a partir de Re e da velocidade de referência), e o código
+calcula $\omega_1$ com essa relação. É preciso $0<\omega_1<2$, ou seja, ν > 0.
+
+### 3. Momentos centrais e cumulantes
+
+A colisão não é feita sobre as populações, e sim sobre os **cumulantes**, que são invariantes
+galileanos e estatisticamente independentes entre si [G15]. O caminho é
+populações → momentos centrais → cumulantes → relaxação → momentos centrais → populações.
+
+**Momentos centrais.** São os momentos na velocidade local do fluido, normalizados por ρ:
+
+$$
+\kappa_{\alpha\beta\gamma} = \frac1\rho\sum_i f_i\,(c_{ix}-u_x)^\alpha\,(c_{iy}-u_y)^\beta\,(c_{iz}-u_z)^\gamma .
+$$
+
+**Transformação "chimera"** [G15, Apêndice J] (`_fwd`, `_bwd`). Como a rede é um produto de três
+redes 1D de 3 velocidades, a transformação é aplicada uma direção por vez: z, depois y, depois x.
+Em cada linha de três valores $(f_-, f_0, f_+)$, com $u$ a componente da velocidade naquela direção:
+
+$$
+\kappa_0 = f_- + f_0 + f_+,\qquad
+\kappa_1 = (f_+-f_-) - u\,\kappa_0,\qquad
+\kappa_2 = (f_++f_-) - 2u\,(f_+-f_-) + u^2\kappa_0 .
+$$
+
+A inversa, aplicada na ordem x, y, z, é
+
+$$
+f_- = \tfrac12\big[(u^2-u)\,\kappa_0 + (2u-1)\,\kappa_1 + \kappa_2\big],\quad
+f_0 = (1-u^2)\,\kappa_0 - 2u\,\kappa_1 - \kappa_2,\quad
+f_+ = \tfrac12\big[(u^2+u)\,\kappa_0 + (2u+1)\,\kappa_1 + \kappa_2\big].
+$$
+
+Isso custa O(27) operações por nó, em vez das O(27²) de uma matriz de momentos geral.
+
+**Cumulantes.** São os coeficientes da expansão do logaritmo da transformada de Laplace da
+distribuição. Em termos dos momentos centrais (já normalizados por ρ):
+
+* 2ª e 3ª ordens: são iguais aos momentos centrais, por exemplo $c_{200}=\kappa_{200}$,
+  $c_{110}=\kappa_{110}$, $c_{210}=\kappa_{210}$, $c_{111}=\kappa_{111}$;
+* 4ª ordem:
+
+$$
+c_{211} = \kappa_{211} - (\kappa_{200}\kappa_{011} + 2\kappa_{110}\kappa_{101}),\qquad
+c_{220} = \kappa_{220} - (\kappa_{200}\kappa_{020} + 2\kappa_{110}^2)
+$$
+
+  e permutações;
+* 5ª ordem:
+
+$$
+c_{221} = \kappa_{221} - (\kappa_{200}\kappa_{021} + \kappa_{020}\kappa_{201}
++ 4\kappa_{110}\kappa_{111} + 2\kappa_{101}\kappa_{120} + 2\kappa_{011}\kappa_{210})
+$$
+
+  e permutações;
+* 6ª ordem:
+
+$$
+\begin{aligned}
+c_{222} = \kappa_{222}
+&- \big[\kappa_{200}\kappa_{022} + \kappa_{020}\kappa_{202} + \kappa_{002}\kappa_{220}
+      + 4(\kappa_{110}\kappa_{112} + \kappa_{101}\kappa_{121} + \kappa_{011}\kappa_{211})\big] \\
+&- \big[2(\kappa_{210}\kappa_{012} + \kappa_{201}\kappa_{021} + \kappa_{120}\kappa_{102})
+      + 4\kappa_{111}^2\big] \\
+&+ 2\big[\kappa_{200}\kappa_{020}\kappa_{002}
+      + 2(\kappa_{200}\kappa_{011}^2 + \kappa_{020}\kappa_{101}^2 + \kappa_{002}\kappa_{110}^2)
+      + 8\kappa_{110}\kappa_{101}\kappa_{011}\big].
+\end{aligned}
+$$
+
+Os cumulantes de 4ª a 6ª ordem relaxam com taxa 1 (item 4). Por isso o código não precisa
+calculá-los antes da colisão: usa essas fórmulas só no sentido inverso, para reconstruir os momentos
+centrais pós-colisão a partir dos cumulantes de equilíbrio (`_cumulant_relax`).
+
+**Equilíbrio** (`equilibrium`). É a Maxwelliana discreta, cujos momentos centrais se fatoram por
+direção: $\kappa^{eq}_{\alpha\beta\gamma} = e_\alpha e_\beta e_\gamma$, com $e = (1,\,0,\,1/3)$
+(`KEQ`). Por exemplo, $\kappa^{eq}_{200} = 1/3$, $\kappa^{eq}_{220} = 1/9$, $\kappa^{eq}_{222} = 1/27$,
+e os momentos com algum índice ímpar são nulos. Em cumulantes, o único não nulo além de $c_{000}$ é
+$c^{eq}_{200} = c^{eq}_{020} = c^{eq}_{002} = c_s^2 = 1/3$. As populações de equilíbrio
+$f^{eq}(\rho,\mathbf u)$ são obtidas aplicando a transformação inversa a $\rho\,\kappa^{eq}$.
+
+### 4. Operador de colisão
+
+Cada grupo de cumulantes relaxa para o equilíbrio com sua própria taxa,
+$c^{*} = c + \omega\,(c^{eq} - c)$, ou seja, $c^{*} = (1-\omega)\,c + \omega\,c^{eq}$
+(`collide`, `_cumulant_relax`). Há três modelos (`--model`).
+
+#### 4.1 Cumulante clássico [G15] (`--model cumulant`)
+
+**Gradientes de velocidade.** São estimados localmente a partir dos cumulantes de 2ª ordem
+pré-colisão (válidos até a ordem dominante da expansão) [G15, Eqs. 58–60], com
+$T = c_{200}+c_{020}+c_{002}$:
+
+$$
+\begin{aligned}
+\partial_x u_x &= -\tfrac{\omega_1}{2}\,(2c_{200}-c_{020}-c_{002}) - \tfrac{\omega_2}{2}\,(T-1),\\
+\partial_y u_y &= \partial_x u_x + \tfrac{3\omega_1}{2}\,(c_{200}-c_{020}),\qquad
+\partial_z u_z = \partial_x u_x + \tfrac{3\omega_1}{2}\,(c_{200}-c_{002}),\\
+\partial_x u_y + \partial_y u_x &= -3\,\omega_1\,c_{110}\quad(\text{idem } xz,\ yz).
+\end{aligned}
+$$
+
+**2ª ordem.** As partes desviadoras e os termos fora da diagonal relaxam com $\omega_1$
+(viscosidade de cisalhamento). O traço relaxa com $\omega_2$ (viscosidade volumétrica), e no código
+$\omega_2 = 1$. Os termos em $u^2\,\partial u$ são a correção galileana [G15, Eqs. 61–63], que remove
+o erro cúbico na velocidade da rede D3Q27:
+
+$$
+\begin{aligned}
+(c_{200}-c_{020})^{*} &= (1-\omega_1)\,(c_{200}-c_{020})
+  - 3\left(1-\tfrac{\omega_1}{2}\right)\big(u_x^2\,\partial_x u_x - u_y^2\,\partial_y u_y\big),\\
+(c_{200}-c_{002})^{*} &= (1-\omega_1)\,(c_{200}-c_{002})
+  - 3\left(1-\tfrac{\omega_1}{2}\right)\big(u_x^2\,\partial_x u_x - u_z^2\,\partial_z u_z\big),\\
+T^{*} &= T + \omega_2\,(1-T)
+  - 3\left(1-\tfrac{\omega_2}{2}\right)\big(u_x^2\,\partial_x u_x + u_y^2\,\partial_y u_y + u_z^2\,\partial_z u_z\big),\\
+c_{110}^{*} &= (1-\omega_1)\,c_{110}\quad(\text{idem } c_{101},\ c_{011}).
+\end{aligned}
+$$
+
+Os valores diagonais são recompostos como
+$c_{200}^{*} = \tfrac13\big[T^{*} + (c_{200}-c_{020})^{*} + (c_{200}-c_{002})^{*}\big]$, e
+analogamente para $c_{020}^{*}$ e $c_{002}^{*}$.
+
+**3ª ordem.** Relaxa em combinações simétricas e antissimétricas:
+
+$$
+(c_{210}+c_{012})^{*} = (1-\omega_3)\,(c_{210}+c_{012}),\qquad
+(c_{210}-c_{012})^{*} = (1-\omega_4)\,(c_{210}-c_{012}),\qquad
+c_{111}^{*} = (1-\omega_5)\,c_{111}
+$$
+
+e o mesmo para os pares $(c_{201},c_{021})$ e $(c_{120},c_{102})$. No cumulante clássico,
+$\omega_3=\omega_4=\omega_5=1$.
+
+**4ª a 6ª ordens.** Taxa 1: todos vão para o equilíbrio, que é zero.
+
+**Limitador opcional** (`--limiter λ`) [G17, Eq. 20]. Quando $\omega\neq1$, a taxa de cada
+combinação de 3ª ordem passa a ser $\omega' = \omega + (1-\omega)\,\dfrac{|c|}{\lambda+|c|}$. Isso
+leva cumulantes grandes (escoamento mal resolvido) para o equilíbrio, sem alterar os pequenos.
+
+#### 4.2 Cumulante parametrizado K17 [G17] (`--model k17`, padrão)
+
+A estrutura é a mesma do 4.1, mas as taxas de 3ª ordem e os equilíbrios de 4ª ordem são escolhidos
+para que a difusão tenha **precisão de 4ª ordem**. Com $\omega_2 = 1$ e $\omega \equiv \omega_1$
+(`k17_parameters`):
+
+$$
+\begin{aligned}
+\omega_3 &= \frac{8(\omega-2)(1+2\omega)}{7\omega^2-14\omega-8}, \qquad
+\omega_4 = \frac{8(\omega-2)(4\omega-7)}{9\omega^2-50\omega+56}, \qquad
+\omega_5 = \frac{24(\omega-2)(3\omega^2-7\omega-2)}{29\omega^3-130\omega^2+152\omega+48},\\[4pt]
+A &= \frac{4+2\omega-3\omega^2}{2-7\omega+5\omega^2}, \qquad
+B = \frac{4+28\omega-14\omega^2}{6-21\omega+15\omega^2}.
+\end{aligned}
+$$
+
+Os cumulantes de 4ª ordem relaxam (com taxa 1) para equilíbrios proporcionais aos gradientes de
+velocidade:
+
+$$
+\begin{aligned}
+c_{022}^{*} &= -\left(\tfrac1{\omega}-\tfrac12\right)\tfrac23\,A\,(\partial_y u_y + \partial_z u_z)
+  \quad(\text{idem } c_{202},\ c_{220}),\\
+c_{112}^{*} &= -\left(\tfrac1{\omega}-\tfrac12\right)\tfrac13\,B\,(\partial_x u_y + \partial_y u_x)
+  \quad(\text{idem } c_{121},\ c_{211}),
+\end{aligned}
+$$
+
+e os de 5ª e 6ª ordens continuam indo para zero. Essas expressões foram conferidas com o
+código-fonte aberto do VirtualFluids (TU Braunschweig), de onde vêm o K17 e o artigo [G17].
+
+**Faixa de validade.** Com $\omega_2 = 1$, $A$ tem um polo em $\omega = 1$, e $\omega_4$ tem um polo
+em $\omega \approx 1{,}556$ (fica fora de (0, 2) para 1,43 < ω < 1,75). Nos testes de onda de
+cisalhamento, o K17 só foi estável e mais preciso que o clássico para **ω ≥ 1,75 (ν ≤ 0,024)**, o
+regime de baixa viscosidade para o qual ele foi criado. Abaixo disso, `collision_parameters` troca
+automaticamente para o cumulante clássico e imprime um aviso.
+
+#### 4.3 BGK (`--model bgk`)
+
+Todos os momentos centrais relaxam com a mesma taxa $\omega_1$ para $\kappa^{eq}$. Como a
+transformação para momentos centrais é linear para **u** fixo, isso equivale ao BGK clássico
+$\Omega_i = \omega_1\,(f_i^{eq} - f_i)$ com o equilíbrio fatorado do item 3. Serve como referência
+de comparação.
+
+### 5. Força de corpo
+
+A força entra em dois lugares [G15]:
+
+1. Na velocidade, $\rho\mathbf u = \sum f_i\mathbf c_i + \mathbf F/2$. Com isso, o momento central
+   de 1ª ordem pré-colisão vale $\kappa_{100} = -F_x/(2\rho)$.
+2. Na colisão, esse momento troca de sinal: $\kappa_{100}^{*} = +F_x/(2\rho)$ (idem y, z).
+
+A quantidade de movimento de cada nó aumenta, portanto, exatamente **F** por passo, e a velocidade
+física é a média entre os instantes pré- e pós-colisão. Esse é o forçamento de 2ª ordem usual do LBM
+(análogo ao esquema de Guo, Zheng e Shi [GZS02]). Ele é usado para impor o gradiente de pressão no duto
+($F_x = G = -\mathrm dp/\mathrm dx$) e a aceleração no arranjo de esferas ($F_x = \rho g$).
+
+### 6. Discretização espacial e geometria
+
+A malha é cartesiana e uniforme, com Δx = 1. Os sólidos são representados por uma máscara booleana
+nos nós (`case.solid`).
+
+* **Posição das paredes.** O nó $(i,j,k)$ fica na coordenada $(i-\tfrac12,\,j-\tfrac12,\,k-\tfrac12)$.
+  Assim, uma camada de nós sólidos "fantasma" em $j=0$ coloca a parede plana exatamente a meio
+  caminho entre o nó sólido e o primeiro nó de fluido, onde o bounce-back simples é de 2ª ordem.
+* **Paredes curvas** (cilindro, esferas). Um nó é sólido se o seu centro está dentro do corpo. Para
+  cada **link** fluido → sólido (nó de fluido $\mathbf x_f$, direção $\mathbf c_d$ com
+  $\mathbf x_f+\mathbf c_d$ sólido), a fração $q\in(0,1]$ do link até a superfície vem da interseção
+  exata do segmento com a esfera ou o cilindro, ou seja, a menor raiz de
+  $|\mathbf p + q\,\mathbf c_d|^2 = R^2$ (com $\mathbf p = \mathbf x_f - \mathbf x_c$; no cilindro
+  só as componentes x e y). A lista de links é montada uma única vez (`build_links`).
+* **Periodicidade.** A propagação usa `np.roll`, que é periódica em todas as direções. Onde há
+  parede, a condição de contorno sobrescreve as populações que atravessariam o sólido.
+
+### 7. Condições de contorno
+
+Todas as condições de parede usam a mesma fórmula por link (`Links.apply`), aplicada logo após a
+propagação. Ela define a população que volta para o fluido, $f_{\bar d}(\mathbf x_f,t+1)$:
+
+$$
+f_{\bar d}(\mathbf x_f,t+1) = A_1\,f_d^{*}(\mathbf x_f) + A_2\,f_d^{*}(\mathbf x_f-\mathbf c_d)
++ A_3\,f_{\bar d}^{*}(\mathbf x_f) + m_w .
+$$
+
+| Condição | Coeficientes |
+|---|---|
+| Parede fixa, bounce-back a meio caminho [L94] | $A_1=1$, $A_2=A_3=0$ |
+| Parede curva, $q<\tfrac12$ [B01] | $A_1=2q$, $A_2=1-2q$ |
+| Parede curva, $q\ge\tfrac12$ [B01] | $A_1=\tfrac1{2q}$, $A_3=\tfrac{2q-1}{2q}$ |
+| Parede móvel com velocidade $\mathbf u_w$ [L94] | $m_w = -2\,w_d\,\rho_w\,(\mathbf c_d\cdot\mathbf u_w)/c_s^2 = -6\,w_d\,(\mathbf c_d\cdot\mathbf u_w)$, com $\rho_w = 1$ |
+
+Na parede curva com $q<\tfrac12$, se o nó $\mathbf x_f-\mathbf c_d$ não for fluido, o código recai
+no bounce-back simples.
+
+**Entrada com velocidade imposta** (cilindro). A entrada é uma parede móvel em $x=0$, com o perfil
+de Schäfer–Turek avaliado no ponto médio de cada link:
+
+$$
+u_w(y,z) = \frac{16\,U_m\,y\,z\,(H-y)(H-z)}{H^4}.
+$$
+
+A tampa da cavidade usa a mesma condição, com $\mathbf u_w = (U,0,0)$.
+
+**Saída com pressão imposta** (cilindro), pela extrapolação de não-equilíbrio [G02]
+(`Cylinder.post_stream`). No último plano $x_b$, as populações são substituídas usando o penúltimo
+plano $x_{b-1}$:
+
+$$
+f_i(\mathbf x_b) = f_i^{eq}\big(1,\,\mathbf u(\mathbf x_{b-1})\big)
++ \Big[f_i(\mathbf x_{b-1}) - f_i^{eq}\big(\rho(\mathbf x_{b-1}),\,\mathbf u(\mathbf x_{b-1})\big)\Big].
+$$
+
+Ou seja, ρ = 1 (p = 1/3) é imposto, a velocidade é extrapolada com ordem zero e a parte de
+não-equilíbrio é copiada do vizinho.
+
+**Nós sólidos.** A cada passo eles são reinicializados com $f_i = w_i$ (equilíbrio em repouso), para
+que nenhum valor espúrio se acumule dentro do corpo.
+
+**Força sobre o corpo** (troca de quantidade de movimento [M02], `Links.force`). A força é a soma,
+sobre os links do corpo, da quantidade de movimento que sai e volta em cada link:
+
+$$
+\mathbf F = \sum_{\text{links}} \mathbf c_d\,\Big[f_d^{*}(\mathbf x_f,t) + f_{\bar d}(\mathbf x_f,t+1)\Big].
+$$
+
+No arranjo de esferas, soma-se a ela o empuxo $\rho g V_p$ para obter a força total por esfera.
+
+### 8. Algoritmo de um passo de tempo (`Simulation.step`)
+
+1. **Colisão**, em blocos de planos x para que os temporários do NumPy caibam no cache: ρ e **u**
+   (com F/2) → momentos centrais → relaxação dos cumulantes (item 4) → populações pós-colisão $f^{*}$.
+   ρ e **u** ficam guardados para a saída.
+2. **Nós sólidos** ← $w_i$.
+3. **Propagação** periódica: $f_i(\mathbf x+\mathbf c_i) \leftarrow f_i^{*}(\mathbf x)$, num segundo
+   vetor.
+4. **Paredes** (bounce-back simples, interpolado e móvel) aplicadas aos links.
+5. **Condições específicas do caso**, como a saída de pressão do cilindro.
+6. **Força no corpo**, nos casos com obstáculo.
+7. Troca dos dois vetores de populações e $t \leftarrow t+1$.
+
+**Condição inicial.** É o equilíbrio $f_i = f_i^{eq}(\rho_0,\mathbf u_0)$, com ρ₀ = 1 e $\mathbf u_0$
+dado pelo caso: repouso, perfil de entrada ou onda senoidal.
+
+**Precisão.** O esquema é de 2ª ordem no espaço e no tempo, desde que o forçamento seja o do item 5
+e as paredes estejam a meio caminho ou sejam interpoladas [B01]. O K17 eleva a difusão para 4ª ordem
+na faixa de ω do item 4.2.
+
+### 9. Unidades, parâmetros adimensionais e convergência
+
+**Unidades de rede.** Cada caso fixa a resolução (D, N, L) e a velocidade de rede $U$, e calcula a
+viscosidade de rede a partir do número de Reynolds, $\nu = U\,L_{ref}/\mathrm{Re}$. Para converter
+para unidades físicas, usa-se a semelhança de Re: $\Delta x = L_{fis}/L_{rede}$, a escala de
+velocidade $U_{fis}/U_{rede}$, e as diferenças de pressão
+
+$$
+\Delta p_{fis} = \rho_{fis}\,\Big(\tfrac{U_{fis}}{U_{rede}}\Big)^2\,c_s^2\,\Delta\rho_{rede}.
+$$
+
+No cilindro, por exemplo, $\Delta p_{fis} = \tfrac13\,\Delta\rho\,(0{,}2/\bar U_{rede})^2$ Pa, com
+ρ_fis = 1 kg/m³ e Ū = 0,2 m/s.
+
+**Escolhas que controlam o erro.**
+
+* Ma = √3·U pequeno. O cilindro usa $U_m = 0{,}1$, logo Ma ≈ 0,17 no máximo e
+  Ma(Ū) ≈ 0,08.
+* Re de partícula ≪ 1 no arranjo de esferas: g é escolhido para $u_s \approx 10^{-4}$.
+* $\omega_1$ longe de 2 (ν não muito pequeno), para estabilidade, e na faixa adequada ao modelo
+  escolhido.
+
+**Estado estacionário.** A simulação é avançada no tempo (pseudo-transiente) até o resíduo
+$\mathrm{res}(u) = \lVert\mathbf u^n-\mathbf u^{n-100}\rVert_2/\lVert\mathbf u^n\rVert_2$, calculado
+sobre os nós de fluido, ficar abaixo de `--tol` (seção **Resíduos**). Casos transientes, como a onda
+de cisalhamento, rodam um número fixo de iterações.
+
+**Verificações incluídas.** Os casos de teste conferem partes diferentes da formulação:
+
+* a viscosidade numérica (onda de cisalhamento, $A(t) \propto e^{-\nu k^2 t}$);
+* a invariância galileana (onda com advecção, `--u-adv`);
+* o forçamento e as paredes planas (duto, contra a série de White);
+* as paredes curvas e a força por troca de quantidade de movimento (cilindro e esferas).
+
+### 10. Transferência de calor (`--case calor`)
+
+**Equação.** A energia é resolvida em forma conservativa, com um único campo para fluido e sólido
+[CN26]:
+
+$$
+\frac{\partial (C\,T)}{\partial t} + \nabla\cdot(C_f\,T\,\mathbf u) = \nabla\cdot(k\,\nabla T),
+$$
+
+* C = ρc_p é a capacidade térmica volumétrica e k a condutividade;
+* no fluido, C = C_f e k = k_f, logo α = k_f/C_f = ν/Pr;
+* no sólido, u = 0, C = C_s e k = k_s;
+* em unidades de rede, C_f = 1 e k_f = α.
+
+**Rede D3Q7 e equilíbrio** (`equilibrio_termico`). A energia E = C T é o momento de ordem zero.
+Usa-se $c_s^2 = 1/4$, $w_0 = 1/4$ e $w_i = 1/8$, com a velocidade do escoamento no instante t:
+
+$$
+g_0^{eq} = E - T + w_0\,T,\qquad
+g_i^{eq} = w_i\,T\left(1 + \frac{\mathbf c_i\cdot\mathbf u}{c_s^2}\right)\quad(i = 1\ldots6),\qquad
+T = E/C.
+$$
+
+Como $\sum_i g_i^{eq} = E$, a expansão de Chapman–Enskog dá a equação acima. A capacidade térmica
+só entra na conversão T = E/C, e o fluxo $-k\nabla T$ é contínuo na interface sólido–fluido sem
+nenhuma condição de contorno ali.
+
+Isso resolve de uma vez os dois problemas do método conjugado que [CN26] discute (Seção 3.2):
+
+* **Desbalanço de fluxo** quando c_p,s ≠ c_p,f: não ocorre, porque o fluxo depende só de k e de ∇T.
+* **Capacidade volumétrica do sólido:** é preservada, porque C entra diretamente, sem trocar ρ_s
+  e c_p,s (equivale a $\rho_s^{*}c_{p,s}^{*} = \rho_s c_{p,s}$).
+
+**Colisão TRT** [G05] (`thermal_collide_stream` em `lbm_kernel.c` e `passo_termico_numpy`).
+Separam-se as partes simétrica e antissimétrica de cada par $(i,\bar\imath)$:
+
+$$
+g_i^{*} = g_i - \omega^{+}\big(g_i^{+} - g_i^{eq+}\big) - \omega^{-}\big(g_i^{-} - g_i^{eq-}\big),
+\qquad
+k = c_s^2\left(\frac{1}{\omega^{-}} - \frac12\right),
+\qquad
+\Big(\frac{1}{\omega^{+}}-\frac12\Big)\Big(\frac{1}{\omega^{-}}-\frac12\Big) = \Lambda = \frac14 .
+$$
+
+$\omega^{-}$ é ajustado nó a nó pela condutividade local. O parâmetro "mágico" Λ = 1/4 mantém o
+esquema estável e preciso mesmo com $1/\omega^{-}$ grande, como num sólido muito condutor.
+
+**Parede isotérmica com interpolação** [LMK13] (`build_links_termicos`, `LinksTermicos.apply`).
+Esta é a versão com anti-bounce-back da regra de Bouzidi, com q a fração do link até a parede:
+
+$$
+\begin{aligned}
+q<\tfrac12:&\quad g_{\bar\imath}(\mathbf x_f,t+1) = -2q\,g_i^{*}(\mathbf x_f) + (2q-1)\,g_i^{*}(\mathbf x_f-\mathbf c_i) + 2w_iT_w,\\
+q\ge\tfrac12:&\quad g_{\bar\imath}(\mathbf x_f,t+1) = -\tfrac{1}{2q}\,g_i^{*}(\mathbf x_f) + \tfrac{2q-1}{2q}\,g_{\bar\imath}^{*}(\mathbf x_f) + \tfrac{1}{q}\,w_iT_w .
+\end{aligned}
+$$
+
+**Calor trocado e Nusselt.** O calor que sai do fluido para a parede num passo é o balanço exato
+de energia nos links da parede, e não exige reconstruir gradientes:
+
+$$
+Q = \sum_{\text{links}}\Big[g_i^{*}(\mathbf x_f) - g_{\bar\imath}(\mathbf x_f,t+1)\Big],
+\qquad
+\mathrm{Nu}_{inst} = \frac{Q\,D}{k_f\,P\,(T_\infty - T_w)}.
+$$
+
+P é o perímetro exato da seção, por unidade de profundidade. Na condução entre dois cilindros
+concêntricos, Q difere da solução exata $2\pi\alpha\Delta T/\ln(r_2/r_1)$ em menos de 0,3%
+(`tests/test_calor.py`).
+
+**Nu com sólido** (Eq. 14 de [CN26]). Com Bi < 0,1, o sólido segue o modelo de sistema concentrado
+$\theta = \exp(-b t)$, com $b = h P / (C_s A)$. h é o valor que minimiza
+$\sum (T_{CFD} - T_{REF}(h))^2$ nos últimos 1% dos instantes, e $\mathrm{Nu} = h D / k_f$.
+
+**Contorno térmico do domínio:**
+* entrada e laterais: T = T∞, por anti-bounce-back no meio do caminho;
+* saída: ∂T/∂x = 0, copiando as populações do plano anterior.
+
+**Núcleo em C.** O passo térmico custa cerca de 15% do passo do escoamento. A colisão de
+cumulantes e a propagação também rodam em C (`lbm_kernel.c`) e dão o mesmo resultado do NumPy até
+o arredondamento (≤ 10⁻¹⁵, conferido em `tests/test_calor.py`).
+
+## Casos (`--case`)
+
+Os casos são classes em `lbm3d.py` (dicionário `CASES`). O modelo padrão é `--model k17`, mas o K17 só
+vale para ω ≥ 1,75 (ν ≤ 0,024): fora disso o código usa automaticamente o cumulante clássico [G15] e
+avisa. A coluna "modelo efetivo" indica o que roda com os parâmetros padrão.
+
+| Caso | Descrição | Referência / grandeza | Parâmetros padrão | Modelo efetivo |
+|---|---|---|---|---|
+| `shearwave` | onda de cisalhamento periódica (decaimento viscoso) | decaimento exato `exp(−ν k² t)` [G17]; erro na viscosidade | N = 32, ν = 0,01 | K17 |
+| `duct` | duto retangular periódico em x, forçado por gradiente de pressão | White (2006), Eq. 3-48; erro L2 do perfil | 24 × 16, ν = 0,02 | K17 |
+| `cylinder` | cilindro em canal de seção quadrada, Re = 20 | Schäfer & Turek (1996), 3D-1Z; C_D ∈ [6,05; 6,25], C_L ∈ [0,008; 0,010], Δp ∈ [0,165; 0,175] Pa | D = 10, Um = 0,1 | K17 (para D ≥ 12 recai no cumulante clássico) |
+| `spheres` | arranjo cúbico simples de esferas, regime de Stokes | Sangani & Acrivos (1982); arraste C = f_t/(3πμ d u_s) | L = 32, χ = 0,5, ν = 0,02 | K17 |
+| `calor` | convecção forçada 2D sobre cilindros (7 seções), Nu com e sem sólido | [CN26]; Nu de referência pela Eq. 17 (Churchill–Bernstein [CB77]) para o círculo | círculo, Re = 100, D = 20, U = 0,05, Pr = 0,7296 | K17 se ω ≥ 1,75, senão cumulante clássico |
+| `cavity` | cavidade cúbica com tampa móvel (demonstração) | comparar com Albensoeder & Kuhlmann (2005); perfis centrais | N = 32, Re = 100, U = 0,1 | cumulante clássico (ν = 0,032) |
 
 Solução do duto (−a ≤ y ≤ a, −b ≤ z ≤ b, G = −dp/dx):
 
@@ -218,13 +823,159 @@ troca de quantidade de movimento + empuxo ρgV_p. Série de Sangani & Acrivos:
 valores de referência para χ = 0,2…0,9 retirados da Tab. 1 de Bogner et al. (2015).
 
 ## Referências
-* [G15] M. Geier, M. Schönherr, A. Pasquali, M. Krafczyk, *The cumulant lattice Boltzmann equation in three dimensions: Theory and validation*, Comput. Math. Appl. 70 (2015) 507–547.
-* [G17] M. Geier, A. Pasquali, M. Schönherr, *Parametrization of the cumulant lattice Boltzmann method for fourth order accurate diffusion. Part I*, J. Comput. Phys. 348 (2017) 862–888.
-* [L94] A.J.C. Ladd, J. Fluid Mech. 271 (1994) 285–309.
-* [B01] M. Bouzidi, M. Firdaouss, P. Lallemand, Phys. Fluids 13 (2001) 3452–3459.
-* [G02] Z. Guo, C. Zheng, B. Shi, Chinese Physics 11 (2002) 366–374.
-* [M02] R. Mei, D. Yu, W. Shyy, L.-S. Luo, Phys. Rev. E 65 (2002) 041203.
-* M. Schäfer, S. Turek, *Benchmark computations of laminar flow around a cylinder*, Notes Numer. Fluid Mech. 52 (1996) 547–566.
-* A.S. Sangani, A. Acrivos, *Slow flow through a periodic array of spheres*, Int. J. Multiphase Flow 8 (1982) 343–360.
-* S. Bogner, S. Mohanty, U. Rüde, *Drag correlation for dilute and moderately dense fluid-particle systems using the lattice Boltzmann method*, Int. J. Multiphase Flow 68 (2015) 71–79 ([arXiv:1401.2025](https://arxiv.org/abs/1401.2025)).
-* F.M. White, *Viscous Fluid Flow*, 3ª ed., McGraw-Hill, 2006.
+
+Todas as referências estão em **[`referencias.bib`](referencias.bib)** (BibTeX). O arquivo pode ser
+usado direto em LaTeX (`\bibliography{referencias}`) ou importado no Zotero, Mendeley ou JabRef.
+Autores, volumes, páginas e DOIs foram conferidos no Crossref (doi.org) em novembro de 2026. As
+siglas entre colchetes são as usadas neste README e nos comentários do `lbm3d.py`; a chave BibTeX
+de cada uma está na tabela abaixo.
+
+### O que citar em cada parte de um artigo
+
+| Parte do método ou do trabalho | Onde está no código | Referências | Chaves BibTeX |
+|---|---|---|---|
+| Este código | `lbm3d.py` | [lbm3d] | `Noleto2026lbm3d` |
+| Método de lattice-Boltzmann (visão geral, Chapman–Enskog, rede D3Q27) | — | [KKK17] | `Kruger2017` |
+| Operador de cumulantes, transformação chimera, correção galileana | `collide`, `_cumulant_relax`, `_fwd`, `_bwd` | [G15] | `Geier2015` |
+| Parametrização K17 (ω₃, ω₄, ω₅, A, B) e limitador de 3ª ordem | `k17_parameters`, `_cumulant_relax` | [G17]; conferido com [VF] | `Geier2017a`, `VirtualFluids` |
+| Força de corpo (forçamento de 2ª ordem com F/2) | `macroscopic`, `_cumulant_relax` | [G15]; análogo a [GZS02] | `Geier2015`, `Guo2002b` |
+| Paredes planas e móveis (bounce-back a meio caminho) | `build_links`, `Links.apply` | [L94] | `Ladd1994` |
+| Paredes curvas (bounce-back interpolado linear) | `build_links` | [B01] | `Bouzidi2001` |
+| Saída com pressão imposta (extrapolação de não-equilíbrio) | `Cylinder.post_stream` | [G02] | `Guo2002a` |
+| Força sobre o corpo (troca de quantidade de movimento) | `Links.force` | [M02] | `Mei2002` |
+| Transferência de calor: método conjugado e casos de validação | `CilindroCalor` | [CN26] | `Cunha2026` |
+| Colisão TRT do campo térmico (Λ = 1/4) | `thermal_collide_stream` | [G05] | `Ginzburg2005` |
+| Parede isotérmica curva (anti-bounce-back interpolado) | `build_links_termicos` | [LMK13] | `Li2013` |
+| Nu de referência do cilindro circular (Eq. 17 de [CN26]) | `nu_churchill_bernstein` | [CB77] | `Churchill1977` |
+| Correlações de Nu para seções não circulares (Fig. 9 de [CN26]) | — | [SAT04] | `Sparrow2004` |
+| Validação: duto retangular | `Duct` | [W06] | `White2006` |
+| Validação: cilindro 3D-1Z (Re = 20) | `Cylinder` | [ST96] | `Schafer1996` |
+| Validação: arranjo cúbico de esferas | `SphereArray` | [SA82], [H59]; valores de [BMR15] | `Sangani1982`, `Hasimoto1959`, `Bogner2015` |
+| Cavidade com tampa móvel (comparação sugerida) | `Cavity` | [AK05], [K87] | `Albensoeder2005`, `Ku1987` |
+| Software | — | [NumPy], [Matplotlib] | `Harris2020`, `Hunter2007` |
+| Trabalhos posteriores com o K17 (revisão bibliográfica) | não implementado | [G17b] | `Geier2017b` |
+
+### Texto-base para a seção de métodos
+
+Os parágrafos abaixo resumem o método com as citações já no lugar, para servir de ponto de partida
+na seção de métodos de um artigo. Revise os parâmetros (resolução, ν, Re, modelo efetivo) conforme
+o caso simulado: por exemplo, se ω < 1,75 o código troca o K17 pelo cumulante clássico.
+
+**Em português:**
+
+> As simulações foram feitas com um código próprio de lattice-Boltzmann em Python/NumPy
+> \cite{Noleto2026lbm3d, Harris2020}, na rede D3Q27 \cite{Kruger2017}. A colisão usa o operador de
+> cumulantes \cite{Geier2015} com a parametrização K17, que dá precisão de quarta ordem à difusão
+> \cite{Geier2017a}; a viscosidade volumétrica é relaxada com ω₂ = 1. A força de corpo entra com um
+> esquema de segunda ordem, somando metade da força à velocidade macroscópica \cite{Geier2015, Guo2002b}.
+> As paredes planas e móveis usam bounce-back a meio caminho \cite{Ladd1994}; as superfícies curvas,
+> bounce-back interpolado linear \cite{Bouzidi2001}; e a saída tem pressão imposta por extrapolação
+> de não-equilíbrio \cite{Guo2002a}. As forças sobre os corpos são calculadas por troca de
+> quantidade de movimento \cite{Mei2002}. O código foi validado com a solução em série do duto
+> retangular \cite{White2006}, com o caso 3D-1Z de Schäfer e Turek \cite{Schafer1996} e com o
+> arraste no arranjo cúbico de esferas \cite{Sangani1982, Bogner2015}.
+
+**Em inglês:**
+
+> Simulations were carried out with an in-house lattice Boltzmann code written in Python/NumPy
+> \cite{Noleto2026lbm3d, Harris2020} on the D3Q27 lattice \cite{Kruger2017}. Collisions are
+> computed with the cumulant operator \cite{Geier2015} using the K17 parametrization for
+> fourth-order accurate diffusion \cite{Geier2017a}, with the bulk relaxation rate set to ω₂ = 1.
+> Body forces are included through a second-order scheme in which half of the force is added to
+> the macroscopic velocity \cite{Geier2015, Guo2002b}. Planar and moving walls are modelled with
+> half-way bounce-back \cite{Ladd1994}, curved surfaces with linearly interpolated bounce-back
+> \cite{Bouzidi2001}, and the outlet pressure is imposed by non-equilibrium extrapolation
+> \cite{Guo2002a}. Forces on immersed bodies are obtained by momentum exchange \cite{Mei2002}. The
+> code was validated against the series solution for rectangular duct flow \cite{White2006}, the
+> 3D-1Z benchmark of Schäfer and Turek \cite{Schafer1996}, and the drag on a simple cubic array of
+> spheres \cite{Sangani1982, Bogner2015}.
+
+### Lista completa
+
+**Este código**
+* [lbm3d] L. Noleto, *lbm3d: solver de lattice-Boltzmann D3Q27 com operador de colisão de
+  cumulantes parametrizado (K17) para escoamentos laminares tridimensionais*, código-fonte em
+  Python/NumPy, Universidade de Brasília, 2026. Antes de citar, ajuste no `referencias.bib` o
+  título, a versão (commit) e onde o código pode ser obtido.
+
+**Método numérico**
+* [G15] M. Geier, M. Schönherr, A. Pasquali, M. Krafczyk, *The cumulant lattice Boltzmann
+  equation in three dimensions: Theory and validation*, Comput. Math. Appl. 70 (4) (2015) 507–547.
+  [doi:10.1016/j.camwa.2015.05.001](https://doi.org/10.1016/j.camwa.2015.05.001)
+* [G17] M. Geier, A. Pasquali, M. Schönherr, *Parametrization of the cumulant lattice Boltzmann
+  method for fourth order accurate diffusion. Part I: Derivation and validation*, J. Comput. Phys.
+  348 (2017) 862–888. [doi:10.1016/j.jcp.2017.05.040](https://doi.org/10.1016/j.jcp.2017.05.040)
+* [G17b] M. Geier, A. Pasquali, M. Schönherr, *Parametrization of the cumulant lattice Boltzmann
+  method for fourth order accurate diffusion. Part II: Application to flow around a sphere at drag
+  crisis*, J. Comput. Phys. 348 (2017) 889–898.
+  [doi:10.1016/j.jcp.2017.07.004](https://doi.org/10.1016/j.jcp.2017.07.004)
+* [VF] VirtualFluids, código de pesquisa em lattice-Boltzmann do iRMB, TU Braunschweig.
+  <https://git.rz.tu-bs.de/irmb/VirtualFluids>
+* [KKK17] T. Krüger, H. Kusumaatmaja, A. Kuzmin, O. Shardt, G. Silva, E.M. Viggen, *The Lattice
+  Boltzmann Method: Principles and Practice*, Springer, Cham, 2017.
+  [doi:10.1007/978-3-319-44649-3](https://doi.org/10.1007/978-3-319-44649-3)
+
+**Condições de contorno e forçamento**
+* [L94] A.J.C. Ladd, *Numerical simulations of particulate suspensions via a discretized Boltzmann
+  equation. Part 1. Theoretical foundation*, J. Fluid Mech. 271 (1994) 285–309.
+  [doi:10.1017/S0022112094001771](https://doi.org/10.1017/S0022112094001771)
+* [B01] M. Bouzidi, M. Firdaouss, P. Lallemand, *Momentum transfer of a Boltzmann-lattice fluid with
+  boundaries*, Phys. Fluids 13 (11) (2001) 3452–3459.
+  [doi:10.1063/1.1399290](https://doi.org/10.1063/1.1399290)
+* [G02] Z.-L. Guo, C.-G. Zheng, B.-C. Shi, *Non-equilibrium extrapolation method for velocity and
+  pressure boundary conditions in the lattice Boltzmann method*, Chinese Phys. 11 (4) (2002)
+  366–374. [doi:10.1088/1009-1963/11/4/310](https://doi.org/10.1088/1009-1963/11/4/310)
+* [GZS02] Z. Guo, C. Zheng, B. Shi, *Discrete lattice effects on the forcing term in the lattice
+  Boltzmann method*, Phys. Rev. E 65 (4) (2002) 046308.
+  [doi:10.1103/PhysRevE.65.046308](https://doi.org/10.1103/PhysRevE.65.046308)
+* [M02] R. Mei, D. Yu, W. Shyy, L.-S. Luo, *Force evaluation in the lattice Boltzmann method
+  involving curved geometry*, Phys. Rev. E 65 (4) (2002) 041203.
+  [doi:10.1103/PhysRevE.65.041203](https://doi.org/10.1103/PhysRevE.65.041203)
+
+**Casos de validação**
+* [W06] F.M. White, *Viscous Fluid Flow*, 3ª ed., McGraw-Hill, Nova York, 2006 (Eq. 3-48).
+  ISBN 978-0-07-240231-5.
+* [ST96] M. Schäfer, S. Turek, F. Durst, E. Krause, R. Rannacher, *Benchmark computations of
+  laminar flow around a cylinder*, in: E.H. Hirschel (ed.), *Flow Simulation with High-Performance
+  Computers II*, Notes Numer. Fluid Mech. 52, Vieweg+Teubner, 1996, pp. 547–566.
+  [doi:10.1007/978-3-322-89849-4_39](https://doi.org/10.1007/978-3-322-89849-4_39)
+* [SA82] A.S. Sangani, A. Acrivos, *Slow flow through a periodic array of spheres*, Int. J.
+  Multiphase Flow 8 (4) (1982) 343–360.
+  [doi:10.1016/0301-9322(82)90047-7](https://doi.org/10.1016/0301-9322%2882%2990047-7)
+* [H59] H. Hasimoto, *On the periodic fundamental solutions of the Stokes equations and their
+  application to viscous flow past a cubic array of spheres*, J. Fluid Mech. 5 (2) (1959) 317–328.
+  [doi:10.1017/S0022112059000222](https://doi.org/10.1017/S0022112059000222)
+* [BMR15] S. Bogner, S. Mohanty, U. Rüde, *Drag correlation for dilute and moderately dense
+  fluid-particle systems using the lattice Boltzmann method*, Int. J. Multiphase Flow 68 (2015)
+  71–79. [doi:10.1016/j.ijmultiphaseflow.2014.10.001](https://doi.org/10.1016/j.ijmultiphaseflow.2014.10.001)
+  ([arXiv:1401.2025](https://arxiv.org/abs/1401.2025))
+* [AK05] S. Albensoeder, H.C. Kuhlmann, *Accurate three-dimensional lid-driven cavity flow*,
+  J. Comput. Phys. 206 (2) (2005) 536–558.
+  [doi:10.1016/j.jcp.2004.12.024](https://doi.org/10.1016/j.jcp.2004.12.024)
+* [K87] H.C. Ku, R.S. Hirsh, T.D. Taylor, *A pseudospectral method for solution of the
+  three-dimensional incompressible Navier-Stokes equations*, J. Comput. Phys. 70 (2) (1987) 439–462.
+  [doi:10.1016/0021-9991(87)90190-2](https://doi.org/10.1016/0021-9991%2887%2990190-2)
+
+**Transferência de calor**
+* [CN26] F. Alfaia da Cunha, L.G. Noleto, *Nusselt number calculation methods based on CFD
+  simulations applied to forced convection over cylinders*, Results Eng. 32 (2026) 112960.
+  [doi:10.1016/j.rineng.2026.112960](https://doi.org/10.1016/j.rineng.2026.112960)
+* [G05] I. Ginzburg, *Equilibrium-type and link-type lattice Boltzmann models for generic advection
+  and anisotropic-dispersion equation*, Adv. Water Resour. 28 (11) (2005) 1171–1195.
+  [doi:10.1016/j.advwatres.2005.03.004](https://doi.org/10.1016/j.advwatres.2005.03.004)
+* [LMK13] L. Li, R. Mei, J.F. Klausner, *Boundary conditions for thermal lattice Boltzmann equation
+  method*, J. Comput. Phys. 237 (2013) 366–395.
+  [doi:10.1016/j.jcp.2012.11.027](https://doi.org/10.1016/j.jcp.2012.11.027)
+* [CB77] S.W. Churchill, M. Bernstein, *A correlating equation for forced convection from gases and
+  liquids to a circular cylinder in crossflow*, J. Heat Transfer 99 (2) (1977) 300–306.
+  [doi:10.1115/1.3450685](https://doi.org/10.1115/1.3450685)
+* [SAT04] E.M. Sparrow, J.P. Abraham, J.C.K. Tong, *Archival correlations for average heat transfer
+  coefficients for non-circular and circular cylinders and for spheres in cross-flow*, Int. J. Heat
+  Mass Transf. 47 (24) (2004) 5285–5296.
+  [doi:10.1016/j.ijheatmasstransfer.2004.06.024](https://doi.org/10.1016/j.ijheatmasstransfer.2004.06.024)
+
+**Software**
+* [NumPy] C.R. Harris et al., *Array programming with NumPy*, Nature 585 (7825) (2020) 357–362.
+  [doi:10.1038/s41586-020-2649-2](https://doi.org/10.1038/s41586-020-2649-2)
+* [Matplotlib] J.D. Hunter, *Matplotlib: A 2D graphics environment*, Comput. Sci. Eng. 9 (3) (2007)
+  90–95. [doi:10.1109/MCSE.2007.55](https://doi.org/10.1109/MCSE.2007.55)

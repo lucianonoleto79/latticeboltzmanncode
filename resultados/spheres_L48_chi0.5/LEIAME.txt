@@ -1,0 +1,21 @@
+Caso spheres_L48_chi0.5 - resultados do lbm3d.py
+================================================
+
+dominio/      geometria: vista 3D (dominio_3d.png) e cortes fluido/solido (dominio_cortes.png)
+contorno/     condicoes de contorno: mapa nos cortes e em 3D + descricao (condicoes_contorno.txt)
+malha/        malha de calculo: corte com os nos, detalhe junto a parede (links e fracao q), malha.txt
+escoamento/   campos do escoamento: final/ e parcial_itNNNNNNN/ (imagens PNG + campo .vtk p/ ParaView)
+graficos/     convergencia.png (residuos), grandezas.png, validacao, convergencia.csv/.html (painel)
+checkpoint/   checkpoint.npz (estado completo para continuar a simulacao)
+
+parametros.json  parametros da execucao        execucao.log   saida do terminal (residuos)
+estado.json      iteracao/situacao final        validacao.txt  comparacao com a referencia
+
+Continuar a simulacao:   python lbm3d.py --restart resultados/spheres_L48_chi0.5.tmp
+Painel de convergencia:  abra graficos/convergencia.html  (ou: python acompanhar.py resultados/spheres_L48_chi0.5.tmp --servir)
+
+Controle durante a execucao (crie o arquivo vazio nesta pasta, ou use acompanhar.py):
+  SALVAR  -> salva resultado parcial (escoamento/parcial_itN + graficos + checkpoint) e continua
+  PAUSAR  -> pausa enquanto o arquivo existir
+  PARAR   -> salva o checkpoint e encerra (continue com --restart)
+  ex.: python acompanhar.py resultados/spheres_L48_chi0.5.tmp --salvar   |   --pausar   |   --continuar   |   --parar
