@@ -167,8 +167,10 @@
   "Nu_ref": 5.210020923194892,
   "dif_pct": 1.8569806644406266,
   "periodo_passos": 602.5263157894736,
-  "Strouhal": 0.16596785464709993,
-  "ciclos_media": 9
+  "Strouhal": 0.16628175519630484,
+  "ciclos_media": 9,
+  "Strouhal_Nu": 0.16596785464709993,
+  "C_L_rms": 0.23507502919776488
  },
  "calor_circulo_semsolido_Re100_D14": {
   "forma": "circulo",
@@ -194,8 +196,10 @@
   "Nu_ref": 5.210020923194892,
   "dif_pct": 2.0279177876427723,
   "periodo_passos": 844.8947368421053,
-  "Strouhal": 0.16570111505637575,
-  "ciclos_media": 9
+  "Strouhal": 0.16622691292875988,
+  "ciclos_media": 9,
+  "Strouhal_Nu": 0.16570111505637575,
+  "C_L_rms": 0.23189994522129687
  },
  "calor_circulo_semsolido_Re100_D20": {
   "forma": "circulo",
@@ -221,8 +225,10 @@
   "Nu_ref": 5.210020923194892,
   "dif_pct": 1.627180447280517,
   "periodo_passos": 1207.1052631578948,
-  "Strouhal": 0.16568563331153258,
-  "ciclos_media": 9
+  "Strouhal": 0.16632016632016633,
+  "ciclos_media": 9,
+  "Strouhal_Nu": 0.16568563331153258,
+  "C_L_rms": 0.2317960612327854
  },
  "calor_circulo_semsolido_Re200_D10": {
   "forma": "circulo",
@@ -248,8 +254,10 @@
   "Nu_ref": 7.243818181117881,
   "dif_pct": 4.051942573876865,
   "periodo_passos": 497.9,
-  "Strouhal": 0.2008435428800964,
-  "ciclos_media": 9
+  "Strouhal": 0.20138733497426717,
+  "ciclos_media": 9,
+  "Strouhal_Nu": 0.2008435428800964,
+  "C_L_rms": 0.49603901759530483
  },
  "calor_circulo_semsolido_Re200_D14": {
   "forma": "circulo",
@@ -275,8 +283,10 @@
   "Nu_ref": 7.243818181117881,
   "dif_pct": 3.113950758753729,
   "periodo_passos": 715.1052631578947,
-  "Strouhal": 0.19577537351880472,
-  "ciclos_media": 9
+  "Strouhal": 0.19599608007839844,
+  "ciclos_media": 9,
+  "Strouhal_Nu": 0.19577537351880472,
+  "C_L_rms": 0.47129868512742684
  },
  "calor_circulo_semsolido_Re200_D20": {
   "forma": "circulo",
@@ -302,8 +312,10 @@
   "Nu_ref": 7.243818181117881,
   "dif_pct": 1.2481261974185691,
   "periodo_passos": 1017.7368421052631,
-  "Strouhal": 0.19651445415524643,
-  "ciclos_media": 9
+  "Strouhal": 0.19657092934367149,
+  "ciclos_media": 9,
+  "Strouhal_Nu": 0.19651445415524643,
+  "C_L_rms": 0.4802911170232136
  },
  "calor_circulo_comsolido_Re1_D5": {
   "forma": "circulo",
@@ -719,8 +731,10 @@
   "parada": "duracao de 153 D/U atingida",
   "C_D_medio": 1.0183382175603188,
   "periodo_passos": 658.6111111111111,
-  "Strouhal": 0.30366933783213834,
-  "ciclos_media": 9
+  "Strouhal": 0.13827160493827162,
+  "ciclos_media": 9,
+  "Strouhal_Nu": 0.30366933783213834,
+  "C_L_rms": 0.007379611257503802
  },
  "calor_elipse_semsolido_Re200_D20": {
   "forma": "elipse",
@@ -744,8 +758,10 @@
   "parada": "duracao de 131 D/U atingida",
   "C_D_medio": 0.8597020993907148,
   "periodo_passos": 569.4,
-  "Strouhal": 0.3512469265893924,
-  "ciclos_media": 9
+  "Strouhal": 0.1890557714525785,
+  "ciclos_media": 9,
+  "Strouhal_Nu": 0.3512469265893924,
+  "C_L_rms": 0.10944664630050592
  },
  "calor_placa_semsolido_Re1_D10": {
   "forma": "placa",
@@ -813,8 +829,10 @@
   "parada": "duracao de 153 D/U atingida",
   "C_D_medio": 2.138631038413318,
   "periodo_passos": 1093.9545454545455,
-  "Strouhal": 0.18282295259068432,
-  "ciclos_media": 9
+  "Strouhal": 0.18248175182481752,
+  "ciclos_media": 9,
+  "Strouhal_Nu": 0.18282295259068432,
+  "C_L_rms": 0.2430357840765454
  },
  "calor_placa_semsolido_Re200_D20": {
   "forma": "placa",
@@ -838,8 +856,10 @@
   "parada": "duracao de 131 D/U atingida",
   "C_D_medio": 2.3246691707949965,
   "periodo_passos": 1200.4375,
-  "Strouhal": 0.16660592492320508,
-  "ciclos_media": 9
+  "Strouhal": 0.16679573479478166,
+  "ciclos_media": 9,
+  "Strouhal_Nu": 0.16660592492320508,
+  "C_L_rms": 0.3452076622780716
  },
  "calor_hexagono_semsolido_Re1_D10": {
   "forma": "hexagono",
@@ -907,8 +927,10 @@
   "parada": "duracao de 153 D/U atingida",
   "C_D_medio": 1.4293794995112052,
   "periodo_passos": 1253.7777777777778,
-  "Strouhal": 0.1595179014533853,
-  "ciclos_media": 9
+  "Strouhal": 0.15918638072076055,
+  "ciclos_media": 9,
+  "Strouhal_Nu": 0.1595179014533853,
+  "C_L_rms": 0.25215567675144
  },
  "calor_hexagono_semsolido_Re200_D20": {
   "forma": "hexagono",
@@ -932,8 +954,10 @@
   "parada": "duracao de 131 D/U atingida",
   "C_D_medio": 1.3897624049117698,
   "periodo_passos": 1054.1052631578948,
-  "Strouhal": 0.18973437187936887,
-  "ciclos_media": 9
+  "Strouhal": 0.18904584361707716,
+  "ciclos_media": 9,
+  "Strouhal_Nu": 0.18973437187936887,
+  "C_L_rms": 0.45612302202399513
  },
  "calor_hexagono45_semsolido_Re1_D10": {
   "forma": "hexagono45",
@@ -1001,8 +1025,10 @@
   "parada": "duracao de 153 D/U atingida",
   "C_D_medio": 1.322687555603853,
   "periodo_passos": 2290.6,
-  "Strouhal": 0.08731336767659129,
-  "ciclos_media": 9
+  "Strouhal": 0.17133556069562236,
+  "ciclos_media": 9,
+  "Strouhal_Nu": 0.08731336767659129,
+  "C_L_rms": 0.22834173263857976
  },
  "calor_hexagono45_semsolido_Re200_D20": {
   "forma": "hexagono45",
@@ -1026,8 +1052,10 @@
   "parada": "duracao de 131 D/U atingida",
   "C_D_medio": 1.33630390226256,
   "periodo_passos": 972.7142857142857,
-  "Strouhal": 0.20561022176531063,
-  "ciclos_media": 9
+  "Strouhal": 0.20412329046744232,
+  "ciclos_media": 9,
+  "Strouhal_Nu": 0.20561022176531063,
+  "C_L_rms": 0.4664557520131525
  },
  "calor_quadrado_semsolido_Re1_D10": {
   "forma": "quadrado",
@@ -1095,8 +1123,10 @@
   "parada": "duracao de 153 D/U atingida",
   "C_D_medio": 1.399283643205298,
   "periodo_passos": 1255.6666666666667,
-  "Strouhal": 0.15927794000530926,
-  "ciclos_media": 9
+  "Strouhal": 0.1502417953894549,
+  "ciclos_media": 9,
+  "Strouhal_Nu": 0.15927794000530926,
+  "C_L_rms": 0.1805916400180318
  },
  "calor_quadrado_semsolido_Re200_D20": {
   "forma": "quadrado",
@@ -1120,8 +1150,10 @@
   "parada": "duracao de 131 D/U atingida",
   "C_D_medio": 1.3431613869132955,
   "periodo_passos": 1157.9411764705883,
-  "Strouhal": 0.17272034544069087,
-  "ciclos_media": 9
+  "Strouhal": 0.17199677506046762,
+  "ciclos_media": 9,
+  "Strouhal_Nu": 0.17272034544069087,
+  "C_L_rms": 0.3623791802606194
  },
  "calor_quadrado45_semsolido_Re1_D10": {
   "forma": "quadrado45",
@@ -1189,8 +1221,10 @@
   "parada": "duracao de 153 D/U atingida",
   "C_D_medio": 1.5053816395971604,
   "periodo_passos": 1087.0,
-  "Strouhal": 0.18399264029438822,
-  "ciclos_media": 9
+  "Strouhal": 0.18381508202748034,
+  "ciclos_media": 9,
+  "Strouhal_Nu": 0.18399264029438822,
+  "C_L_rms": 0.3581681631168713
  },
  "calor_quadrado45_semsolido_Re200_D20": {
   "forma": "quadrado45",
@@ -1214,7 +1248,9 @@
   "parada": "duracao de 131 D/U atingida",
   "C_D_medio": 1.6150260557044605,
   "periodo_passos": 904.8181818181819,
-  "Strouhal": 0.2210388827489199,
-  "ciclos_media": 9
+  "Strouhal": 0.2209389907105197,
+  "ciclos_media": 9,
+  "Strouhal_Nu": 0.2210388827489199,
+  "C_L_rms": 0.6603932725564561
  }
 }

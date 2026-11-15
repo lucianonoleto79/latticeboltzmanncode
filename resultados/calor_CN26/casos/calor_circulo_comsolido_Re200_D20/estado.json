@@ -1,0 +1,18 @@
+{
+ "caso": "calor",
+ "pasta": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_comsolido_Re200_D20",
+ "it": 129885,
+ "residuo": 0.19411538179643215,
+ "residuos": {
+  "res": 0.19411538179643215,
+  "res_ux": 0.09127159633745877,
+  "res_uy": 0.17131922586793022,
+  "res_uz": 0.0,
+  "res_rho": 0.0003102168442651787
+ },
+ "tol": 1e-07,
+ "convergiu": true,
+ "terminou": true,
+ "divergiu": false,
+ "checkpoint": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_comsolido_Re200_D20/checkpoint/checkpoint.npz"
+}

@@ -1,0 +1,1 @@
+Square (tilted 45°), Re = 200, metodo sem_solido (D = 20, Ds = 30 D): Nu = 8.0075   instantes = 52400   (duracao de 131 D/U atingida)

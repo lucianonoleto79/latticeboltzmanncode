@@ -1,0 +1,18 @@
+{
+ "caso": "calor",
+ "pasta": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_elipse_semsolido_Re1_D10",
+ "it": 55479,
+ "residuo": 0.00019392998238361098,
+ "residuos": {
+  "res": 0.00019392998238361098,
+  "res_ux": 0.00018870637128567445,
+  "res_uy": 4.47073092849382e-05,
+  "res_uz": 0.0,
+  "res_rho": 4.661044279468635e-06
+ },
+ "tol": 1e-07,
+ "convergiu": true,
+ "terminou": true,
+ "divergiu": false,
+ "checkpoint": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_elipse_semsolido_Re1_D10/checkpoint/checkpoint.npz"
+}

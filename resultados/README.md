@@ -165,47 +165,98 @@ Arquivos:
 
 ## calor_CN26 — Convecção forçada sobre cilindros, campanha de Cunha & Noleto (2026)
 
-Resultado: tabelas no formato do artigo (Tabelas 2–6, Fig. 12, Strouhal) em `comparacao_CN26.md`. Reproduzir: `python campanha_calor.py --plano completo --rodar --processos 3` e depois `python campanha_calor.py --relatorio`.
+Resultado: tabelas no formato do artigo (Tabelas 2–6, Fig. 12, Strouhal) em `comparacao_CN26.md`. Reproduzir: `python campanha_calor.py --plano completo --rodar --processos 3` e depois `python campanha_calor.py --relatorio`; o relatório também copia os casos para cá.
 
-Rodado com a versão atual. As 48 rodadas estão em `casos/` (fora do git). Aqui ficam o relatório, `resultados.json` (todos os 48 `resultado_calor.json`) e, em `casos/`, a malha fina de cada configuração (32 pastas): `execucao.log`, `parametros.json`, `resultado_calor.json`, `nusselt.csv` (Nu_inst, θ do centro, C_D, C_L a cada passo) e as figuras no formato do artigo. Nos `resultado_calor.json` copiados, o campo `Strouhal` é o antigo, pelo período do Nu; o relatório recalcula o St pelo período de C_L a partir de `nusselt.csv`.
+Rodado com a versão atual. As 48 rodadas estão completas em `casos/`, cada uma com a organização padrão (`dominio/`, `contorno/`, `malha/`, `escoamento/final/`, `graficos/`, logs e json). Ficaram de fora os checkpoints, os `.npz` e os `.vtk`. Em `resultado_calor.json`, `Strouhal` é o St pelo período de C_L; `Strouhal_Nu` é o St pelo período do Nu, que só vale para corpos simétricos.
 
-Arquivos:
+Arquivos na raiz:
 
 * `comparacao_CN26.md`
 * `fig12_correlacoes.png`
 * `nusselt_lbm_x_artigo.png`
 * `resultados.json`
-* `casos/<pasta>/`: `execucao.log`, `parametros.json`, `resultado_calor.json`, `nusselt.csv`, `temperatura.png` e, conforme o método, `nusselt_historia.png`, `nusselt_7periodos.png`, `nusselt_fft.png` (transientes) ou `solido_perfil_nusselt.png`, `solido_ajuste_h.png` (com sólido). Pastas:
 
-  * `calor_circulo_comsolido_Re100_D20`
-  * `calor_circulo_comsolido_Re10_D10`
-  * `calor_circulo_comsolido_Re1_D10`
-  * `calor_circulo_comsolido_Re200_D20`
-  * `calor_circulo_semsolido_Re100_D20`
-  * `calor_circulo_semsolido_Re10_D10`
-  * `calor_circulo_semsolido_Re1_D10`
-  * `calor_circulo_semsolido_Re200_D20`
-  * `calor_elipse_semsolido_Re100_D20`
-  * `calor_elipse_semsolido_Re10_D10`
-  * `calor_elipse_semsolido_Re1_D10`
-  * `calor_elipse_semsolido_Re200_D20`
-  * `calor_hexagono45_semsolido_Re100_D20`
-  * `calor_hexagono45_semsolido_Re10_D10`
-  * `calor_hexagono45_semsolido_Re1_D10`
-  * `calor_hexagono45_semsolido_Re200_D20`
-  * `calor_hexagono_semsolido_Re100_D20`
-  * `calor_hexagono_semsolido_Re10_D10`
-  * `calor_hexagono_semsolido_Re1_D10`
-  * `calor_hexagono_semsolido_Re200_D20`
-  * `calor_placa_semsolido_Re100_D20`
-  * `calor_placa_semsolido_Re10_D10`
-  * `calor_placa_semsolido_Re1_D10`
-  * `calor_placa_semsolido_Re200_D20`
-  * `calor_quadrado45_semsolido_Re100_D20`
-  * `calor_quadrado45_semsolido_Re10_D10`
-  * `calor_quadrado45_semsolido_Re1_D10`
-  * `calor_quadrado45_semsolido_Re200_D20`
-  * `calor_quadrado_semsolido_Re100_D20`
-  * `calor_quadrado_semsolido_Re10_D10`
-  * `calor_quadrado_semsolido_Re1_D10`
-  * `calor_quadrado_semsolido_Re200_D20`
+Arquivos de cada caso com sólido (exemplo `casos/calor_circulo_comsolido_Re200_D20/`):
+
+* `LEIAME.txt`
+* `contorno/condicoes_contorno.txt`
+* `contorno/contorno_3d.png`
+* `contorno/contorno_cortes.png`
+* `dominio/dominio_3d.png`
+* `dominio/dominio_cortes.png`
+* `escoamento/final/componentes_pressao.png`
+* `escoamento/final/linhas_corrente.png`
+* `escoamento/final/temperatura.png`
+* `escoamento/final/velocidade_cortes.png`
+* `estado.json`
+* `execucao.log`
+* `graficos/convergencia.csv`
+* `graficos/convergencia.html`
+* `graficos/convergencia.png`
+* `graficos/grandezas.png`
+* `graficos/nusselt.csv`
+* `graficos/solido_ajuste_h.png`
+* `graficos/solido_perfil_nusselt.png`
+* `malha/malha.txt`
+* `malha/malha_corte.png`
+* `malha/malha_detalhe.png`
+* `parametros.json`
+* `resultado_calor.json`
+* `validacao.txt`
+
+Os casos sem sólido não têm `solido_*.png`. Os transientes (Re = 100 e 200) têm também:
+
+* `graficos/nusselt_7periodos.png`
+* `graficos/nusselt_fft.png`
+* `graficos/nusselt_historia.png`
+
+Pastas dos casos (48):
+
+* [`calor_circulo_comsolido_Re100_D10`](calor_CN26/casos/calor_circulo_comsolido_Re100_D10)
+* [`calor_circulo_comsolido_Re100_D14`](calor_CN26/casos/calor_circulo_comsolido_Re100_D14)
+* [`calor_circulo_comsolido_Re100_D20`](calor_CN26/casos/calor_circulo_comsolido_Re100_D20)
+* [`calor_circulo_comsolido_Re10_D10`](calor_CN26/casos/calor_circulo_comsolido_Re10_D10)
+* [`calor_circulo_comsolido_Re10_D5`](calor_CN26/casos/calor_circulo_comsolido_Re10_D5)
+* [`calor_circulo_comsolido_Re10_D7`](calor_CN26/casos/calor_circulo_comsolido_Re10_D7)
+* [`calor_circulo_comsolido_Re1_D10`](calor_CN26/casos/calor_circulo_comsolido_Re1_D10)
+* [`calor_circulo_comsolido_Re1_D5`](calor_CN26/casos/calor_circulo_comsolido_Re1_D5)
+* [`calor_circulo_comsolido_Re1_D7`](calor_CN26/casos/calor_circulo_comsolido_Re1_D7)
+* [`calor_circulo_comsolido_Re200_D10`](calor_CN26/casos/calor_circulo_comsolido_Re200_D10)
+* [`calor_circulo_comsolido_Re200_D14`](calor_CN26/casos/calor_circulo_comsolido_Re200_D14)
+* [`calor_circulo_comsolido_Re200_D20`](calor_CN26/casos/calor_circulo_comsolido_Re200_D20)
+* [`calor_circulo_semsolido_Re100_D10`](calor_CN26/casos/calor_circulo_semsolido_Re100_D10)
+* [`calor_circulo_semsolido_Re100_D14`](calor_CN26/casos/calor_circulo_semsolido_Re100_D14)
+* [`calor_circulo_semsolido_Re100_D20`](calor_CN26/casos/calor_circulo_semsolido_Re100_D20)
+* [`calor_circulo_semsolido_Re10_D10`](calor_CN26/casos/calor_circulo_semsolido_Re10_D10)
+* [`calor_circulo_semsolido_Re10_D5`](calor_CN26/casos/calor_circulo_semsolido_Re10_D5)
+* [`calor_circulo_semsolido_Re10_D7`](calor_CN26/casos/calor_circulo_semsolido_Re10_D7)
+* [`calor_circulo_semsolido_Re1_D10`](calor_CN26/casos/calor_circulo_semsolido_Re1_D10)
+* [`calor_circulo_semsolido_Re1_D5`](calor_CN26/casos/calor_circulo_semsolido_Re1_D5)
+* [`calor_circulo_semsolido_Re1_D7`](calor_CN26/casos/calor_circulo_semsolido_Re1_D7)
+* [`calor_circulo_semsolido_Re200_D10`](calor_CN26/casos/calor_circulo_semsolido_Re200_D10)
+* [`calor_circulo_semsolido_Re200_D14`](calor_CN26/casos/calor_circulo_semsolido_Re200_D14)
+* [`calor_circulo_semsolido_Re200_D20`](calor_CN26/casos/calor_circulo_semsolido_Re200_D20)
+* [`calor_elipse_semsolido_Re100_D20`](calor_CN26/casos/calor_elipse_semsolido_Re100_D20)
+* [`calor_elipse_semsolido_Re10_D10`](calor_CN26/casos/calor_elipse_semsolido_Re10_D10)
+* [`calor_elipse_semsolido_Re1_D10`](calor_CN26/casos/calor_elipse_semsolido_Re1_D10)
+* [`calor_elipse_semsolido_Re200_D20`](calor_CN26/casos/calor_elipse_semsolido_Re200_D20)
+* [`calor_hexagono45_semsolido_Re100_D20`](calor_CN26/casos/calor_hexagono45_semsolido_Re100_D20)
+* [`calor_hexagono45_semsolido_Re10_D10`](calor_CN26/casos/calor_hexagono45_semsolido_Re10_D10)
+* [`calor_hexagono45_semsolido_Re1_D10`](calor_CN26/casos/calor_hexagono45_semsolido_Re1_D10)
+* [`calor_hexagono45_semsolido_Re200_D20`](calor_CN26/casos/calor_hexagono45_semsolido_Re200_D20)
+* [`calor_hexagono_semsolido_Re100_D20`](calor_CN26/casos/calor_hexagono_semsolido_Re100_D20)
+* [`calor_hexagono_semsolido_Re10_D10`](calor_CN26/casos/calor_hexagono_semsolido_Re10_D10)
+* [`calor_hexagono_semsolido_Re1_D10`](calor_CN26/casos/calor_hexagono_semsolido_Re1_D10)
+* [`calor_hexagono_semsolido_Re200_D20`](calor_CN26/casos/calor_hexagono_semsolido_Re200_D20)
+* [`calor_placa_semsolido_Re100_D20`](calor_CN26/casos/calor_placa_semsolido_Re100_D20)
+* [`calor_placa_semsolido_Re10_D10`](calor_CN26/casos/calor_placa_semsolido_Re10_D10)
+* [`calor_placa_semsolido_Re1_D10`](calor_CN26/casos/calor_placa_semsolido_Re1_D10)
+* [`calor_placa_semsolido_Re200_D20`](calor_CN26/casos/calor_placa_semsolido_Re200_D20)
+* [`calor_quadrado45_semsolido_Re100_D20`](calor_CN26/casos/calor_quadrado45_semsolido_Re100_D20)
+* [`calor_quadrado45_semsolido_Re10_D10`](calor_CN26/casos/calor_quadrado45_semsolido_Re10_D10)
+* [`calor_quadrado45_semsolido_Re1_D10`](calor_CN26/casos/calor_quadrado45_semsolido_Re1_D10)
+* [`calor_quadrado45_semsolido_Re200_D20`](calor_CN26/casos/calor_quadrado45_semsolido_Re200_D20)
+* [`calor_quadrado_semsolido_Re100_D20`](calor_CN26/casos/calor_quadrado_semsolido_Re100_D20)
+* [`calor_quadrado_semsolido_Re10_D10`](calor_CN26/casos/calor_quadrado_semsolido_Re10_D10)
+* [`calor_quadrado_semsolido_Re1_D10`](calor_CN26/casos/calor_quadrado_semsolido_Re1_D10)
+* [`calor_quadrado_semsolido_Re200_D20`](calor_CN26/casos/calor_quadrado_semsolido_Re200_D20)

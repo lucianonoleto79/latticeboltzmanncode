@@ -1,0 +1,18 @@
+{
+ "caso": "calor",
+ "pasta": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_placa_semsolido_Re1_D10",
+ "it": 49306,
+ "residuo": 6.794962483329461e-05,
+ "residuos": {
+  "res": 6.794962483329461e-05,
+  "res_ux": 5.881317632762636e-05,
+  "res_uy": 3.4031776404428494e-05,
+  "res_uz": 0.0,
+  "res_rho": 4.273502285162008e-06
+ },
+ "tol": 1e-07,
+ "convergiu": true,
+ "terminou": true,
+ "divergiu": false,
+ "checkpoint": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_placa_semsolido_Re1_D10/checkpoint/checkpoint.npz"
+}

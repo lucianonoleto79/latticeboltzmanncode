@@ -20,6 +20,8 @@
  "parada": "duracao de 153 D/U atingida",
  "C_D_medio": 1.399283643205298,
  "periodo_passos": 1255.6666666666667,
- "Strouhal": 0.15927794000530926,
- "ciclos_media": 9
+ "Strouhal": 0.1502417953894549,
+ "ciclos_media": 9,
+ "Strouhal_Nu": 0.15927794000530926,
+ "C_L_rms": 0.1805916400180318
 }

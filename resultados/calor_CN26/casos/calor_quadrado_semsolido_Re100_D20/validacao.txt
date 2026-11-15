@@ -1,0 +1,1 @@
+Square, Re = 100, metodo sem_solido (D = 20, Ds = 40 D): Nu = 4.2170   instantes = 61200   (duracao de 153 D/U atingida)

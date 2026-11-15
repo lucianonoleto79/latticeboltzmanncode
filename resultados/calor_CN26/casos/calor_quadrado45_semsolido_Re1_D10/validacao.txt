@@ -1,0 +1,1 @@
+Square (tilted 45°), Re = 1, metodo sem_solido (D = 10, Ds = 80 D): Nu = 0.8564   instantes = 49488   (|Nu - Nu(-10 D/U)|/Nu < 1e-05 em todos os passos dos ultimos 5 D/U (Eq. 16 adaptada))

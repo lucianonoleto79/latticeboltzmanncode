@@ -1,0 +1,1 @@
+Hexagon (tilted 45°), Re = 200, metodo sem_solido (D = 20, Ds = 30 D): Nu = 7.2375   instantes = 52400   (duracao de 131 D/U atingida)

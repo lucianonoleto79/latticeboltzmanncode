@@ -1,0 +1,18 @@
+{
+ "caso": "calor",
+ "pasta": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_comsolido_Re10_D7",
+ "it": 55044,
+ "residuo": 2.0611619237821294e-06,
+ "residuos": {
+  "res": 2.0611619237821294e-06,
+  "res_ux": 8.110565210232116e-07,
+  "res_uy": 1.8948814727456863e-06,
+  "res_uz": 0.0,
+  "res_rho": 1.4330872443691998e-07
+ },
+ "tol": 1e-07,
+ "convergiu": true,
+ "terminou": true,
+ "divergiu": false,
+ "checkpoint": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_comsolido_Re10_D7/checkpoint/checkpoint.npz"
+}

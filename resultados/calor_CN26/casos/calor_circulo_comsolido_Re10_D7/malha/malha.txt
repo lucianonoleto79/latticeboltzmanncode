@@ -1,0 +1,14 @@
+Malha - caso calor
+============================================================
+Rede de velocidades     : D3Q27 (27 velocidades discretas, c_s^2 = 1/3)
+Malha cartesiana        : uniforme, dx = dt = 1 (unidades de rede)
+Dimensoes (nx, ny, nz)  : 562 x 563 x 1
+Nos totais              : 316406
+Nos de fluido           : 279883 (88.5 %)
+Nos solidos             : 36523
+Links fluido->solido    : 18366
+  em paredes curvas    : 192  (q min / med / max = 0.076 / 0.421 / 0.736)
+Espacamento fisico      : dx = 0.142857 m
+Viscosidade de rede     : nu = 0.035  (omega = 1.65289, tau = 0.60500)
+Modelo de colisao       : cumulant
+

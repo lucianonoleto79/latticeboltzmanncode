@@ -1,0 +1,18 @@
+{
+ "caso": "calor",
+ "pasta": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_hexagono_semsolido_Re10_D10",
+ "it": 25834,
+ "residuo": 0.00027741121388056504,
+ "residuos": {
+  "res": 0.00027741121388056504,
+  "res_ux": 0.000213921183960021,
+  "res_uy": 0.0001766202384774463,
+  "res_uz": 0.0,
+  "res_rho": 2.1806966506138676e-05
+ },
+ "tol": 1e-07,
+ "convergiu": true,
+ "terminou": true,
+ "divergiu": false,
+ "checkpoint": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_hexagono_semsolido_Re10_D10/checkpoint/checkpoint.npz"
+}

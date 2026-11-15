@@ -348,21 +348,47 @@ def figuras_relatorio(lista, porchave, corr, nivel_nc, saida):
     fig.tight_layout()
     fig.savefig(os.path.join(saida, "nusselt_lbm_x_artigo.png"), dpi=130)
     plt.close(fig)
-    # copia das figuras de cada caso fino (temperatura, Nu, FFT, solido)
+    copiar_casos(lista, saida)
+
+
+IGNORAR = (".npz", ".vtk")
+IGNORAR_NOMES = {"andamento.json", "campanha.out", "SALVAR", "PAUSAR", "PARAR"}
+
+
+def atualizar_strouhal(c):
+    """Rodadas antigas: grava em resultado_calor.json o St pelo periodo de C_L (o antigo, pelo Nu,
+    fica em Strouhal_Nu)."""
+    p = os.path.join(c["pasta"], "resultado_calor.json")
+    r = resultado(c)
+    if not r or "Strouhal_Nu" in r or r.get("Strouhal") is None:
+        return
+    st, st_nu, rms = strouhal_de(r)
+    r.pop("_pasta", None)
+    r["Strouhal"], r["Strouhal_Nu"], r["C_L_rms"] = st, st_nu, rms
+    with open(p, "w") as fh:
+        json.dump(r, fh, indent=1, default=float)
+
+
+def copiar_casos(lista, saida):
+    """Copia cada caso inteiro (dominio/, contorno/, malha/, escoamento/, graficos/, logs, json)
+    para <saida>/casos/<tag>/, sem checkpoint, .npz e .vtk."""
     import shutil
+    raiz = os.path.join(saida, "casos")
     for c in lista:
-        if c["nivel"] != "Fine" and not (c["forma"] != "circulo"):
+        if not os.path.isdir(c["pasta"]):
             continue
-        dst = os.path.join(saida, "casos", c["tag"])
-        for sub, nomes in (("escoamento/final", ["temperatura.png"]),
-                           ("graficos", ["nusselt_historia.png", "nusselt_7periodos.png", "nusselt_fft.png",
-                                         "solido_perfil_nusselt.png", "solido_ajuste_h.png", "nusselt.csv"]),
-                           ("", ["resultado_calor.json", "parametros.json", "execucao.log"])):
-            for n in nomes:
-                src = os.path.join(c["pasta"], sub, n)
-                if os.path.exists(src):
-                    os.makedirs(dst, exist_ok=True)
-                    shutil.copy(src, dst)
+        atualizar_strouhal(c)
+        dst = os.path.join(raiz, c["tag"])
+        if os.path.isdir(dst):
+            shutil.rmtree(dst)
+        for base, dirs, arqs in os.walk(c["pasta"]):
+            dirs[:] = [d for d in dirs if d != "checkpoint"]
+            for n in arqs:
+                if n.endswith(IGNORAR) or n in IGNORAR_NOMES:
+                    continue
+                rel = os.path.relpath(os.path.join(base, n), c["pasta"])
+                os.makedirs(os.path.dirname(os.path.join(dst, rel)), exist_ok=True)
+                shutil.copy2(os.path.join(base, n), os.path.join(dst, rel))
 
 
 def main():
