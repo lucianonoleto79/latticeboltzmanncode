@@ -265,8 +265,10 @@ void collide_stream(const double *f, double *fout, const uint8_t *solid, int nx,
 /*
  * Passo termico: TRT D3Q7 para a energia E = C T (C = capacidade termica volumetrica do
  * no, relativa a do fluido), com equilibrio
- *   g_0^eq = E - T + w0 T,   g_i^eq = w_i T (1 + c_i.u / cs2),   w0 = 1/4, w_i = 1/8, cs2 = 1/4
- * de modo que  dE/dt + div(T u) = div(k grad T),  k = cs2 (tau- - 1/2)  (por no).
+ *   g_0^eq = E - T + w0 T,   g_i^eq = w_i [T + (T - Tref) c_i.u / cs2],   w0 = 1/4, w_i = 1/8, cs2 = 1/4
+ * de modo que  dE/dt + div((T - Tref) u) = div(k grad T),  k = cs2 (tau- - 1/2)  (por no).
+ * Como div(u) ~ 0, equivale a u.grad(T); Tref escolhe onde fica o erro da divergencia
+ * discreta de u (grande na interface solido-fluido): ele e proporcional a T - Tref.
  * Ordem das direcoes: 0 repouso, 1 +x, 2 -x, 3 +y, 4 -y, 5 +z, 6 -z.
  *   g      : entra no instante t, sai com as pos-colisao
  *   gout   : recebe as propagadas
@@ -277,7 +279,8 @@ void collide_stream(const double *f, double *fout, const uint8_t *solid, int nx,
  */
 void thermal_collide_stream(double *g, double *gout, const uint8_t *ativo, int nx, int ny, int nz,
                             const double *C, const double *wm, const double *wp,
-                            const double *ux, const double *uy, const double *uz, double *T_o)
+                            const double *ux, const double *uy, const double *uz, double *T_o,
+                            double Tref)
 {
     const long N = (long)nx * ny * nz;
     const double w0 = 0.25, wi = 0.125;
@@ -304,7 +307,7 @@ void thermal_collide_stream(double *g, double *gout, const uint8_t *ativo, int n
                     for (int ax = 0; ax < 3; ax++) {
                         double gp = q[1 + 2 * ax], gm = q[2 + 2 * ax];
                         double sp = 0.5 * (gp + gm), am = 0.5 * (gp - gm);
-                        double em = wi * T * 4.0 * ueq[ax];
+                        double em = wi * (T - Tref) * 4.0 * ueq[ax];
                         double ds = op * (sp - ep), da = om * (am - em);
                         q[1 + 2 * ax] = gp - ds - da;
                         q[2 + 2 * ax] = gm - ds + da;

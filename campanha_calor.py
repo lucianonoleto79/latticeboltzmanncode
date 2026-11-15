@@ -114,10 +114,10 @@ def listar(lista, mlups):
     return tot
 
 
-def rodar(lista, processos, max_time=0.0):
+def rodar(lista, processos, max_time=0.0, menores_primeiro=False):
     py = sys.executable
     pend = [c for c in lista if resultado(c) is None]
-    pend.sort(key=lambda c: -np.prod(custo(c)))          # os maiores primeiro
+    pend.sort(key=lambda c: (1 if menores_primeiro else -1) * np.prod(custo(c)))
     ativos = []
     print("Casos a rodar: %d (processos simultaneos: %d)" % (len(pend), processos))
     print("Contador de todas as simulacoes:  python acompanhar.py --todos")
@@ -350,13 +350,14 @@ def main():
     p.add_argument("--processos", type=int, default=3)
     p.add_argument("--mlups", type=float, default=2.5, help="velocidade por processo para a estimativa")
     p.add_argument("--max-time", type=float, default=0.0, help="limite (min) por execucao")
+    p.add_argument("--menores-primeiro", action="store_true", help="roda primeiro os casos mais curtos")
     p.add_argument("--saida", default=os.path.join(AQUI, "resultados", "calor_CN26"))
     a = p.parse_args()
     lista = casos(a.plano)
     if a.listar or not (a.rodar or a.relatorio):
         listar(lista, a.mlups)
     if a.rodar:
-        rodar(lista, a.processos, a.max_time)
+        rodar(lista, a.processos, a.max_time, a.menores_primeiro)
     if a.relatorio:
         relatorio(lista, a.saida)
 

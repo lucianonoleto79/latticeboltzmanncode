@@ -248,3 +248,24 @@ def test_sem_indexerror_csv_com_colunas_variaveis(tmp_path):
     (so_cab / "convergencia.csv").write_text("# caso=x tol=1e-7\nit,res,tempo_unix,mlups\n")
     assert acompanhar.ler(str(so_cab))[1] is None
     acompanhar.gerar_html(str(so_cab))
+
+
+def test_conjugado_temperatura_uniforme_se_mantem():
+    """Com solido conjugado e T = Tinf em todo o dominio, T continua uniforme mesmo com o
+    escoamento partindo do repouso abrupto (u = U encostado no corpo).  Com fluxo advectivo
+    T u (Tref = 0) os nos da interface desviavam ate ~80% (fonte -T div u, onde u cai a zero);
+    com (T - Tinf) u (Tref = Tinf) T = Tinf e solucao exata."""
+    a = lbm3d.parse_args(["--case", "calor", "--res", "8", "--Ds", "10", "--Re", "100",
+                          "--metodo", "com_solido", "--no-gui"])
+    case = lbm3d.CASES["calor"](a)
+    sim = lbm3d.Simulation(case, a)
+    th = sim.termico
+    assert th.Tref == 1.0
+    th.T[...] = np.where(th.ativo.astype(bool), 1.0, 0.0)
+    u0 = np.where(case.solid[None], 0.0, sim.u)
+    th.g = np.ascontiguousarray(lbm3d.equilibrio_termico(th.T, th.C, u0, th.Tref))
+    th.g[:, ~th.ativo.astype(bool)] = 0.0
+    for _ in range(400):
+        sim.step()
+    T = th.temperatura()
+    assert np.nanmax(np.abs(T - 1.0)) < 1e-10, np.nanmax(np.abs(T - 1.0))

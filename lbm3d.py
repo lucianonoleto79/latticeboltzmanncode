@@ -371,7 +371,7 @@ def kernel_c():
     ci = ctypes.c_int
     so.collide_stream.argtypes = [pd, pd, pu, ci, ci, ci, pd, pd, pd, pd, pd, pd]
     so.collide_stream.restype = None
-    so.thermal_collide_stream.argtypes = [pd, pd, pu, ci, ci, ci, pd, pd, pd, pd, pd, pd, pd]
+    so.thermal_collide_stream.argtypes = [pd, pd, pu, ci, ci, ci, pd, pd, pd, pd, pd, pd, pd, ctypes.c_double]
     so.thermal_collide_stream.restype = None
     _KERNEL = so
     return so
@@ -1010,17 +1010,17 @@ CS2T = 0.25
 LAMBDA_TRT = 0.25
 
 
-def equilibrio_termico(T, C, u):
-    """g^eq para energia C T e velocidade u (u: (3,) + shape)."""
+def equilibrio_termico(T, C, u, Tref=0.0):
+    """g^eq para energia C T e velocidade u (u: (3,) + shape); fluxo advectivo (T - Tref) u."""
     g = np.empty((7,) + T.shape)
     g[0] = C * T - T + WT[0] * T
     for i in range(1, 7):
         cu = CT[i, 0] * u[0] + CT[i, 1] * u[1] + CT[i, 2] * u[2]
-        g[i] = WT[i] * T * (1.0 + cu / CS2T)
+        g[i] = WT[i] * (T + (T - Tref) * cu / CS2T)
     return g
 
 
-def passo_termico_numpy(g, gout, ativo, C, wm, wp, u, T):
+def passo_termico_numpy(g, gout, ativo, C, wm, wp, u, T, Tref=0.0):
     """Mesma conta de thermal_collide_stream (lbm_kernel.c), em NumPy."""
     E = g.sum(axis=0)
     T[...] = np.where(ativo, E / C, 0.0)
@@ -1030,7 +1030,7 @@ def passo_termico_numpy(g, gout, ativo, C, wm, wp, u, T):
     for ax in range(3):
         gp, gm = q[1 + 2 * ax].copy(), q[2 + 2 * ax].copy()
         sp, am = 0.5 * (gp + gm), 0.5 * (gp - gm)
-        em = WT[1] * T * 4.0 * u[ax]
+        em = WT[1] * (T - Tref) * 4.0 * u[ax]
         ds, da = wp * (sp - ep), wm * (am - em)
         q[1 + 2 * ax] = gp - ds - da
         q[2 + 2 * ax] = gm - ds + da
@@ -1115,8 +1115,13 @@ def build_links_termicos(ativo, paredes):
 class Termico:
     """Campo de temperatura acoplado a uma Simulation (criado por case.criar_termico)."""
 
-    def __init__(self, sim, ativo, C, k, T0, paredes, alfa):
+    def __init__(self, sim, ativo, C, k, T0, paredes, alfa, Tref=0.0):
+        """Tref: temperatura de referencia do fluxo advectivo (T - Tref) u.  Use a
+        temperatura da superficie do solido no regime em que se mede Nu: o erro da
+        divergencia discreta de u (grande na interface, onde u cai a zero) e
+        proporcional a T - Tref."""
         case = sim.case
+        self.Tref = float(Tref)
         self.shape = case.shape
         self.alfa = alfa
         self.ativo = np.ascontiguousarray(ativo, dtype=np.uint8)
@@ -1127,7 +1132,7 @@ class Termico:
         self.wp = np.ascontiguousarray(1.0 / taup)
         self.T = np.ascontiguousarray(np.where(ativo, T0, 0.0), dtype=np.float64)
         u0 = np.where(case.solid[None], 0.0, sim.u)
-        self.g = np.ascontiguousarray(equilibrio_termico(self.T, self.C, u0))
+        self.g = np.ascontiguousarray(equilibrio_termico(self.T, self.C, u0, self.Tref))
         self.g[:, ~ativo] = 0.0
         self.gtmp = np.empty_like(self.g)
         self.links = build_links_termicos(ativo.astype(bool), paredes)
@@ -1138,10 +1143,11 @@ class Termico:
         if self.so is not None:
             u = sim.u
             self.so.thermal_collide_stream(self.g, self.gtmp, self.ativo, sh[0], sh[1], sh[2], self.C,
-                                           self.wm, self.wp, u[0], u[1], u[2], self.T)
+                                           self.wm, self.wp, u[0], u[1], u[2], self.T, self.Tref)
         else:
             u = np.where(sim.case.solid[None], 0.0, sim.u)
-            passo_termico_numpy(self.g, self.gtmp, self.ativo, self.C, self.wm, self.wp, u, self.T)
+            passo_termico_numpy(self.g, self.gtmp, self.ativo, self.C, self.wm, self.wp, u, self.T,
+                                self.Tref)
         self.links.apply(self.gtmp)
         sim.case.saida_termica(self.gtmp)
         sim.case.apos_passo_termico(sim, self)
@@ -1376,7 +1382,12 @@ class CilindroCalor(Case):
         paredes = [dict(mask=self.externo, Tw=1.0, q=None, tag=0)]
         if not com:
             paredes.append(dict(mask=self.corpo, Tw=0.0, q=self.qfun, tag=1))
-        return Termico(sim, ativo, C, k, T0, paredes, self.alfa)
+        # Tref do fluxo advectivo (T - Tref) u = temperatura da superficie do solido no regime
+        # medido: parede (theta = 0) sem solido; Tinf (theta = 1) com solido, que e a
+        # temperatura que o solido atinge no fim (trecho usado no ajuste de h).  Com Tref = 0
+        # o metodo com solido tinha uma fonte espuria -T div(u) na interface (u cai a zero no
+        # corpo) e o solido parava em 1 - theta ~ 0,95 em Re = 200.
+        return Termico(sim, ativo, C, k, T0, paredes, self.alfa, Tref=1.0 if com else 0.0)
 
     # --- contorno a cada passo ------------------------------------------------
     def post_stream(self, sim, fpost, fnew):
