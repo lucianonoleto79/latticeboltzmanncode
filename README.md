@@ -249,7 +249,7 @@ python campanha_calor.py --relatorio        # tabelas 2–6 e Fig. 12 em resulta
 [Pasta](resultados/calor_CN26) ·
 [Comparação completa (formato das Tabelas 2–6 e da Fig. 12)](resultados/calor_CN26/comparacao_CN26.md) ·
 ![Nu: LBM × CN26](resultados/calor_CN26/nusselt_lbm_x_artigo.png)
-![Temperatura, círculo, Re = 100](resultados/calor_CN26/casos/calor_circulo_semsolido_Re100_D20/temperatura.png)
+![Temperatura, círculo, Re = 100](resultados/calor_CN26/casos/calor_circulo_semsolido_Re100_D20/escoamento/final/temperatura.png)
 
 ## Resíduos
 

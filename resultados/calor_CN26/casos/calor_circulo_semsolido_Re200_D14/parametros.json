@@ -1,0 +1,61 @@
+{
+ "caso": "calor",
+ "pasta": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re200_D14",
+ "malha": [
+  422,
+  423,
+  1
+ ],
+ "nos": 178506,
+ "nos_fluido": 157301,
+ "nu": 0.0035000000000000005,
+ "omega": 1.9588638589618024,
+ "forca": [
+  0.0,
+  0.0,
+  0.0
+ ],
+ "colisao": {
+  "model": "k17",
+  "w1": 1.9588638589618024,
+  "limiter": null,
+  "w2": 1.0,
+  "w3": 0.1889723560654183,
+  "w4": 0.03710950650136248,
+  "w5": 0.06390491176196961,
+  "A": -0.4808487665453027,
+  "B": 0.2287188194267774
+ },
+ "argumentos": {
+  "case": "calor",
+  "model": "k17",
+  "res": 14,
+  "res_z": 0,
+  "chi": 0.5,
+  "Re": 200.0,
+  "nu": 0.0,
+  "u_lattice": 0.05,
+  "u_adv": 0.0,
+  "limiter": null,
+  "max_iter": 20000000,
+  "tol": 1e-07,
+  "save_every": 0,
+  "checkpoint_every": 5000,
+  "outdir": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re200_D14",
+  "restart": "",
+  "no_gui": true,
+  "no_figs": false,
+  "preprocess_only": false,
+  "report_every": 1000,
+  "forma": "circulo",
+  "metodo": "sem_solido",
+  "Pr": 0.7296,
+  "Ds": 0.0,
+  "ks_kf": 0.0,
+  "Cs_Cf": 0.0,
+  "duracao": 0.0,
+  "max_time": 0.0
+ },
+ "dx_fisico": 0.07142857142857142,
+ "unidade": "m"
+}

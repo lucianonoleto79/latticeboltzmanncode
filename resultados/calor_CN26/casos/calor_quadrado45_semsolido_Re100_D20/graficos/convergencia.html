@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convergência LBM</title>
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f4f3f0;
+  --surface-1: #fcfcfb;
+  --border: #e3e2dd;
+  --grid: #ecebe7;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #7a7974;
+  --series-1: #2a78d6;
+  --band: rgba(27, 175, 122, 0.16);
+  --band-edge: #1baf7a;
+  --good: #008300;
+  --warning: #b87900;
+  --critical: #d03b3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0: #121211;
+    --surface-1: #1a1a19;
+    --border: #2e2d2b;
+    --grid: #262624;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #8f8e86;
+    --series-1: #3987e5;
+    --band: rgba(25, 158, 112, 0.22);
+    --band-edge: #199e70;
+    --good: #3fae3f;
+    --warning: #d9a03a;
+    --critical: #e66767;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #121211;
+  --surface-1: #1a1a19;
+  --border: #2e2d2b;
+  --grid: #262624;
+  --text-primary: #f0efec;
+  --text-secondary: #c3c2b7;
+  --text-muted: #8f8e86;
+  --series-1: #3987e5;
+  --band: rgba(25, 158, 112, 0.22);
+  --band-edge: #199e70;
+  --good: #3fae3f;
+  --warning: #d9a03a;
+  --critical: #e66767;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--surface-0); color: var(--text-primary);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 1120px; margin: 0 auto; padding: 20px 16px 40px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 14px; }
+h1 { font-size: 20px; margin: 0; font-weight: 650; }
+.sub { color: var(--text-secondary); }
+.status { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; padding: 2px 10px;
+  border-radius: 999px; border: 1px solid var(--border); background: var(--surface-1); }
+.status .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+.status.run { color: var(--series-1); }
+.status.ok { color: var(--good); }
+.status.stop { color: var(--warning); }
+.status.bad { color: var(--critical); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+.tile .lab { color: var(--text-secondary); font-size: 12px; }
+.tile .val { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.tile .det { color: var(--text-muted); font-size: 12px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin: 4px 0 12px; color: var(--text-secondary); }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface-1); color: var(--text-secondary); padding: 5px 12px; cursor: pointer; font: inherit; }
+.seg button[aria-pressed="true"] { background: var(--series-1); color: #fff; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 12px; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px 8px; position: relative; min-width: 0; }
+.card.wide { grid-column: 1 / -1; }
+.card h2 { font-size: 14px; margin: 0; font-weight: 600; }
+.card .note { color: var(--text-muted); font-size: 12px; min-height: 17px; }
+svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: none; }
+.axis text { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.gridline { stroke: var(--grid); stroke-width: 1; }
+.baseline { stroke: var(--border); stroke-width: 1; }
+.line { fill: none; stroke: var(--series-1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.tol { stroke: var(--text-secondary); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.extrap { fill: none; stroke: var(--series-1); stroke-width: 1.5; stroke-dasharray: 2 4; opacity: .8; }
+.band { fill: var(--band); }
+.bandedge { stroke: var(--band-edge); stroke-width: 1; stroke-dasharray: 3 3; }
+.dlabel { fill: var(--text-secondary); font-size: 11px; }
+.cross { stroke: var(--text-muted); stroke-width: 1; }
+.hoverdot { fill: var(--series-1); stroke: var(--surface-1); stroke-width: 2; }
+.tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
+  white-space: nowrap; display: none; z-index: 5; }
+.tip strong { font-variant-numeric: tabular-nums; }
+.tip .k { display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--series-1); vertical-align: middle; margin-right: 6px; }
+details { margin-top: 14px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; }
+summary { cursor: pointer; color: var(--text-secondary); }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 12px; }
+th, td { text-align: right; padding: 3px 8px; border-bottom: 1px solid var(--grid); }
+th { color: var(--text-secondary); font-weight: 600; }
+.tablewrap { overflow-x: auto; }
+footer { color: var(--text-muted); font-size: 12px; margin-top: 14px; }
+.empty { padding: 40px; text-align: center; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 id="titulo">Convergência LBM</h1>
+    <span class="status" id="status"><span class="dot"></span><span id="statusTxt">—</span></span>
+    <span class="sub" id="subtitulo"></span>
+    <span class="status run" id="contador" title="Tempo de simulação (contador do lbm3d.py)">⏱ <span id="contadorTxt">—</span></span>
+  </header>
+  <section class="tiles" id="tiles"></section>
+  <div class="controls">
+    <span>Grandezas:</span>
+    <div class="seg" role="group" aria-label="Janela das grandezas">
+      <button data-zoom="tudo" aria-pressed="false">Tudo</button>
+      <button data-zoom="terco" aria-pressed="true">Último terço</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="auto" checked> Atualização automática (<span id="intv"></span> s)</label>
+    <span id="modo"></span>
+  </div>
+  <section class="grid" id="charts"></section>
+  <details>
+    <summary>Tabela (últimas 30 leituras)</summary>
+    <div class="tablewrap"><table id="tabela"></table></div>
+  </details>
+  <footer id="rodape"></footer>
+</main>
+<script>
+const EMBED = /*__DADOS__*/{"csv": "# caso=calor tol=1e-07 max_iter=20000000 steady=0 modelo=k17\nit,res,tempo_unix,mlups,res_ux,res_uy,res_uz,res_rho,Nu_inst,Nu,C_D,C_L\n1000,4.367399e-02,1794497302.933,4.8205,0.03833845,0.020918422,0,0.0006136898,6.3915642,6.4693092,1.5562908,0.026738482\n2000,2.650935e-02,1794497433.298,4.8795,0.022628274,0.013809666,0,0.00072743774,5.8349217,5.9265028,1.4303441,-0.012817142\n3000,1.932915e-02,1794497562.835,4.9099,0.017062158,0.0090828761,0,0.00054624871,5.569922,5.7498838,1.2823976,-0.021087519\n4000,1.591673e-02,1794497692.373,4.9251,0.013737726,0.0080384783,0,0.00045233851,5.4127955,5.4712088,1.2232208,0.034989592\n5000,1.599210e-02,1794497823.558,4.9219,0.01298086,0.0093404793,0,0.00036092421,5.3269528,5.7622086,1.2196381,-0.019317975\n6000,2.001754e-02,1794497955.968,4.9121,0.014376705,0.013928834,0,0.00032776942,5.2675794,5.3654737,1.1788186,-0.031147318\n7000,3.075463e-02,1794498088.791,4.9029,0.020611652,0.022825576,0,0.00025969418,5.2422361,5.3111816,1.2206087,0.075685879\n8000,4.774393e-02,1794498220.736,4.9002,0.029778927,0.037318879,0,0.00026283408,5.2324108,5.5152887,1.1657438,-0.056502725\n9000,7.006717e-02,1794498352.874,4.8972,0.040752915,0.056996569,0,0.00025559892,5.2402055,5.335495,1.2474819,-0.032747995\n10000,9.170328e-02,1794498485.689,4.8924,0.048097599,0.078077612,0,0.00025423903,5.2664877,5.2450436,1.2780508,0.15033788\n11000,1.084654e-01,1794498617.815,4.8907,0.051356826,0.095536528,0,0.00023713644,5.2965253,5.2677285,1.3242075,-0.24480449\n12000,1.199678e-01,1794498750.102,4.8888,0.053101661,0.10757554,0,0.0002325304,5.3299231,5.2682831,1.3817746,0.29907826\n13000,1.278572e-01,1794498883.803,4.8832,0.055073922,0.11538775,0,0.00024726383,5.3635733,5.2950928,1.3857918,-0.29599322\n14000,1.329882e-01,1794499015.961,4.8825,0.056713021,0.12028923,0,0.00023865319,5.3844005,5.2904591,1.4258421,0.22600468\n15000,1.359765e-01,1794499148.051,4.8820,0.057392152,0.12327108,0,0.00024803561,5.4052754,5.2983831,1.4231408,-0.113628\n16000,1.367227e-01,1794499281.408,4.8787,0.057221661,0.12417233,0,0.00029088141,5.4165411,5.3083122,1.45751,-0.02068415\n17000,1.358477e-01,1794499427.776,4.8476,0.058116318,0.12278879,0,0.00034059595,5.4234031,5.3240011,1.5056511,0.15726376\n18000,1.353328e-01,1794499559.999,4.8489,0.056920704,0.12278028,0,0.0003837657,5.4269125,5.3456627,1.502625,-0.27453125\n19000,1.350924e-01,1794499692.219,4.8501,0.055861383,0.1230019,0,0.00039125762,5.4284238,5.3661621,1.5068762,0.37522528\n20000,1.352851e-01,1794499824.546,4.8509,0.055702759,0.12328529,0,0.00033501896,5.430024,5.3810066,1.5069713,-0.45142181\n21000,1.354090e-01,1794499957.382,4.8508,0.055650212,0.12344494,0,0.00028687301,5.4391974,5.3997352,1.5096348,0.49738819\n22000,1.353180e-01,1794500090.004,4.8510,0.055841031,0.12325878,0,0.00022457384,5.4467507,5.4173735,1.5179936,-0.50655041\n23000,1.352339e-01,1794500222.635,4.8512,0.056196552,0.12300475,0,0.00021543959,5.4601749,5.4267132,1.4971853,0.48553913\n24000,1.353797e-01,1794500354.701,4.8522,0.05660127,0.12297951,0,0.0003031732,5.4681718,5.4359797,1.4936608,-0.42784972\n25000,1.357579e-01,1794500487.629,4.8519,0.057051389,0.12318826,0,0.00039803441,5.4714477,5.44204,1.476448,0.34223939\n26000,1.361680e-01,1794500619.250,4.8535,0.057410252,0.12347383,0,0.00050452512,5.4718595,5.4467202,1.481463,-0.23311932\n27000,1.364614e-01,1794500750.761,4.8551,0.057582868,0.12371709,0,0.00058472048,5.4688166,5.4496085,1.4849574,0.10729894\n28000,1.366709e-01,1794500882.504,4.8563,0.0575748,0.12395196,0,0.00062975247,5.4620287,5.4515697,1.4919698,0.021373609\n29000,1.368684e-01,1794501014.544,4.8570,0.057449366,0.1242277,0,0.00063766472,5.4534119,5.4529185,1.5034833,-0.14420868\n30000,1.370418e-01,1794501145.973,4.8584,0.057251156,0.12451005,0,0.00059749946,5.4428838,5.4539592,1.5129934,0.25958032\n31000,1.371141e-01,1794501278.046,4.8590,0.056979445,0.12471413,0,0.00052039415,5.437996,5.4545758,1.5238398,-0.35677065\n32000,1.370243e-01,1794501410.305,4.8593,0.056687248,0.1247486,0,0.00040818897,5.4379589,5.4550849,1.5315795,0.43278237\n33000,1.368431e-01,1794501542.573,4.8596,0.056495914,0.12463651,0,0.00028017214,5.4421142,5.4552213,1.5227753,-0.48541499\n34000,1.366959e-01,1794501674.260,4.8605,0.056498099,0.12447379,0,0.00020393384,5.4490819,5.4553625,1.5204597,0.50692953\n35000,1.366569e-01,1794501806.506,4.8608,0.056713651,0.12433291,0,0.00026280945,5.4570973,5.4555212,1.502776,-0.49678687\n36000,1.367050e-01,1794501938.669,4.8611,0.057079267,0.12421843,0,0.00040894702,5.4649254,5.4557191,1.4945025,0.45444875\n37000,1.367888e-01,1794502070.366,4.8619,0.057483476,0.12412429,0,0.0005609092,5.4718745,5.4558343,1.4851791,-0.37996863\n38000,1.369147e-01,1794502202.542,4.8622,0.057819392,0.12410697,0,0.00069040462,5.4745667,5.45584,1.4803613,0.28027819\n39000,1.371014e-01,1794502334.054,4.8630,0.058021464,0.12421876,0,0.00078411994,5.4722986,5.4558214,1.4847651,-0.16442284\n40000,1.373358e-01,1794502466.536,4.8630,0.05807337,0.12445321,0,0.0008303087,5.465536,5.4559072,1.4890365,0.037313724\n41000,1.375454e-01,1794502599.385,4.8626,0.057963415,0.12473561,0,0.0008257367,5.4560789,5.4560112,1.5006205,0.089085429\n42000,1.376770e-01,1794502731.241,4.8631,0.057708067,0.12499891,0,0.00076863747,5.4473361,5.4560491,1.516326,-0.20757532\n43000,1.377110e-01,1794502863.239,4.8635,0.05737233,0.12519081,0,0.00066228921,5.4411233,5.4560722,1.5231325,0.31316054\n44000,1.376656e-01,1794502999.452,4.8603,0.057045238,0.12529025,0,0.0005166688,5.4385491,5.456011,1.5298284,-0.39949315\n45000,1.375594e-01,1794503131.082,4.8610,0.056802039,0.12528413,0,0.0003485731,5.4400429,5.4560772,1.5273818,0.46259915\n46000,1.374056e-01,1794503263.339,4.8612,0.05670074,0.12516125,0,0.00021497176,5.4455529,5.4561546,1.5217902,-0.49954971\n47000,1.372366e-01,1794503395.602,4.8614,0.05678656,0.12493664,0,0.0002566669,5.4532631,5.4562136,1.5124157,0.50522141\n48000,1.371111e-01,1794503527.173,4.8621,0.057057694,0.12467505,0,0.00042554262,5.4625948,5.4562167,1.4991338,-0.47812679\n49000,1.370840e-01,1794503659.535,4.8621,0.05744194,0.12446869,0,0.00060680784,5.4698274,5.4561894,1.4892414,0.41985197\n50000,1.371687e-01,1794503791.176,4.8627,0.057827913,0.12438317,0,0.00076313489,5.4741532,5.4561996,1.482,-0.33236185\n51000,1.373266e-01,1794503923.270,4.8630,0.058108162,0.12442681,0,0.00087828495,5.4737554,5.4562712,1.4810001,0.22303777\n52000,1.375105e-01,1794504055.503,4.8631,0.058220012,0.1245776,0,0.00094199833,5.4692062,5.4562925,1.4867807,-0.10061649\n53000,1.376915e-01,1794504187.280,4.8636,0.058157169,0.12480659,0,0.00094861028,5.4613515,5.456312,1.4967565,-0.026158479\n54000,1.378515e-01,1794504318.931,4.8641,0.057955069,0.12507695,0,0.00089703386,5.4524082,5.4563083,1.5089853,0.1492153\n55000,1.379624e-01,1794504447.907,4.8664,0.057662615,0.12533419,0,0.00079032664,5.4439115,5.4563191,1.5204386,-0.26116019\n56000,1.379912e-01,1794504577.273,4.8683,0.0573322,0.12551728,0,0.00063667112,5.439185,5.4563619,1.5283355,0.35744552\n57000,1.379150e-01,1794504706.160,4.8705,0.057028598,0.12557184,0,0.0004510714,5.4384654,5.4563817,1.5313153,-0.43305348\n58000,1.377530e-01,1794504835.111,4.8726,0.056832794,0.12548273,0,0.00026864405,5.4425226,5.4563792,1.5269858,0.48361504\n59000,1.375577e-01,1794504963.991,4.8747,0.05681259,0.12527747,0,0.00021911283,5.4494989,5.4563861,1.5185712,-0.50550665\n60000,1.373941e-01,1794505092.886,4.8766,0.056991295,0.1250165,0,0.00037508082,5.4581741,5.4564009,1.5062726,0.49586986\n61000,1.373048e-01,1794505222.528,4.8781,0.057325223,0.12476554,0,0.0005745165,5.4662873,5.4564285,1.4946309,-0.45338644\n", "intervalo": 5, "pasta": "calor_quadrado45_semsolido_Re100_D20", "andamento": {"caso": "calor_quadrado45_semsolido_Re100_D20", "pasta": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_quadrado45_semsolido_Re100_D20", "pid": 34688, "situacao": "rodando", "inicio_unix": 1794497169.3345122, "atualizado_unix": 1794505222.014368, "decorrido_total_s": 8052.679855823517, "decorrido_execucao_s": 8052.679855823517, "it": 60998, "max_iter": 20000000, "it_por_s": 7.789709233220972, "progresso": 0.9966993464052288, "restante_s": 26.6660597272426}}/*__FIM__*/;
+
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("lbm3d:" + k); return v === null ? d : v; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem("lbm3d:" + k, v); } catch (e) {} }
+};
+
+function parseCSV(text) {
+  const meta = {}; let header = null; const rows = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (line.startsWith("#")) {
+      for (const tok of line.slice(1).trim().split(/\s+/)) {
+        const i = tok.indexOf("="); if (i > 0) meta[tok.slice(0, i)] = tok.slice(i + 1);
+      }
+      continue;
+    }
+    if (line.startsWith("it,")) { header = line.split(","); continue; }
+    if (!header) continue;
+    const v = line.split(",").map(Number);
+    if (v.length === header.length && v.every(Number.isFinite)) rows.push(v);
+  }
+  if (!header || !rows.length) return { meta, cols: null };
+  // reinicio a partir de checkpoint anterior: fica so a ultima passagem
+  let ini = 0;
+  for (let i = 1; i < rows.length; i++) if (rows[i][0] <= rows[i - 1][0]) ini = i;
+  const cols = {};
+  header.forEach((h, j) => { cols[h] = rows.slice(ini).map(r => r[j]); });
+  return { meta, cols };
+}
+
+function refs(meta) {
+  const r = {};
+  for (const k in meta) if (k.startsWith("ref_")) {
+    const [lo, hi] = meta[k].split(":").map(Number);
+    if (Number.isFinite(lo) && Number.isFinite(hi)) r[k.slice(4)] = [lo, hi];
+  }
+  return r;
+}
+
+function polyfit1(x, y) {
+  const n = x.length; let sx = 0, sy = 0, sxx = 0, sxy = 0;
+  for (let i = 0; i < n; i++) { sx += x[i]; sy += y[i]; sxx += x[i] * x[i]; sxy += x[i] * y[i]; }
+  const d = n * sxx - sx * sx; if (!d) return [NaN, NaN];
+  const a = (n * sxy - sx * sy) / d; return [a, (sy - a * sx) / n];
+}
+
+function diagnose(meta, c) {
+  const it = c.it, res = c.res, t = c.tempo_unix, N = it.length;
+  const tol = Number(meta.tol || 1e-7), steady = meta.steady !== "0";
+  const out = { it: it[N - 1], res: res[N - 1], tol, steady, rate: NaN, its: NaN, etaIt: NaN, etaS: NaN, fit: null };
+  const n = Math.min(20, N);
+  if (n >= 3) {
+    const xs = [], ys = [];
+    for (let i = N - n; i < N; i++) if (res[i] > 0) { xs.push(it[i]); ys.push(Math.log10(res[i])); }
+    if (xs.length >= 3) {
+      const [a, b] = polyfit1(xs, ys);
+      out.rate = -a * 1000;
+      const dt = t[N - 1] - t[N - n];
+      if (dt > 0) out.its = (it[N - 1] - it[N - n]) / dt;
+      if (steady && a < 0 && out.res > tol) {
+        out.etaIt = (Math.log10(tol) - Math.log10(out.res)) / a;
+        out.etaS = out.its > 0 ? out.etaIt / out.its : NaN;
+        out.fit = [a, b];
+      }
+    }
+  }
+  const age = Date.now() / 1000 - t[N - 1];
+  const limite = Math.max(120, out.its > 0 ? 5 * 100 / out.its : 120);
+  out.age = age;
+  out.state = !Number.isFinite(out.res) ? "bad" : (steady && out.res <= tol) ? "ok" : (age < limite ? "run" : "stop");
+  return out;
+}
+
+const fmtT = s => {
+  if (!Number.isFinite(s)) return "—";
+  s = Math.max(0, Math.round(s));
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60;
+  return h ? `${h} h ${String(m).padStart(2, "0")} min` : m ? `${m} min ${String(ss).padStart(2, "0")} s` : `${ss} s`;
+};
+const fmtE = v => Number.isFinite(v) ? v.toExponential(2).replace("e", "e") : "—";
+const fmtG = v => {
+  if (!Number.isFinite(v)) return "—";
+  const a = Math.abs(v);
+  return (a !== 0 && (a < 1e-3 || a >= 1e5)) ? v.toExponential(3) : Number(v.toPrecision(6)).toString();
+};
+const fmtInt = v => Number.isFinite(v) ? Math.round(v).toLocaleString("pt-BR") : "—";
+
+function el(tag, attrs = {}, parent) {
+  const ns = ["svg", "g", "line", "path", "rect", "text", "circle"].includes(tag) ? "http://www.w3.org/2000/svg" : null;
+  const e = ns ? document.createElementNS(ns, tag) : document.createElement(tag);
+  for (const k in attrs) {
+    if (k === "text") e.textContent = attrs[k]; else e.setAttribute(k, attrs[k]);
+  }
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+function niceTicks(lo, hi, n) {
+  if (!(hi > lo)) { const d = Math.abs(lo) * 0.01 || 1; lo -= d; hi += d; }
+  const span = hi - lo, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map(f => f * mag).find(s => s >= step0);
+  const ticks = []; for (let v = Math.ceil(lo / step) * step; v <= hi + step * 1e-9; v += step) ticks.push(+v.toPrecision(12));
+  return ticks;
+}
+
+function chart(card, x, y, o) {
+  // viewBox na largura real do cartao: texto sempre em pixels reais
+  const W = Math.max(280, card.clientWidth - 28), H = o.height || 220;
+  const m = { l: 62, r: (o.rightLabel || o.band || o.tol) ? 78 : 16, t: 10, b: 28 };
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": o.aria }, card);
+  const tip = el("div", { class: "tip" }, card);
+  const xi = x[0], xa = Math.max(x[x.length - 1], o.xmax || 0, xi + 1);
+  let ys = y.filter(Number.isFinite);
+  if (o.log) ys = ys.filter(v => v > 0);
+  if (!ys.length) return;
+  let ylo = Math.min(...ys), yhi = Math.max(...ys);
+  for (const v of (o.extraY || [])) if (Number.isFinite(v) && (!o.log || v > 0)) { ylo = Math.min(ylo, v); yhi = Math.max(yhi, v); }
+  let ty, Y;
+  if (o.log) {
+    const a = Math.floor(Math.log10(ylo)), b = Math.ceil(Math.log10(yhi) + 1e-9);
+    const lo = a === b ? a - 1 : a, hi = b;
+    Y = v => m.t + (H - m.t - m.b) * (hi - Math.log10(v)) / (hi - lo);
+    ty = []; const st = Math.max(1, Math.ceil((hi - lo) / 6)); for (let k = lo; k <= hi; k += st) ty.push(Math.pow(10, k));
+  } else {
+    const pad = (yhi - ylo) * 0.08 || Math.abs(yhi) * 0.01 || 1;
+    ty = niceTicks(ylo - pad, yhi + pad, 5);
+    const lo = Math.min(ty[0], ylo - pad), hi = Math.max(ty[ty.length - 1], yhi + pad);
+    Y = v => m.t + (H - m.t - m.b) * (hi - v) / (hi - lo);
+  }
+  const X = v => m.l + (W - m.l - m.r) * (v - xi) / (xa - xi);
+  const ax = el("g", { class: "axis" }, svg);
+  for (const v of ty) {
+    const yy = Y(v);
+    el("line", { class: "gridline", x1: m.l, x2: W - m.r, y1: yy, y2: yy }, ax);
+    el("text", { x: m.l - 8, y: yy + 4, "text-anchor": "end", text: o.log ? "1e" + Math.round(Math.log10(v)) : fmtG(v) }, ax);
+  }
+  for (const v of niceTicks(xi, xa, 6)) {
+    if (v < xi || v > xa) continue;
+    el("text", { x: X(v), y: H - 8, "text-anchor": "middle", text: fmtInt(v) }, ax);
+  }
+  el("line", { class: "baseline", x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b }, ax);
+  const top = m.t, bot = H - m.b, inside = yy => yy >= top - 0.5 && yy <= bot + 0.5;
+  if (o.band) {
+    const [lo, hi] = o.band, y1 = Math.max(top, Y(hi)), y2 = Math.min(bot, Y(lo));
+    if (hi > lo && y2 > y1) el("rect", { class: "band", x: m.l, width: W - m.l - m.r, y: y1, height: y2 - y1 }, svg);
+    for (const v of (hi > lo ? [lo, hi] : [lo])) if (inside(Y(v)))
+      el("line", { class: "bandedge", x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v) }, svg);
+    const ym = Y((lo + hi) / 2);
+    const lab = hi > lo ? "referência" : "ref. " + fmtG(lo);
+    if (inside(ym)) el("text", { class: "dlabel", x: W - m.r + 6, y: ym + 4, text: lab }, svg);
+    else el("text", { class: "dlabel", x: W - m.r + 6, y: ym < top ? top + 10 : bot - 4, text: lab + (ym < top ? " ↑" : " ↓") }, svg);
+  }
+  if (o.tol) {
+    el("line", { class: "tol", x1: m.l, x2: W - m.r, y1: Y(o.tol), y2: Y(o.tol) }, svg);
+    el("text", { class: "dlabel", x: W - m.r + 6, y: Y(o.tol) + 4, text: "tol " + o.tol.toExponential(0) }, svg);
+  }
+  if (o.fit) {
+    const [a, b] = o.fit, x0 = x[x.length - 1], x1 = Math.min(xa, (Math.log10(o.tol) - b) / a);
+    el("path", { class: "extrap", d: `M${X(x0)},${Y(Math.pow(10, a * x0 + b))}L${X(x1)},${Y(Math.pow(10, a * x1 + b))}` }, svg);
+  }
+  let d = "", pen = false;
+  for (let i = 0; i < x.length; i++) {
+    const v = y[i];
+    if (!Number.isFinite(v) || (o.log && v <= 0)) { pen = false; continue; }
+    d += (pen ? "L" : "M") + X(x[i]).toFixed(1) + "," + Y(v).toFixed(1); pen = true;
+  }
+  el("path", { class: "line", d }, svg);
+  if (o.rightLabel) {
+    const k = y.length - 1;
+    if (Number.isFinite(y[k])) el("text", { class: "dlabel", x: X(x[k]) + 6, y: Y(y[k]) - 6, text: o.rightLabel }, svg);
+  }
+  // camada de hover: linha vertical + ponto + tooltip
+  const cross = el("line", { class: "cross", y1: m.t, y2: H - m.b, visibility: "hidden" }, svg);
+  const dot = el("circle", { class: "hoverdot", r: 4.5, visibility: "hidden" }, svg);
+  const hit = el("rect", { x: m.l, y: 0, width: W - m.l - m.r, height: H, fill: "transparent", tabindex: 0 }, svg);
+  const show = clientX => {
+    const r = svg.getBoundingClientRect(), sx = (clientX - r.left) * W / r.width;
+    const xv = xi + (sx - m.l) / (W - m.l - m.r) * (xa - xi);
+    let lo = 0, hi = x.length - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (x[mid] < xv) lo = mid; else hi = mid; }
+    const i = Math.abs(x[lo] - xv) < Math.abs(x[hi] - xv) ? lo : hi;
+    if (!Number.isFinite(y[i]) || (o.log && y[i] <= 0)) return;
+    const px = X(x[i]), py = Y(y[i]);
+    cross.setAttribute("x1", px); cross.setAttribute("x2", px); cross.setAttribute("visibility", "visible");
+    dot.setAttribute("cx", px); dot.setAttribute("cy", py); dot.setAttribute("visibility", "visible");
+    tip.replaceChildren();
+    const l1 = el("div", {}, tip); el("span", { class: "k" }, l1); el("strong", { text: o.fmt(y[i]) }, l1);
+    el("span", { text: "  " + o.name }, l1);
+    el("div", { class: "sub", text: "iteração " + fmtInt(x[i]) }, tip);
+    tip.style.display = "block";
+    const cr = card.getBoundingClientRect(), cw = card.clientWidth;
+    const left = r.left - cr.left + px * r.width / W, topPx = r.top - cr.top + py * r.height / H;
+    tip.style.left = Math.min(Math.max(4, left + 12), cw - tip.offsetWidth - 4) + "px";
+    tip.style.top = Math.max(4, topPx - tip.offsetHeight - 10) + "px";
+  };
+  const hide = () => { tip.style.display = "none"; cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden"); };
+  hit.addEventListener("pointermove", e => show(e.clientX));
+  hit.addEventListener("pointerdown", e => show(e.clientX));
+  hit.addEventListener("pointerleave", hide);
+  hit.addEventListener("blur", hide);
+  hit.addEventListener("focus", () => { const r = svg.getBoundingClientRect(); show(r.right - 1); });
+}
+
+let STATE = { meta: {}, cols: null };
+let zoom = store.get("zoom", "terco");
+
+function tile(parent, lab, val, det) {
+  const t = el("div", { class: "tile" }, parent);
+  el("div", { class: "lab", text: lab }, t);
+  el("div", { class: "val", text: val }, t);
+  el("div", { class: "det", text: det || "" }, t);
+}
+
+function render() {
+  const { meta, cols: c } = STATE;
+  const charts = document.getElementById("charts"), tiles = document.getElementById("tiles");
+  charts.replaceChildren(); tiles.replaceChildren();
+  document.getElementById("titulo").textContent = "Convergência — " + (meta.caso || "LBM");
+  if (!c) {
+    el("div", { class: "card wide empty", text: "Aguardando o primeiro relatório (100 iterações)…" }, charts);
+    return;
+  }
+  const d = diagnose(meta, c), N = c.it.length;
+  const st = { run: "Rodando", ok: "Convergido", stop: "Parada ou pausada", bad: "Divergiu (NaN)" }[d.state];
+  const sEl = document.getElementById("status");
+  sEl.className = "status " + d.state;
+  document.getElementById("statusTxt").textContent = st;
+  document.getElementById("subtitulo").textContent =
+    `modelo ${meta.modelo || "?"} · pasta ${EMBED.pasta} · última leitura há ${fmtT(d.age)}`;
+  document.title = `${d.state === "ok" ? "✓" : d.state === "run" ? "▶" : "■"} ${meta.caso || ""} it ${d.it} — res ${fmtE(d.res)}`;
+
+  tile(tiles, "Iteração", fmtInt(d.it), meta.max_iter ? "máx. " + fmtInt(Number(meta.max_iter)) : "");
+  tile(tiles, "Resíduo", fmtE(d.res), d.steady ? "tolerância " + d.tol.toExponential(0) : "caso transiente");
+  tile(tiles, "Taxa de convergência", Number.isFinite(d.rate) ? d.rate.toFixed(3) : "—", "décadas / 1000 it (últimas 20 leituras)");
+  tile(tiles, "Velocidade", Number.isFinite(d.its) ? d.its.toFixed(2) + " it/s" : "—",
+       N ? (c.mlups[N - 1]).toFixed(2) + " MLUPS" : "");
+  if (d.steady) tile(tiles, "Tempo restante (estim.)",
+       d.state === "ok" ? "0" : fmtT(d.etaS),
+       d.state === "ok" ? "tolerância atingida" : Number.isFinite(d.etaIt) ? "~" + fmtInt(d.etaIt) + " it" : "resíduo não está caindo");
+
+  const card = el("div", { class: "card wide" }, charts);
+  el("h2", { text: "Resíduo ‖uⁿ − uⁿ⁻¹⁰⁰‖₂ / ‖uⁿ‖₂" }, card);
+  el("div", { class: "note", text: d.fit ? "linha pontilhada: extrapolação log-linear até a tolerância" : "" }, card);
+  chart(card, c.it, c.res, {
+    log: true, name: "resíduo", fmt: fmtE, height: 260, tol: d.steady ? d.tol : null, rightLabel: "resíduo",
+    extraY: d.steady ? [d.tol] : [], fit: d.fit, xmax: d.fit ? Math.min(c.it[N - 1] + d.etaIt, c.it[N - 1] * 3) : 0,
+    aria: "Resíduo de convergência em escala log versus iteração"
+  });
+
+  const R = refs(meta);
+  const extras = Object.keys(c).filter(k => !["it", "res", "tempo_unix", "mlups"].includes(k) && !k.startsWith("res_"));
+  const resComp = Object.keys(c).filter(k => k.startsWith("res_"));
+  const start = zoom === "terco" ? Math.max(0, Math.min(N - 5, Math.floor(N * 2 / 3))) : 0;
+  for (const k of extras) {
+    const v = c[k], cd = el("div", { class: "card" }, charts);
+    const last = v[N - 1], prev = N > 5 ? v[N - 6] : NaN;
+    const rel = Math.abs(last - prev) / Math.max(Math.abs(last), 1e-300);
+    el("h2", { text: `${k} = ${fmtG(last)}` }, cd);
+    let note = Number.isFinite(rel) ? `variação relativa em 500 it: ${rel.toExponential(1)}` : "";
+    if (R[k]) {
+      const [lo, hi] = R[k];
+      note += hi > lo ? ` · referência [${fmtG(lo)}, ${fmtG(hi)}]` : ` · referência ${fmtG(lo)} (erro ${(100 * (last - lo) / lo).toFixed(2)}%)`;
+    }
+    el("div", { class: "note", text: note }, cd);
+    chart(cd, c.it.slice(start), v.slice(start), {
+      name: k, fmt: fmtG, band: R[k], extraY: zoom === "tudo" && R[k] ? R[k] : [],
+      aria: `${k} versus iteração`
+    });
+  }
+
+  const tb = document.getElementById("tabela");
+  tb.replaceChildren();
+  const cols = ["it", "res", ...resComp, ...extras, "mlups"];
+  const hr = el("tr", {}, el("thead", {}, tb));
+  for (const k of cols) el("th", { text: k }, hr);
+  const body = el("tbody", {}, tb);
+  for (let i = N - 1; i >= Math.max(0, N - 30); i--) {
+    const tr = el("tr", {}, body);
+    for (const k of cols) el("td", { text: k === "it" ? fmtInt(c[k][i]) : k.startsWith("res") ? fmtE(c[k][i]) : fmtG(c[k][i]) }, tr);
+  }
+  document.getElementById("rodape").textContent =
+    `Gerado por lbm3d.py · ${N} leituras (uma a cada 100 iterações) · página atualizada às ${new Date().toLocaleTimeString("pt-BR")}`;
+}
+
+function setData(text) { STATE = parseCSV(text); render(); }
+
+// atualizacao: servido por http -> busca o CSV; aberto do disco -> recarrega a pagina
+const intervalo = Number(EMBED.intervalo) || 5;
+document.getElementById("intv").textContent = intervalo;
+const viaHttp = location.protocol.startsWith("http");
+document.getElementById("modo").textContent = viaHttp ? "· modo servidor (dados ao vivo)" : "· arquivo local (recarrega a página)";
+const auto = document.getElementById("auto");
+auto.checked = store.get("auto", "1") === "1";
+auto.addEventListener("change", () => { store.set("auto", auto.checked ? "1" : "0"); agenda(); });
+let timer = null;
+function agenda() {
+  clearTimeout(timer);
+  if (!auto.checked) return;
+  timer = setTimeout(async () => {
+    if (viaHttp) {
+      try { const r = await fetch("convergencia.csv?t=" + Date.now(), { cache: "no-store" }); if (r.ok) setData(await r.text()); }
+      catch (e) {}
+      agenda();
+    } else location.reload();
+  }, intervalo * 1000);
+}
+for (const b of document.querySelectorAll(".seg button")) {
+  b.setAttribute("aria-pressed", b.dataset.zoom === zoom ? "true" : "false");
+  b.addEventListener("click", () => {
+    zoom = b.dataset.zoom; store.set("zoom", zoom);
+    for (const o of document.querySelectorAll(".seg button")) o.setAttribute("aria-pressed", o === b ? "true" : "false");
+    render();
+  });
+}
+let rz = null;
+window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 150); });
+// contador do tempo de simulacao (andamento.json gravado pelo lbm3d.py a cada segundo)
+let ANDAMENTO = EMBED.andamento || null;
+function hms(s) { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  return h + "h" + String(m).padStart(2, "0") + "m" + String(x).padStart(2, "0") + "s"; }
+function contadorTick() {
+  const a = ANDAMENTO, el = document.getElementById("contadorTxt"), box = document.getElementById("contador");
+  if (!a) { el.textContent = "—"; return; }
+  const agora = Date.now() / 1000, atraso = agora - a.atualizado_unix;
+  const vivo = a.situacao === "rodando" && atraso < 120;
+  const total = a.decorrido_total_s + (vivo ? atraso : 0);
+  let t = hms(total) + " · it " + a.it;
+  if (a.it_por_s) t += " · " + a.it_por_s.toFixed(1) + " it/s";
+  if (a.progresso != null) t += " · " + Math.round(100 * a.progresso) + "%";
+  if (a.restante_s != null && vivo) t += " · restante ~" + hms(a.restante_s - atraso);
+  if (!vivo) t += " · " + (a.situacao === "rodando" ? "sem atualização" : a.situacao);
+  el.textContent = t;
+  box.className = "status " + (vivo ? "run" : a.situacao === "terminou" ? "ok" : "stop");
+}
+async function buscaAndamento() {
+  if (!viaHttp) return;
+  try { const r = await fetch("andamento.json?t=" + Date.now(), { cache: "no-store" }); if (r.ok) ANDAMENTO = await r.json(); }
+  catch (e) {}
+}
+setInterval(() => { contadorTick(); }, 1000);
+setInterval(buscaAndamento, 2000);
+contadorTick();
+setData(EMBED.csv);
+agenda();
+</script>
+</body>
+</html>

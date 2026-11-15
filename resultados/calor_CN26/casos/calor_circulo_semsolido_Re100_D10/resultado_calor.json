@@ -1,0 +1,29 @@
+{
+ "forma": "circulo",
+ "metodo": "sem_solido",
+ "Re": 100.0,
+ "Pr": 0.7296,
+ "D": 10,
+ "Ds_D": 40,
+ "U": 0.05,
+ "nu": 0.005,
+ "alfa": 0.006853070175438596,
+ "malha": [
+  402,
+  403,
+  1
+ ],
+ "nos_fluido": 142735,
+ "instantes": 30600,
+ "Nu": 5.113271842037852,
+ "tempo_D_U": 153.0,
+ "parada": "duracao de 153 D/U atingida",
+ "C_D_medio": 1.3596430003670967,
+ "Nu_ref": 5.210020923194892,
+ "dif_pct": 1.8569806644406266,
+ "periodo_passos": 602.5263157894736,
+ "Strouhal": 0.16628175519630484,
+ "ciclos_media": 9,
+ "Strouhal_Nu": 0.16596785464709993,
+ "C_L_rms": 0.23507502919776488
+}

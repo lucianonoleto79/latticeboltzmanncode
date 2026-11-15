@@ -1,0 +1,18 @@
+{
+ "caso": "calor",
+ "pasta": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re100_D14",
+ "it": 42840,
+ "residuo": 0.12957449545684918,
+ "residuos": {
+  "res": 0.12957449545684918,
+  "res_ux": 0.05504832717756206,
+  "res_uy": 0.1172997508430818,
+  "res_uz": 0.0,
+  "res_rho": 0.00019622886048680597
+ },
+ "tol": 1e-07,
+ "convergiu": true,
+ "terminou": true,
+ "divergiu": false,
+ "checkpoint": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re100_D14/checkpoint/checkpoint.npz"
+}

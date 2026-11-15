@@ -20,6 +20,8 @@
  "parada": "duracao de 131 D/U atingida",
  "C_D_medio": 1.6150260557044605,
  "periodo_passos": 904.8181818181819,
- "Strouhal": 0.2210388827489199,
- "ciclos_media": 9
+ "Strouhal": 0.2209389907105197,
+ "ciclos_media": 9,
+ "Strouhal_Nu": 0.2210388827489199,
+ "C_L_rms": 0.6603932725564561
 }

@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convergência LBM</title>
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f4f3f0;
+  --surface-1: #fcfcfb;
+  --border: #e3e2dd;
+  --grid: #ecebe7;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #7a7974;
+  --series-1: #2a78d6;
+  --band: rgba(27, 175, 122, 0.16);
+  --band-edge: #1baf7a;
+  --good: #008300;
+  --warning: #b87900;
+  --critical: #d03b3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0: #121211;
+    --surface-1: #1a1a19;
+    --border: #2e2d2b;
+    --grid: #262624;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #8f8e86;
+    --series-1: #3987e5;
+    --band: rgba(25, 158, 112, 0.22);
+    --band-edge: #199e70;
+    --good: #3fae3f;
+    --warning: #d9a03a;
+    --critical: #e66767;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #121211;
+  --surface-1: #1a1a19;
+  --border: #2e2d2b;
+  --grid: #262624;
+  --text-primary: #f0efec;
+  --text-secondary: #c3c2b7;
+  --text-muted: #8f8e86;
+  --series-1: #3987e5;
+  --band: rgba(25, 158, 112, 0.22);
+  --band-edge: #199e70;
+  --good: #3fae3f;
+  --warning: #d9a03a;
+  --critical: #e66767;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--surface-0); color: var(--text-primary);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 1120px; margin: 0 auto; padding: 20px 16px 40px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 14px; }
+h1 { font-size: 20px; margin: 0; font-weight: 650; }
+.sub { color: var(--text-secondary); }
+.status { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; padding: 2px 10px;
+  border-radius: 999px; border: 1px solid var(--border); background: var(--surface-1); }
+.status .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+.status.run { color: var(--series-1); }
+.status.ok { color: var(--good); }
+.status.stop { color: var(--warning); }
+.status.bad { color: var(--critical); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+.tile .lab { color: var(--text-secondary); font-size: 12px; }
+.tile .val { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.tile .det { color: var(--text-muted); font-size: 12px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin: 4px 0 12px; color: var(--text-secondary); }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface-1); color: var(--text-secondary); padding: 5px 12px; cursor: pointer; font: inherit; }
+.seg button[aria-pressed="true"] { background: var(--series-1); color: #fff; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 12px; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px 8px; position: relative; min-width: 0; }
+.card.wide { grid-column: 1 / -1; }
+.card h2 { font-size: 14px; margin: 0; font-weight: 600; }
+.card .note { color: var(--text-muted); font-size: 12px; min-height: 17px; }
+svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: none; }
+.axis text { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.gridline { stroke: var(--grid); stroke-width: 1; }
+.baseline { stroke: var(--border); stroke-width: 1; }
+.line { fill: none; stroke: var(--series-1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.tol { stroke: var(--text-secondary); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.extrap { fill: none; stroke: var(--series-1); stroke-width: 1.5; stroke-dasharray: 2 4; opacity: .8; }
+.band { fill: var(--band); }
+.bandedge { stroke: var(--band-edge); stroke-width: 1; stroke-dasharray: 3 3; }
+.dlabel { fill: var(--text-secondary); font-size: 11px; }
+.cross { stroke: var(--text-muted); stroke-width: 1; }
+.hoverdot { fill: var(--series-1); stroke: var(--surface-1); stroke-width: 2; }
+.tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
+  white-space: nowrap; display: none; z-index: 5; }
+.tip strong { font-variant-numeric: tabular-nums; }
+.tip .k { display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--series-1); vertical-align: middle; margin-right: 6px; }
+details { margin-top: 14px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; }
+summary { cursor: pointer; color: var(--text-secondary); }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 12px; }
+th, td { text-align: right; padding: 3px 8px; border-bottom: 1px solid var(--grid); }
+th { color: var(--text-secondary); font-weight: 600; }
+.tablewrap { overflow-x: auto; }
+footer { color: var(--text-muted); font-size: 12px; margin-top: 14px; }
+.empty { padding: 40px; text-align: center; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 id="titulo">Convergência LBM</h1>
+    <span class="status" id="status"><span class="dot"></span><span id="statusTxt">—</span></span>
+    <span class="sub" id="subtitulo"></span>
+    <span class="status run" id="contador" title="Tempo de simulação (contador do lbm3d.py)">⏱ <span id="contadorTxt">—</span></span>
+  </header>
+  <section class="tiles" id="tiles"></section>
+  <div class="controls">
+    <span>Grandezas:</span>
+    <div class="seg" role="group" aria-label="Janela das grandezas">
+      <button data-zoom="tudo" aria-pressed="false">Tudo</button>
+      <button data-zoom="terco" aria-pressed="true">Último terço</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="auto" checked> Atualização automática (<span id="intv"></span> s)</label>
+    <span id="modo"></span>
+  </div>
+  <section class="grid" id="charts"></section>
+  <details>
+    <summary>Tabela (últimas 30 leituras)</summary>
+    <div class="tablewrap"><table id="tabela"></table></div>
+  </details>
+  <footer id="rodape"></footer>
+</main>
+<script>
+const EMBED = /*__DADOS__*/{"csv": "# caso=calor tol=1e-07 max_iter=20000000 steady=0 modelo=k17 ref_Nu=7.24382:7.24382\nit,res,tempo_unix,mlups,res_ux,res_uy,res_uz,res_rho,Nu_inst,Nu,C_D,C_L\n1000,5.727840e-02,1794508613.509,4.6342,0.048805822,0.0299801,0,0.0010793106,8.6841009,8.5300041,2.2299534,-0.020089498\n2000,3.613243e-02,1794508692.136,4.6255,0.030863477,0.018788247,0,0.001490345,7.7435256,7.8463808,1.5653899,0.0040783518\n3000,2.737674e-02,1794508770.720,4.6235,0.023277554,0.014409769,0,0.0011269778,7.3489576,7.8744469,1.1288771,-0.08967861\n4000,2.536423e-02,1794508848.965,4.6274,0.020654328,0.014722189,0,0.00088969304,7.1098199,7.2700336,0.89965088,0.096780597\n5000,3.408761e-02,1794508927.839,4.6224,0.02602517,0.022014891,0,0.00071978308,6.9222381,7.0960273,1.2614965,0.092469841\n6000,5.387273e-02,1794509006.022,4.6258,0.036491959,0.039630899,0,0.00058120733,6.8004999,7.2499151,0.84207769,-0.30849934\n7000,9.551313e-02,1794509084.801,4.6232,0.062933898,0.071847633,0,0.00055326194,6.7788869,7.0888789,1.1038084,0.25565539\n8000,1.387302e-01,1794509162.788,4.6272,0.079342618,0.11380171,0,0.00053003739,6.8283357,6.9145572,1.1834953,-0.17793859\n9000,1.688308e-01,1794509241.424,4.6259,0.081869393,0.14765238,0,0.00046042412,6.9256183,6.8310846,1.2690366,0.172069\n10000,1.821123e-01,1794509319.891,4.6260,0.083932937,0.16161732,0,0.00046146091,6.9787204,6.9092278,1.2758534,-0.17404852\n11000,1.875794e-01,1794509398.082,4.6275,0.088562711,0.16535623,0,0.00040928071,7.0287983,6.9816738,1.2484079,0.13512223\n12000,1.930093e-01,1794509476.553,4.6274,0.093213175,0.16900859,0,0.00043325387,7.0704803,6.9287634,1.2486533,-0.090682824\n13000,1.948781e-01,1794509554.751,4.6285,0.093626131,0.17091403,0,0.00044712836,7.1073722,6.9232446,1.2883255,0.045633099\n14000,1.913214e-01,1794509634.940,4.6211,0.093730872,0.16678852,0,0.00036112599,7.1276696,6.9369128,1.3134624,-0.0089885484\n15000,1.886369e-01,1794509713.635,4.6214,0.09000485,0.16578003,0,0.00056633891,7.1398588,6.9742231,1.2735457,-0.029252149\n16000,1.932681e-01,1794509792.874,4.6180,0.092276807,0.1698162,0,0.00032598539,7.1299742,7.0015204,1.3365535,0.081651389\n17000,1.955774e-01,1794509871.492,4.6180,0.090979605,0.17312776,0,0.00054792646,7.1389507,7.0430573,1.308387,-0.12567922\n18000,1.960602e-01,1794509949.445,4.6201,0.090194901,0.17408181,0,0.00032303169,7.1482682,7.07398,1.3479167,0.15121066\n19000,1.969103e-01,1794510028.033,4.6201,0.090751577,0.17475075,0,0.00046692451,7.1402204,7.100269,1.3120526,-0.18662807\n20000,1.981072e-01,1794510106.254,4.6211,0.091914703,0.17549402,0,0.00032749263,7.1272747,7.1164206,1.3431509,0.23183914\n21000,1.982057e-01,1794510194.831,4.5932,0.092190155,0.17546074,0,0.00041490315,7.1334403,7.1297056,1.3333815,-0.26854867\n22000,1.978461e-01,1794510273.677,4.5937,0.091806558,0.17525597,0,0.00036171649,7.1387365,7.1387569,1.3482256,0.29775776\n23000,1.982054e-01,1794510352.277,4.5948,0.091966507,0.17557776,0,0.0004152311,7.1297758,7.1447744,1.3398518,-0.33312494\n24000,1.986347e-01,1794510430.335,4.5971,0.092206104,0.17593682,0,0.00040120924,7.1201988,7.1469487,1.3498648,0.36997432\n25000,1.984602e-01,1794510508.931,4.5979,0.091859957,0.17592099,0,0.00040258729,7.1252959,7.1488396,1.3622889,-0.3964307\n26000,1.982372e-01,1794510585.537,4.6032,0.091409205,0.1759044,0,0.000378412,7.1285399,7.1513649,1.3555823,0.41874656\n27000,1.984071e-01,1794510663.795,4.6045,0.09132835,0.17613779,0,0.00034974622,7.1181841,7.1521056,1.3789445,-0.44904435\n28000,1.985559e-01,1794510742.068,4.6057,0.091224624,0.17635904,0,0.00034281521,7.1150432,7.1517524,1.365935,0.47693623\n29000,1.983535e-01,1794510819.983,4.6075,0.09082077,0.17633967,0,0.00033184021,7.1204171,7.1520482,1.3754101,-0.49884788\n30000,1.982126e-01,1794510898.156,4.6087,0.090505047,0.17634361,0,0.00034838462,7.1235224,7.1532689,1.375231,0.520597\n31000,1.983062e-01,1794510976.402,4.6097,0.090422632,0.17649105,0,0.00035531571,7.1182271,7.1531281,1.3849258,-0.54517784\n32000,1.983283e-01,1794511054.752,4.6104,0.090245395,0.1766066,0,0.0003768642,7.1176911,7.1527547,1.3856138,0.56769808\n33000,1.981769e-01,1794511132.342,4.6124,0.089942232,0.17659122,0,0.00037338105,7.1236953,7.1531999,1.3829491,-0.58545152\n34000,1.980683e-01,1794511210.662,4.6131,0.089729292,0.17657772,0,0.0003676447,7.125195,7.1536086,1.383893,0.60189993\n35000,1.981114e-01,1794511289.182,4.6134,0.089638288,0.17667236,0,0.00034774766,7.1238441,7.1532964,1.3867298,-0.61915047\n36000,1.980605e-01,1794511367.224,4.6144,0.089492838,0.17668897,0,0.00033745582,7.1258357,7.1528744,1.3841157,0.63329407\n37000,1.978951e-01,1794511445.457,4.6151,0.089336334,0.17658285,0,0.00032434498,7.1306536,7.1533095,1.3893995,-0.64506571\n38000,1.977959e-01,1794511523.263,4.6164,0.089274168,0.17650306,0,0.00032341329,7.1326324,7.1535881,1.3868917,0.65607964\n39000,1.977812e-01,1794511600.405,4.6187,0.089266368,0.1764906,0,0.00032488821,7.1335498,7.1534071,1.3854718,-0.66531298\n40000,1.977040e-01,1794511678.270,4.6197,0.089237676,0.17641857,0,0.00033107174,7.1373125,7.1532946,1.3845301,0.67199472\n41000,1.975582e-01,1794511754.831,4.6226,0.089223764,0.17626217,0,0.00033094624,7.1415443,7.1534557,1.3815876,-0.67614741\n42000,1.974875e-01,1794511831.399,4.6254,0.089284061,0.17615235,0,0.00032684871,7.1439285,7.153533,1.3816244,0.67821975\n43000,1.974646e-01,1794511907.948,4.6280,0.089384765,0.1760757,0,0.00031645869,7.1463142,7.1533242,1.3756701,-0.67777574\n44000,1.973869e-01,1794511984.386,4.6307,0.089488302,0.17593585,0,0.00030387869,7.1501872,7.1532668,1.3762293,0.6744473\n45000,1.972896e-01,1794512060.857,4.6332,0.089625489,0.17575682,0,0.00029156244,7.1544182,7.1534079,1.3695111,-0.6690037\n46000,1.972490e-01,1794512137.330,4.6356,0.089821849,0.17561098,0,0.00028320669,7.1575915,7.1534347,1.3660244,0.66195662\n47000,1.972390e-01,1794512213.582,4.6382,0.090046144,0.17548476,0,0.00027885574,7.1608284,7.1533265,1.3629262,-0.65290395\n48000,1.971948e-01,1794512290.024,4.6405,0.09026959,0.17532025,0,0.00027723529,7.1646953,7.1533506,1.3576006,0.64161299\n49000,1.971541e-01,1794512366.390,4.6427,0.090509643,0.17515065,0,0.00027642929,7.1681395,7.1534387,1.3537796,-0.62852619\n50000,1.971617e-01,1794512442.965,4.6446,0.090789353,0.17501433,0,0.00027430003,7.1709884,7.1534315,1.3478237,0.61334527\n51000,1.971809e-01,1794512519.960,4.6460,0.091078607,0.1748857,0,0.00027008769,7.1738158,7.1533535,1.3435174,-0.59626063\n52000,1.971890e-01,1794512596.293,4.6481,0.091360091,0.17474791,0,0.00026445546,7.1768052,7.1533572,1.3384644,0.57729668\n", "intervalo": 5, "pasta": "calor_circulo_semsolido_Re200_D20", "andamento": {"caso": "calor_circulo_semsolido_Re200_D20", "pasta": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re200_D20", "pid": 6885, "situacao": "rodando", "inicio_unix": 1794508535.1773481, "atualizado_unix": 1794512595.9243221, "decorrido_total_s": 4060.746973991394, "decorrido_execucao_s": 4060.746973991394, "it": 51997, "max_iter": 20000000, "it_por_s": 13.141363132882294, "progresso": 0.9923091603053436, "restante_s": 31.473106305558826}}/*__FIM__*/;
+
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("lbm3d:" + k); return v === null ? d : v; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem("lbm3d:" + k, v); } catch (e) {} }
+};
+
+function parseCSV(text) {
+  const meta = {}; let header = null; const rows = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (line.startsWith("#")) {
+      for (const tok of line.slice(1).trim().split(/\s+/)) {
+        const i = tok.indexOf("="); if (i > 0) meta[tok.slice(0, i)] = tok.slice(i + 1);
+      }
+      continue;
+    }
+    if (line.startsWith("it,")) { header = line.split(","); continue; }
+    if (!header) continue;
+    const v = line.split(",").map(Number);
+    if (v.length === header.length && v.every(Number.isFinite)) rows.push(v);
+  }
+  if (!header || !rows.length) return { meta, cols: null };
+  // reinicio a partir de checkpoint anterior: fica so a ultima passagem
+  let ini = 0;
+  for (let i = 1; i < rows.length; i++) if (rows[i][0] <= rows[i - 1][0]) ini = i;
+  const cols = {};
+  header.forEach((h, j) => { cols[h] = rows.slice(ini).map(r => r[j]); });
+  return { meta, cols };
+}
+
+function refs(meta) {
+  const r = {};
+  for (const k in meta) if (k.startsWith("ref_")) {
+    const [lo, hi] = meta[k].split(":").map(Number);
+    if (Number.isFinite(lo) && Number.isFinite(hi)) r[k.slice(4)] = [lo, hi];
+  }
+  return r;
+}
+
+function polyfit1(x, y) {
+  const n = x.length; let sx = 0, sy = 0, sxx = 0, sxy = 0;
+  for (let i = 0; i < n; i++) { sx += x[i]; sy += y[i]; sxx += x[i] * x[i]; sxy += x[i] * y[i]; }
+  const d = n * sxx - sx * sx; if (!d) return [NaN, NaN];
+  const a = (n * sxy - sx * sy) / d; return [a, (sy - a * sx) / n];
+}
+
+function diagnose(meta, c) {
+  const it = c.it, res = c.res, t = c.tempo_unix, N = it.length;
+  const tol = Number(meta.tol || 1e-7), steady = meta.steady !== "0";
+  const out = { it: it[N - 1], res: res[N - 1], tol, steady, rate: NaN, its: NaN, etaIt: NaN, etaS: NaN, fit: null };
+  const n = Math.min(20, N);
+  if (n >= 3) {
+    const xs = [], ys = [];
+    for (let i = N - n; i < N; i++) if (res[i] > 0) { xs.push(it[i]); ys.push(Math.log10(res[i])); }
+    if (xs.length >= 3) {
+      const [a, b] = polyfit1(xs, ys);
+      out.rate = -a * 1000;
+      const dt = t[N - 1] - t[N - n];
+      if (dt > 0) out.its = (it[N - 1] - it[N - n]) / dt;
+      if (steady && a < 0 && out.res > tol) {
+        out.etaIt = (Math.log10(tol) - Math.log10(out.res)) / a;
+        out.etaS = out.its > 0 ? out.etaIt / out.its : NaN;
+        out.fit = [a, b];
+      }
+    }
+  }
+  const age = Date.now() / 1000 - t[N - 1];
+  const limite = Math.max(120, out.its > 0 ? 5 * 100 / out.its : 120);
+  out.age = age;
+  out.state = !Number.isFinite(out.res) ? "bad" : (steady && out.res <= tol) ? "ok" : (age < limite ? "run" : "stop");
+  return out;
+}
+
+const fmtT = s => {
+  if (!Number.isFinite(s)) return "—";
+  s = Math.max(0, Math.round(s));
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60;
+  return h ? `${h} h ${String(m).padStart(2, "0")} min` : m ? `${m} min ${String(ss).padStart(2, "0")} s` : `${ss} s`;
+};
+const fmtE = v => Number.isFinite(v) ? v.toExponential(2).replace("e", "e") : "—";
+const fmtG = v => {
+  if (!Number.isFinite(v)) return "—";
+  const a = Math.abs(v);
+  return (a !== 0 && (a < 1e-3 || a >= 1e5)) ? v.toExponential(3) : Number(v.toPrecision(6)).toString();
+};
+const fmtInt = v => Number.isFinite(v) ? Math.round(v).toLocaleString("pt-BR") : "—";
+
+function el(tag, attrs = {}, parent) {
+  const ns = ["svg", "g", "line", "path", "rect", "text", "circle"].includes(tag) ? "http://www.w3.org/2000/svg" : null;
+  const e = ns ? document.createElementNS(ns, tag) : document.createElement(tag);
+  for (const k in attrs) {
+    if (k === "text") e.textContent = attrs[k]; else e.setAttribute(k, attrs[k]);
+  }
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+function niceTicks(lo, hi, n) {
+  if (!(hi > lo)) { const d = Math.abs(lo) * 0.01 || 1; lo -= d; hi += d; }
+  const span = hi - lo, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map(f => f * mag).find(s => s >= step0);
+  const ticks = []; for (let v = Math.ceil(lo / step) * step; v <= hi + step * 1e-9; v += step) ticks.push(+v.toPrecision(12));
+  return ticks;
+}
+
+function chart(card, x, y, o) {
+  // viewBox na largura real do cartao: texto sempre em pixels reais
+  const W = Math.max(280, card.clientWidth - 28), H = o.height || 220;
+  const m = { l: 62, r: (o.rightLabel || o.band || o.tol) ? 78 : 16, t: 10, b: 28 };
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": o.aria }, card);
+  const tip = el("div", { class: "tip" }, card);
+  const xi = x[0], xa = Math.max(x[x.length - 1], o.xmax || 0, xi + 1);
+  let ys = y.filter(Number.isFinite);
+  if (o.log) ys = ys.filter(v => v > 0);
+  if (!ys.length) return;
+  let ylo = Math.min(...ys), yhi = Math.max(...ys);
+  for (const v of (o.extraY || [])) if (Number.isFinite(v) && (!o.log || v > 0)) { ylo = Math.min(ylo, v); yhi = Math.max(yhi, v); }
+  let ty, Y;
+  if (o.log) {
+    const a = Math.floor(Math.log10(ylo)), b = Math.ceil(Math.log10(yhi) + 1e-9);
+    const lo = a === b ? a - 1 : a, hi = b;
+    Y = v => m.t + (H - m.t - m.b) * (hi - Math.log10(v)) / (hi - lo);
+    ty = []; const st = Math.max(1, Math.ceil((hi - lo) / 6)); for (let k = lo; k <= hi; k += st) ty.push(Math.pow(10, k));
+  } else {
+    const pad = (yhi - ylo) * 0.08 || Math.abs(yhi) * 0.01 || 1;
+    ty = niceTicks(ylo - pad, yhi + pad, 5);
+    const lo = Math.min(ty[0], ylo - pad), hi = Math.max(ty[ty.length - 1], yhi + pad);
+    Y = v => m.t + (H - m.t - m.b) * (hi - v) / (hi - lo);
+  }
+  const X = v => m.l + (W - m.l - m.r) * (v - xi) / (xa - xi);
+  const ax = el("g", { class: "axis" }, svg);
+  for (const v of ty) {
+    const yy = Y(v);
+    el("line", { class: "gridline", x1: m.l, x2: W - m.r, y1: yy, y2: yy }, ax);
+    el("text", { x: m.l - 8, y: yy + 4, "text-anchor": "end", text: o.log ? "1e" + Math.round(Math.log10(v)) : fmtG(v) }, ax);
+  }
+  for (const v of niceTicks(xi, xa, 6)) {
+    if (v < xi || v > xa) continue;
+    el("text", { x: X(v), y: H - 8, "text-anchor": "middle", text: fmtInt(v) }, ax);
+  }
+  el("line", { class: "baseline", x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b }, ax);
+  const top = m.t, bot = H - m.b, inside = yy => yy >= top - 0.5 && yy <= bot + 0.5;
+  if (o.band) {
+    const [lo, hi] = o.band, y1 = Math.max(top, Y(hi)), y2 = Math.min(bot, Y(lo));
+    if (hi > lo && y2 > y1) el("rect", { class: "band", x: m.l, width: W - m.l - m.r, y: y1, height: y2 - y1 }, svg);
+    for (const v of (hi > lo ? [lo, hi] : [lo])) if (inside(Y(v)))
+      el("line", { class: "bandedge", x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v) }, svg);
+    const ym = Y((lo + hi) / 2);
+    const lab = hi > lo ? "referência" : "ref. " + fmtG(lo);
+    if (inside(ym)) el("text", { class: "dlabel", x: W - m.r + 6, y: ym + 4, text: lab }, svg);
+    else el("text", { class: "dlabel", x: W - m.r + 6, y: ym < top ? top + 10 : bot - 4, text: lab + (ym < top ? " ↑" : " ↓") }, svg);
+  }
+  if (o.tol) {
+    el("line", { class: "tol", x1: m.l, x2: W - m.r, y1: Y(o.tol), y2: Y(o.tol) }, svg);
+    el("text", { class: "dlabel", x: W - m.r + 6, y: Y(o.tol) + 4, text: "tol " + o.tol.toExponential(0) }, svg);
+  }
+  if (o.fit) {
+    const [a, b] = o.fit, x0 = x[x.length - 1], x1 = Math.min(xa, (Math.log10(o.tol) - b) / a);
+    el("path", { class: "extrap", d: `M${X(x0)},${Y(Math.pow(10, a * x0 + b))}L${X(x1)},${Y(Math.pow(10, a * x1 + b))}` }, svg);
+  }
+  let d = "", pen = false;
+  for (let i = 0; i < x.length; i++) {
+    const v = y[i];
+    if (!Number.isFinite(v) || (o.log && v <= 0)) { pen = false; continue; }
+    d += (pen ? "L" : "M") + X(x[i]).toFixed(1) + "," + Y(v).toFixed(1); pen = true;
+  }
+  el("path", { class: "line", d }, svg);
+  if (o.rightLabel) {
+    const k = y.length - 1;
+    if (Number.isFinite(y[k])) el("text", { class: "dlabel", x: X(x[k]) + 6, y: Y(y[k]) - 6, text: o.rightLabel }, svg);
+  }
+  // camada de hover: linha vertical + ponto + tooltip
+  const cross = el("line", { class: "cross", y1: m.t, y2: H - m.b, visibility: "hidden" }, svg);
+  const dot = el("circle", { class: "hoverdot", r: 4.5, visibility: "hidden" }, svg);
+  const hit = el("rect", { x: m.l, y: 0, width: W - m.l - m.r, height: H, fill: "transparent", tabindex: 0 }, svg);
+  const show = clientX => {
+    const r = svg.getBoundingClientRect(), sx = (clientX - r.left) * W / r.width;
+    const xv = xi + (sx - m.l) / (W - m.l - m.r) * (xa - xi);
+    let lo = 0, hi = x.length - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (x[mid] < xv) lo = mid; else hi = mid; }
+    const i = Math.abs(x[lo] - xv) < Math.abs(x[hi] - xv) ? lo : hi;
+    if (!Number.isFinite(y[i]) || (o.log && y[i] <= 0)) return;
+    const px = X(x[i]), py = Y(y[i]);
+    cross.setAttribute("x1", px); cross.setAttribute("x2", px); cross.setAttribute("visibility", "visible");
+    dot.setAttribute("cx", px); dot.setAttribute("cy", py); dot.setAttribute("visibility", "visible");
+    tip.replaceChildren();
+    const l1 = el("div", {}, tip); el("span", { class: "k" }, l1); el("strong", { text: o.fmt(y[i]) }, l1);
+    el("span", { text: "  " + o.name }, l1);
+    el("div", { class: "sub", text: "iteração " + fmtInt(x[i]) }, tip);
+    tip.style.display = "block";
+    const cr = card.getBoundingClientRect(), cw = card.clientWidth;
+    const left = r.left - cr.left + px * r.width / W, topPx = r.top - cr.top + py * r.height / H;
+    tip.style.left = Math.min(Math.max(4, left + 12), cw - tip.offsetWidth - 4) + "px";
+    tip.style.top = Math.max(4, topPx - tip.offsetHeight - 10) + "px";
+  };
+  const hide = () => { tip.style.display = "none"; cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden"); };
+  hit.addEventListener("pointermove", e => show(e.clientX));
+  hit.addEventListener("pointerdown", e => show(e.clientX));
+  hit.addEventListener("pointerleave", hide);
+  hit.addEventListener("blur", hide);
+  hit.addEventListener("focus", () => { const r = svg.getBoundingClientRect(); show(r.right - 1); });
+}
+
+let STATE = { meta: {}, cols: null };
+let zoom = store.get("zoom", "terco");
+
+function tile(parent, lab, val, det) {
+  const t = el("div", { class: "tile" }, parent);
+  el("div", { class: "lab", text: lab }, t);
+  el("div", { class: "val", text: val }, t);
+  el("div", { class: "det", text: det || "" }, t);
+}
+
+function render() {
+  const { meta, cols: c } = STATE;
+  const charts = document.getElementById("charts"), tiles = document.getElementById("tiles");
+  charts.replaceChildren(); tiles.replaceChildren();
+  document.getElementById("titulo").textContent = "Convergência — " + (meta.caso || "LBM");
+  if (!c) {
+    el("div", { class: "card wide empty", text: "Aguardando o primeiro relatório (100 iterações)…" }, charts);
+    return;
+  }
+  const d = diagnose(meta, c), N = c.it.length;
+  const st = { run: "Rodando", ok: "Convergido", stop: "Parada ou pausada", bad: "Divergiu (NaN)" }[d.state];
+  const sEl = document.getElementById("status");
+  sEl.className = "status " + d.state;
+  document.getElementById("statusTxt").textContent = st;
+  document.getElementById("subtitulo").textContent =
+    `modelo ${meta.modelo || "?"} · pasta ${EMBED.pasta} · última leitura há ${fmtT(d.age)}`;
+  document.title = `${d.state === "ok" ? "✓" : d.state === "run" ? "▶" : "■"} ${meta.caso || ""} it ${d.it} — res ${fmtE(d.res)}`;
+
+  tile(tiles, "Iteração", fmtInt(d.it), meta.max_iter ? "máx. " + fmtInt(Number(meta.max_iter)) : "");
+  tile(tiles, "Resíduo", fmtE(d.res), d.steady ? "tolerância " + d.tol.toExponential(0) : "caso transiente");
+  tile(tiles, "Taxa de convergência", Number.isFinite(d.rate) ? d.rate.toFixed(3) : "—", "décadas / 1000 it (últimas 20 leituras)");
+  tile(tiles, "Velocidade", Number.isFinite(d.its) ? d.its.toFixed(2) + " it/s" : "—",
+       N ? (c.mlups[N - 1]).toFixed(2) + " MLUPS" : "");
+  if (d.steady) tile(tiles, "Tempo restante (estim.)",
+       d.state === "ok" ? "0" : fmtT(d.etaS),
+       d.state === "ok" ? "tolerância atingida" : Number.isFinite(d.etaIt) ? "~" + fmtInt(d.etaIt) + " it" : "resíduo não está caindo");
+
+  const card = el("div", { class: "card wide" }, charts);
+  el("h2", { text: "Resíduo ‖uⁿ − uⁿ⁻¹⁰⁰‖₂ / ‖uⁿ‖₂" }, card);
+  el("div", { class: "note", text: d.fit ? "linha pontilhada: extrapolação log-linear até a tolerância" : "" }, card);
+  chart(card, c.it, c.res, {
+    log: true, name: "resíduo", fmt: fmtE, height: 260, tol: d.steady ? d.tol : null, rightLabel: "resíduo",
+    extraY: d.steady ? [d.tol] : [], fit: d.fit, xmax: d.fit ? Math.min(c.it[N - 1] + d.etaIt, c.it[N - 1] * 3) : 0,
+    aria: "Resíduo de convergência em escala log versus iteração"
+  });
+
+  const R = refs(meta);
+  const extras = Object.keys(c).filter(k => !["it", "res", "tempo_unix", "mlups"].includes(k) && !k.startsWith("res_"));
+  const resComp = Object.keys(c).filter(k => k.startsWith("res_"));
+  const start = zoom === "terco" ? Math.max(0, Math.min(N - 5, Math.floor(N * 2 / 3))) : 0;
+  for (const k of extras) {
+    const v = c[k], cd = el("div", { class: "card" }, charts);
+    const last = v[N - 1], prev = N > 5 ? v[N - 6] : NaN;
+    const rel = Math.abs(last - prev) / Math.max(Math.abs(last), 1e-300);
+    el("h2", { text: `${k} = ${fmtG(last)}` }, cd);
+    let note = Number.isFinite(rel) ? `variação relativa em 500 it: ${rel.toExponential(1)}` : "";
+    if (R[k]) {
+      const [lo, hi] = R[k];
+      note += hi > lo ? ` · referência [${fmtG(lo)}, ${fmtG(hi)}]` : ` · referência ${fmtG(lo)} (erro ${(100 * (last - lo) / lo).toFixed(2)}%)`;
+    }
+    el("div", { class: "note", text: note }, cd);
+    chart(cd, c.it.slice(start), v.slice(start), {
+      name: k, fmt: fmtG, band: R[k], extraY: zoom === "tudo" && R[k] ? R[k] : [],
+      aria: `${k} versus iteração`
+    });
+  }
+
+  const tb = document.getElementById("tabela");
+  tb.replaceChildren();
+  const cols = ["it", "res", ...resComp, ...extras, "mlups"];
+  const hr = el("tr", {}, el("thead", {}, tb));
+  for (const k of cols) el("th", { text: k }, hr);
+  const body = el("tbody", {}, tb);
+  for (let i = N - 1; i >= Math.max(0, N - 30); i--) {
+    const tr = el("tr", {}, body);
+    for (const k of cols) el("td", { text: k === "it" ? fmtInt(c[k][i]) : k.startsWith("res") ? fmtE(c[k][i]) : fmtG(c[k][i]) }, tr);
+  }
+  document.getElementById("rodape").textContent =
+    `Gerado por lbm3d.py · ${N} leituras (uma a cada 100 iterações) · página atualizada às ${new Date().toLocaleTimeString("pt-BR")}`;
+}
+
+function setData(text) { STATE = parseCSV(text); render(); }
+
+// atualizacao: servido por http -> busca o CSV; aberto do disco -> recarrega a pagina
+const intervalo = Number(EMBED.intervalo) || 5;
+document.getElementById("intv").textContent = intervalo;
+const viaHttp = location.protocol.startsWith("http");
+document.getElementById("modo").textContent = viaHttp ? "· modo servidor (dados ao vivo)" : "· arquivo local (recarrega a página)";
+const auto = document.getElementById("auto");
+auto.checked = store.get("auto", "1") === "1";
+auto.addEventListener("change", () => { store.set("auto", auto.checked ? "1" : "0"); agenda(); });
+let timer = null;
+function agenda() {
+  clearTimeout(timer);
+  if (!auto.checked) return;
+  timer = setTimeout(async () => {
+    if (viaHttp) {
+      try { const r = await fetch("convergencia.csv?t=" + Date.now(), { cache: "no-store" }); if (r.ok) setData(await r.text()); }
+      catch (e) {}
+      agenda();
+    } else location.reload();
+  }, intervalo * 1000);
+}
+for (const b of document.querySelectorAll(".seg button")) {
+  b.setAttribute("aria-pressed", b.dataset.zoom === zoom ? "true" : "false");
+  b.addEventListener("click", () => {
+    zoom = b.dataset.zoom; store.set("zoom", zoom);
+    for (const o of document.querySelectorAll(".seg button")) o.setAttribute("aria-pressed", o === b ? "true" : "false");
+    render();
+  });
+}
+let rz = null;
+window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 150); });
+// contador do tempo de simulacao (andamento.json gravado pelo lbm3d.py a cada segundo)
+let ANDAMENTO = EMBED.andamento || null;
+function hms(s) { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  return h + "h" + String(m).padStart(2, "0") + "m" + String(x).padStart(2, "0") + "s"; }
+function contadorTick() {
+  const a = ANDAMENTO, el = document.getElementById("contadorTxt"), box = document.getElementById("contador");
+  if (!a) { el.textContent = "—"; return; }
+  const agora = Date.now() / 1000, atraso = agora - a.atualizado_unix;
+  const vivo = a.situacao === "rodando" && atraso < 120;
+  const total = a.decorrido_total_s + (vivo ? atraso : 0);
+  let t = hms(total) + " · it " + a.it;
+  if (a.it_por_s) t += " · " + a.it_por_s.toFixed(1) + " it/s";
+  if (a.progresso != null) t += " · " + Math.round(100 * a.progresso) + "%";
+  if (a.restante_s != null && vivo) t += " · restante ~" + hms(a.restante_s - atraso);
+  if (!vivo) t += " · " + (a.situacao === "rodando" ? "sem atualização" : a.situacao);
+  el.textContent = t;
+  box.className = "status " + (vivo ? "run" : a.situacao === "terminou" ? "ok" : "stop");
+}
+async function buscaAndamento() {
+  if (!viaHttp) return;
+  try { const r = await fetch("andamento.json?t=" + Date.now(), { cache: "no-store" }); if (r.ok) ANDAMENTO = await r.json(); }
+  catch (e) {}
+}
+setInterval(() => { contadorTick(); }, 1000);
+setInterval(buscaAndamento, 2000);
+contadorTick();
+setData(EMBED.csv);
+agenda();
+</script>
+</body>
+</html>

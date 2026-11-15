@@ -1,0 +1,18 @@
+{
+ "caso": "calor",
+ "pasta": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_elipse_semsolido_Re200_D20",
+ "it": 52400,
+ "residuo": 0.070099089671878,
+ "residuos": {
+  "res": 0.070099089671878,
+  "res_ux": 0.034685294605320445,
+  "res_uy": 0.0609164403996825,
+  "res_uz": 0.0,
+  "res_rho": 0.00010682721185532026
+ },
+ "tol": 1e-07,
+ "convergiu": true,
+ "terminou": true,
+ "divergiu": false,
+ "checkpoint": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_elipse_semsolido_Re200_D20/checkpoint/checkpoint.npz"
+}

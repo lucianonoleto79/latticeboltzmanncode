@@ -1,0 +1,19 @@
+Condicoes de contorno - caso calor
+============================================================
+
+Conveccao forcada 2D sobre Hexagon (tilted 45°) (D = 10 nos = altura da secao), Re = 1, Pr = 0.7296 [CN26].
+Dominio (Fig. 2 de [CN26]): entrada semicircular de diametro Ds = 80 D + laterais retas, saida reta a Ds/2 do centro; camada unica em z (periodica).
+Entrada (arco e laterais): parede movel u = (U, 0, 0), U = 0.02 [L94]; T = Tinf (theta = 1), anti-bounce-back [LMK13].
+Saida: rho = 1 por extrapolacao de nao-equilibrio [G02]; dT/dx = 0 (copia do plano anterior).
+Cilindro: nao deslizamento, bounce-back interpolado [B01]; forca por troca de q. mov. [M02].
+Metodo SEM SOLIDO [CN26]: parede isotermica theta = 0 (15 C), anti-bounce-back interpolado [LMK13]; Nu pelo calor trocado nos links.
+nu = 0.2, alfa = 0.27412 (rede); omega = 0.9091; Ma = 0.035.
+Condicao inicial: u = U e theta = 1 no fluido.
+
+Nos por tipo (mapa em contorno_cortes.png / contorno_3d.png):
+  fluido                                                      571233
+  parede movel / entrada de velocidade [L94]                    3202
+  parede curva (bounce-back interpolado) [B01]                    32
+  solido (interior, sem contato com o fluido)                  69539
+
+Links fluido->solido: 26238  (paredes curvas: 264, paredes moveis: 21174)

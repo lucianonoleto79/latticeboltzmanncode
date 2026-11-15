@@ -1,0 +1,1 @@
+Circular cylinder, Re = 200, metodo com_solido (D = 14, Ds = 30 D): Nu = 6.6667   Nu_ref (Eq. 17) = 7.244   dif = 7.97%   Bi = 2.12e-02   instantes = 95417   (1 - theta = 0.9800 >= 0,98)

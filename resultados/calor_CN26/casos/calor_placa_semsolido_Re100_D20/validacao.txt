@@ -1,0 +1,1 @@
+Vertical Plate, Re = 100, metodo sem_solido (D = 20, Ds = 40 D): Nu = 6.0474   instantes = 61200   (duracao de 153 D/U atingida)

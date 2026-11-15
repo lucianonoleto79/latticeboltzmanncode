@@ -1,0 +1,36 @@
+==============================================================================
+lbm3d  2026-11-13 04:05:32  |  pasta do caso: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re10_D5
+AVISO: omega = 1.739 < 1.75 (nu = 0.0250 > 0.0238): fora da faixa da parametrizacao K17 [G17]; usando cumulante classico [G15].
+Pre-processamento (dominio, contorno, malha): 8 arquivos em 3.3 s
+AVISO: omega = 1.739 < 1.75 (nu = 0.0250 > 0.0238): fora da faixa da parametrizacao K17 [G17]; usando cumulante classico [G15].
+Caso: calor | malha (402, 403, 1) (162006 nos) | modelo cumulant | omega = 1.7391 | nu = 0.02500
+Controles: Ctrl+C = menu (continuar/salvar/pausar/sair) | arquivos SALVAR / PAUSAR / PARAR em /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re10_D5
+Residuos: res(u) = ||u^n - u^(n-1000)|| / ||u^n||  (parada: res(u) < 1.0e-07); componentes normalizadas por ||u^n||; res(rho) = ||drho|| / ||rho||
+ iteracao     res(u)    res(ux)    res(uy)    res(uz)   res(rho)   MLUPS      tempo  grandezas monitoradas
+     1000  3.773e-02  3.465e-02  1.492e-02  0.000e+00  2.704e-04    4.73   0h00m34s  Nu_inst=1.87493  Nu=1.88209  C_D=3.00624  C_L=-9.46465e-14
+[contador] 0h01m00s | it 1763 | 29.3 it/s
+     2000  1.813e-02  1.677e-02  6.888e-03  0.000e+00  2.450e-04    4.74   0h01m08s  Nu_inst=1.85124  Nu=1.85502  C_D=2.9305  C_L=9.1871e-14
+     3000  1.371e-02  1.273e-02  5.089e-03  0.000e+00  1.296e-04    4.74   0h01m42s  Nu_inst=1.84512  Nu=1.84692  C_D=2.91258  C_L=4.82947e-14
+[contador] 0h02m00s | it 3526 | 29.2 it/s
+     4000  1.122e-02  1.063e-02  3.582e-03  0.000e+00  9.257e-05    4.74   0h02m16s  Nu_inst=1.84501  Nu=1.84499  C_D=2.89354  C_L=7.54952e-14
+     5000  7.773e-03  7.278e-03  2.732e-03  0.000e+00  9.962e-05    4.74   0h02m50s  Nu_inst=1.8436  Nu=1.844  C_D=2.88471  C_L=-1.2268e-13
+[contador] 0h03m00s | it 5281 | 29.1 it/s
+     6000  3.525e-03  3.078e-03  1.717e-03  0.000e+00  1.150e-04    4.73   0h03m25s  Nu_inst=1.84321  Nu=1.8429  C_D=2.89337  C_L=3.4972e-14
+[contador] 0h04m01s | it 6995 | 27.6 it/s
+     7000  1.612e-03  1.298e-03  9.564e-04  0.000e+00  7.440e-05    4.70   0h04m01s  Nu_inst=1.84306  Nu=1.84321  C_D=2.88804  C_L=3.02536e-14
+     8000  1.008e-03  9.048e-04  4.446e-04  0.000e+00  3.709e-05    4.70   0h04m35s  Nu_inst=1.84263  Nu=1.84301  C_D=2.88405  C_L=2.05391e-14
+[contador] 0h05m01s | it 8760 | 29.3 it/s
+     9000  7.313e-04  6.928e-04  2.341e-04  0.000e+00  3.632e-05    4.71   0h05m09s  Nu_inst=1.84291  Nu=1.84276  C_D=2.88792  C_L=-8.32667e-16
+    10000  4.234e-04  3.992e-04  1.413e-04  0.000e+00  4.845e-05    4.71   0h05m43s  Nu_inst=1.84249  Nu=1.84289  C_D=2.88728  C_L=-5.19029e-14
+[contador] 0h06m01s | it 10525 | 29.2 it/s
+    11000  2.429e-04  2.078e-04  1.256e-04  0.000e+00  4.687e-05    4.71   0h06m18s  Nu_inst=1.84258  Nu=1.84282  C_D=2.8881  C_L=1.82632e-13
+    12000  3.688e-04  2.980e-04  2.173e-04  0.000e+00  2.946e-05    4.71   0h06m52s  Nu_inst=1.84296  Nu=1.8428  C_D=2.89173  C_L=2.66454e-14
+[contador] 0h07m02s | it 12277 | 28.9 it/s
+Criterio de parada do caso atingido na iteracao 12872: |Nu - Nu(-10 D/U)|/Nu < 1e-05 em todos os passos dos ultimos 5 D/U (Eq. 16 adaptada)
+Checkpoint: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re10_D5/checkpoint/checkpoint.npz   (continue com: python lbm3d.py --restart /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re10_D5)
+Campo e imagens do escoamento: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re10_D5/escoamento/final
+==============================================================================
+VALIDACAO
+Circular cylinder, Re = 10, metodo sem_solido (D = 5, Ds = 80 D): Nu = 1.8428   Nu_ref (Eq. 17) = 1.853   dif = 0.53%   instantes = 12872   (|Nu - Nu(-10 D/U)|/Nu < 1e-05 em todos os passos dos ultimos 5 D/U (Eq. 16 adaptada))
+==============================================================================
+[contador] 0h07m25s | it 12872 | 26.1 it/s | TERMINOU  (tempo total de simulacao: 0h07m25s)

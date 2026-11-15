@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convergência LBM</title>
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f4f3f0;
+  --surface-1: #fcfcfb;
+  --border: #e3e2dd;
+  --grid: #ecebe7;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #7a7974;
+  --series-1: #2a78d6;
+  --band: rgba(27, 175, 122, 0.16);
+  --band-edge: #1baf7a;
+  --good: #008300;
+  --warning: #b87900;
+  --critical: #d03b3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0: #121211;
+    --surface-1: #1a1a19;
+    --border: #2e2d2b;
+    --grid: #262624;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #8f8e86;
+    --series-1: #3987e5;
+    --band: rgba(25, 158, 112, 0.22);
+    --band-edge: #199e70;
+    --good: #3fae3f;
+    --warning: #d9a03a;
+    --critical: #e66767;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #121211;
+  --surface-1: #1a1a19;
+  --border: #2e2d2b;
+  --grid: #262624;
+  --text-primary: #f0efec;
+  --text-secondary: #c3c2b7;
+  --text-muted: #8f8e86;
+  --series-1: #3987e5;
+  --band: rgba(25, 158, 112, 0.22);
+  --band-edge: #199e70;
+  --good: #3fae3f;
+  --warning: #d9a03a;
+  --critical: #e66767;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--surface-0); color: var(--text-primary);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 1120px; margin: 0 auto; padding: 20px 16px 40px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 14px; }
+h1 { font-size: 20px; margin: 0; font-weight: 650; }
+.sub { color: var(--text-secondary); }
+.status { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; padding: 2px 10px;
+  border-radius: 999px; border: 1px solid var(--border); background: var(--surface-1); }
+.status .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+.status.run { color: var(--series-1); }
+.status.ok { color: var(--good); }
+.status.stop { color: var(--warning); }
+.status.bad { color: var(--critical); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+.tile .lab { color: var(--text-secondary); font-size: 12px; }
+.tile .val { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.tile .det { color: var(--text-muted); font-size: 12px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin: 4px 0 12px; color: var(--text-secondary); }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface-1); color: var(--text-secondary); padding: 5px 12px; cursor: pointer; font: inherit; }
+.seg button[aria-pressed="true"] { background: var(--series-1); color: #fff; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 12px; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px 8px; position: relative; min-width: 0; }
+.card.wide { grid-column: 1 / -1; }
+.card h2 { font-size: 14px; margin: 0; font-weight: 600; }
+.card .note { color: var(--text-muted); font-size: 12px; min-height: 17px; }
+svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: none; }
+.axis text { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.gridline { stroke: var(--grid); stroke-width: 1; }
+.baseline { stroke: var(--border); stroke-width: 1; }
+.line { fill: none; stroke: var(--series-1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.tol { stroke: var(--text-secondary); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.extrap { fill: none; stroke: var(--series-1); stroke-width: 1.5; stroke-dasharray: 2 4; opacity: .8; }
+.band { fill: var(--band); }
+.bandedge { stroke: var(--band-edge); stroke-width: 1; stroke-dasharray: 3 3; }
+.dlabel { fill: var(--text-secondary); font-size: 11px; }
+.cross { stroke: var(--text-muted); stroke-width: 1; }
+.hoverdot { fill: var(--series-1); stroke: var(--surface-1); stroke-width: 2; }
+.tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
+  white-space: nowrap; display: none; z-index: 5; }
+.tip strong { font-variant-numeric: tabular-nums; }
+.tip .k { display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--series-1); vertical-align: middle; margin-right: 6px; }
+details { margin-top: 14px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; }
+summary { cursor: pointer; color: var(--text-secondary); }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 12px; }
+th, td { text-align: right; padding: 3px 8px; border-bottom: 1px solid var(--grid); }
+th { color: var(--text-secondary); font-weight: 600; }
+.tablewrap { overflow-x: auto; }
+footer { color: var(--text-muted); font-size: 12px; margin-top: 14px; }
+.empty { padding: 40px; text-align: center; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 id="titulo">Convergência LBM</h1>
+    <span class="status" id="status"><span class="dot"></span><span id="statusTxt">—</span></span>
+    <span class="sub" id="subtitulo"></span>
+    <span class="status run" id="contador" title="Tempo de simulação (contador do lbm3d.py)">⏱ <span id="contadorTxt">—</span></span>
+  </header>
+  <section class="tiles" id="tiles"></section>
+  <div class="controls">
+    <span>Grandezas:</span>
+    <div class="seg" role="group" aria-label="Janela das grandezas">
+      <button data-zoom="tudo" aria-pressed="false">Tudo</button>
+      <button data-zoom="terco" aria-pressed="true">Último terço</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="auto" checked> Atualização automática (<span id="intv"></span> s)</label>
+    <span id="modo"></span>
+  </div>
+  <section class="grid" id="charts"></section>
+  <details>
+    <summary>Tabela (últimas 30 leituras)</summary>
+    <div class="tablewrap"><table id="tabela"></table></div>
+  </details>
+  <footer id="rodape"></footer>
+</main>
+<script>
+const EMBED = /*__DADOS__*/{"csv": "# caso=calor tol=1e-07 max_iter=20000000 steady=0 modelo=cumulant ref_Nu=0.791002:0.791002\nit,res,tempo_unix,mlups,res_ux,res_uy,res_uz,res_rho,Nu,C_D,C_L,1-theta\n1000,3.662245e-02,1794718657.113,4.9571,0.031511827,0.018660351,0,0.00015528611,1.3882787,14.556993,1.1622647e-13,0.060383905\n2000,1.345281e-02,1794718787.740,4.9436,0.011716628,0.006610494,0,0.00015247374,1.1675376,12.822622,4.0766002e-13,0.099724422\n3000,1.036349e-02,1794718918.952,4.9317,0.0089426032,0.0052375427,0,9.6209405e-05,1.0716584,12.314539,-1.6826818e-13,0.13469172\n4000,8.233771e-03,1794719051.487,4.9134,0.0071482239,0.0040863046,0,0.00012518724,1.0143597,11.824837,-3.989864e-13,0.16690658\n5000,7.418546e-03,1794719182.530,4.9136,0.0064050247,0.003743058,0,9.1016443e-05,0.97548513,11.600429,2.0383001e-13,0.19711148\n6000,6.215479e-03,1794719312.657,4.9195,0.0053669843,0.0031349094,0,0.00011505193,0.94711861,11.526835,-1.9862584e-13,0.22571056\n7000,5.777334e-03,1794719441.164,4.9324,0.0051124627,0.002690784,0,9.8174876e-05,0.92543348,11.446283,9.0986246e-13,0.25295766\n8000,5.435827e-03,1794719569.910,4.9410,0.0045221045,0.0030164186,0,8.0977382e-05,0.90830551,11.289123,-2.2117724e-13,0.27902305\n9000,4.763639e-03,1794719703.968,4.9254,0.0042159166,0.0022177252,0,9.6398052e-05,0.89445348,11.239484,1.405126e-13,0.30403064\n10000,4.975895e-03,1794719832.818,4.9326,0.0045129874,0.0020958241,0,4.6862245e-05,0.88299611,11.130263,-6.5832756e-13,0.32805706\n11000,4.529842e-03,1794719962.071,4.9371,0.0041156021,0.0018924286,0,5.8758254e-05,0.87335021,11.031298,-7.9016654e-13,0.35116734\n12000,4.235808e-03,1794720092.250,4.9379,0.0037710228,0.0019291075,0,5.6409337e-05,0.86511234,11.09837,5.7592819e-13,0.37341599\n13000,4.027177e-03,1794720221.120,4.9424,0.0036860937,0.0016219954,0,4.8484456e-05,0.85802109,11.05498,8.6649438e-13,0.39485966\n14000,3.447275e-03,1794720351.256,4.9429,0.0029954168,0.0017062187,0,7.275119e-05,0.85186275,11.005848,2.9490299e-13,0.41554051\n15000,3.536825e-03,1794720479.887,4.9471,0.0033313581,0.0011879339,0,4.8119644e-05,0.84646228,10.979114,-6.4184769e-14,0.43549007\n16000,3.114962e-03,1794720608.978,4.9497,0.0028914963,0.0011585504,0,6.0455729e-05,0.8416775,10.915077,-5.0567189e-13,0.45473552\n17000,2.912034e-03,1794720738.814,4.9503,0.0027038083,0.0010813715,0,5.6839274e-05,0.83740943,10.993603,-9.7057778e-13,0.47330636\n18000,3.007558e-03,1794720867.491,4.9533,0.0027814603,0.0011440655,0,2.7866903e-05,0.83359098,10.962704,-1.1449175e-13,0.49123547\n19000,2.561850e-03,1794720987.126,4.9742,0.0023273646,0.0010707226,0,4.6752699e-05,0.83016066,10.959239,-4.2587461e-13,0.50854847\n20000,2.597989e-03,1794721105.412,4.9958,0.0024157972,0.00095575595,0,2.1815879e-05,0.82706237,10.938414,2.0383001e-13,0.52526725\n21000,2.191075e-03,1794721223.148,5.0165,0.0020454127,0.00078555597,0,3.9323345e-05,0.82424101,10.933829,4.8572257e-14,0.54140934\n22000,1.885176e-03,1794721340.902,5.0354,0.0017247761,0.00076094389,0,4.3724582e-05,0.82166193,10.952867,7.9884016e-13,0.55699657\n23000,1.908588e-03,1794721458.219,5.0536,0.0016651052,0.00093280989,0,2.6976065e-05,0.81930051,10.97228,7.8929918e-14,0.57205156\n24000,1.348236e-03,1794721575.610,5.0702,0.0011422296,0.00071627691,0,4.4897713e-05,0.81713596,10.968899,-3.1571967e-13,0.5865949\n25000,1.497822e-03,1794721693.531,5.0848,0.0013475282,0.00065393982,0,2.7991719e-05,0.81514333,10.929428,2.9230091e-13,0.6006433\n26000,1.317089e-03,1794721811.462,5.0983,0.0011887909,0.00056700904,0,2.9108244e-05,0.81329726,10.946446,3.469447e-15,0.61421102\n27000,1.133123e-03,1794721928.733,5.1119,0.0010138363,0.0005060661,0,3.0538001e-05,0.81158206,10.930699,3.0357661e-14,0.6273153\n28000,1.275336e-03,1794722046.668,5.1235,0.0011163017,0.00061672779,0,7.5755641e-06,0.80998698,10.964375,1.4311469e-13,0.63997372\n29000,7.648289e-04,1794722163.974,5.1354,0.00062711194,0.00043782851,0,3.116084e-05,0.80850443,10.939107,-1.4484941e-13,0.65220333\n30000,9.317348e-04,1794722281.539,5.1461,0.00087301154,0.00032554649,0,1.9900222e-05,0.8071211,10.922044,-3.6255721e-13,0.66401758\n31000,7.617045e-04,1794722399.885,5.1551,0.00067755933,0.00034800446,0,2.3652647e-05,0.80582467,10.925439,4.7965104e-13,0.6754291\n32000,4.706958e-04,1794722517.356,5.1648,0.00040705136,0.00023635498,0,2.8944608e-05,0.8046056,10.923906,-5.4643789e-14,0.68645162\n33000,7.804691e-04,1794722635.147,5.1734,0.00072342647,0.00029289282,0,1.4101379e-05,0.80345967,10.945379,1.5785984e-13,0.69709962\n34000,3.994201e-04,1794722752.704,5.1819,0.00036125244,0.00017039099,0,2.5215245e-05,0.80238317,10.935244,-1.2143064e-14,0.70738706\n35000,6.839446e-04,1794722871.912,5.1880,0.00067227995,0.00012577726,0,1.3504185e-05,0.80136921,10.930352,-3.8857806e-13,0.71732533\n36000,6.284012e-04,1794722990.364,5.1946,0.00059561383,0.00020033041,0,1.3705216e-05,0.80041054,10.924247,2.8622937e-13,0.72692548\n37000,3.727955e-04,1794723108.052,5.2017,0.00033465686,0.00016425984,0,2.0703172e-05,0.79950125,10.937369,5.7245875e-14,0.73619857\n38000,6.248126e-04,1794723227.968,5.2060,0.00061507687,0.00010986906,0,7.5664179e-06,0.79863958,10.944769,3.8510861e-13,0.74515684\n39000,2.503709e-04,1794723346.586,5.2115,0.00021525251,0.00012787475,0,2.0265946e-05,0.79782337,10.944883,-3.5301623e-13,0.75381155\n40000,4.405672e-04,1794723464.305,5.2177,0.00042988378,9.6433275e-05,0,1.4410541e-05,0.79704921,10.93734,4.6837534e-14,0.76217269\n41000,4.278524e-04,1794723582.976,5.2226,0.00041171865,0.00011638502,0,1.3089032e-05,0.79631212,10.92696,-1.7347235e-14,0.7702495\n42000,2.024382e-04,1794723701.032,5.2279,0.00018048205,9.1692065e-05,0,1.7639198e-05,0.79560864,10.941861,-3.2959746e-14,0.77805137\n43000,5.095362e-04,1794723819.086,5.2330,0.00050492162,6.8419774e-05,0,3.5327436e-06,0.79493757,10.938137,-6.4705186e-13,0.78558835\n44000,2.754799e-04,1794723938.001,5.2370,0.00026034916,9.0041481e-05,0,1.4383924e-05,0.79429791,10.943535,-1.3010426e-13,0.79286981\n45000,3.721514e-04,1794724055.675,5.2420,0.00034842463,0.00013075528,0,1.0106799e-05,0.79368773,10.930796,-3.3480163e-13,0.79990431\n46000,3.773820e-04,1794724173.445,5.2467,0.00037364922,5.2947792e-05,0,8.29722e-06,0.79310363,10.927601,3.3480163e-13,0.80669964\n47000,1.289989e-04,1794724291.182,5.2513,0.00012583559,2.8392264e-05,0,1.4325825e-05,0.79254344,10.933335,5.7245875e-14,0.81326382\n48000,3.773659e-04,1794724408.725,5.2558,0.00036740556,8.612886e-05,0,5.6335599e-06,0.79200618,10.935834,-1.0234869e-13,0.81960505\n49000,1.618602e-04,1794724526.066,5.2604,0.00015902199,3.0178339e-05,0,1.2353027e-05,0.79149157,10.939313,2.4459601e-13,0.82573125\n50000,2.531014e-04,1794724643.934,5.2643,0.00024183759,7.4665288e-05,0,9.4966326e-06,0.79099826,10.930894,1.5612511e-14,0.83164964\n51000,3.149496e-04,1794724761.511,5.2683,0.00031322016,3.2960162e-05,0,5.6699967e-06,0.79052411,10.931537,-2.4459601e-13,0.83736686\n52000,1.386553e-04,1794724878.807,5.2724,0.00013831152,9.7578565e-06,0,1.0877768e-05,0.7900675,10.93234,-3.8510861e-13,0.84288968\n53000,3.160811e-04,1794724996.517,5.2760,0.00030104906,9.6315843e-05,0,2.3811809e-06,0.78962775,10.940668,4.510281e-13,0.84822489\n54000,1.668564e-04,1794725113.926,5.2798,0.00016629064,1.3729337e-05,0,8.9771078e-06,0.78920481,10.938882,6.2710254e-13,0.85337915\n55000,1.924216e-04,1794725232.206,5.2827,0.00019011114,2.972897e-05,0,7.8136242e-06,0.78879775,10.936002,-3.2092384e-13,0.85835853\n56000,2.472012e-04,1794725352.521,5.2839,0.00024238798,4.8543574e-05,0,4.7091608e-06,0.78840521,10.933534,-4.7184479e-13,0.86316871\n57000,4.041097e-05,1794725469.738,5.2875,3.592675e-05,1.8501756e-05,0,9.2898851e-06,0.78802588,10.933992,1.2143064e-14,0.86781536\n58000,2.345610e-04,1794725587.718,5.2903,0.0002267325,6.0093502e-05,0,3.5658838e-06,0.78765937,10.940158,-4.510281e-13,0.87230417\n59000,1.425678e-04,1794725700.673,5.2968,0.00014185613,1.4227155e-05,0,6.9130059e-06,0.7873056,10.937332,3.9551695e-13,0.87664069\n60000,1.565729e-04,1794725812.262,5.3041,0.0001548944,2.2864706e-05,0,6.1351013e-06,0.78696402,10.936034,-2.5326963e-13,0.88083005\n61000,2.122311e-04,1794725924.539,5.3106,0.00020566753,5.2372635e-05,0,2.4098642e-06,0.78663367,10.931839,-1.3617579e-13,0.88487709\n62000,5.927427e-05,1794726036.114,5.3175,5.2095374e-05,2.8275619e-05,0,7.1312607e-06,0.78631357,10.933574,1.7780916e-13,0.88878656\n63000,1.869038e-04,1794726147.946,5.3239,0.00018481041,2.7894911e-05,0,2.811855e-06,0.78600342,10.936811,4.8572257e-13,0.89256324\n64000,1.177416e-04,1794726259.751,5.3302,0.00011670675,1.5575926e-05,0,5.4109205e-06,0.78570314,10.936602,-7.979728e-14,0.89621176\n65000,1.025566e-04,1794726371.520,5.3364,9.7504346e-05,3.1792398e-05,0,5.4552233e-06,0.78541244,10.935258,-2.6367797e-13,0.89973645\n66000,1.636636e-04,1794726484.156,5.3418,0.00016068476,3.1083674e-05,0,2.3409826e-06,0.78513057,10.932073,1.1362439e-13,0.90314142\n67000,3.884156e-05,1794726596.025,5.3475,3.122479e-05,2.3101499e-05,0,5.7599403e-06,0.78485684,10.934659,-1.9775848e-13,0.90643067\n68000,1.501986e-04,1794726707.642,5.3533,0.0001486281,2.1663391e-05,0,2.1926086e-06,0.78459098,10.935985,-6.505213e-13,0.90960819\n69000,1.085676e-04,1794726819.312,5.3589,0.00010649683,2.1103308e-05,0,3.856301e-06,0.78433293,10.938153,-3.0097452e-13,0.91267786\n70000,8.070595e-05,1794726931.285,5.3641,7.3473798e-05,3.3392386e-05,0,4.3429414e-06,0.78408251,10.935416,-3.6429193e-14,0.91564334\n71000,1.351139e-04,1794727043.339,5.3691,0.00013450931,1.276755e-05,0,1.3887332e-06,0.78383918,10.934264,-2.7929048e-13,0.9185081\n72000,3.180945e-05,1794727155.187,5.3742,3.0645121e-05,8.5274668e-06,0,4.5981602e-06,0.78360243,10.9349,-1.0755286e-13,0.92127552\n73000,1.125089e-04,1794727266.856,5.3792,0.00010965636,2.517422e-05,0,2.265358e-06,0.783372,10.936333,1.2143064e-14,0.92394893\n74000,8.529350e-05,1794727378.492,5.3841,8.4923325e-05,7.9379034e-06,0,3.0985996e-06,0.78314788,10.937777,4.3715032e-13,0.92653159\n75000,5.358950e-05,1794727490.377,5.3888,4.8183167e-05,2.3456712e-05,0,3.6786692e-06,0.78292991,10.935286,-8.0664642e-14,0.92902659\n76000,1.107435e-04,1794727602.423,5.3932,0.00011028207,1.0098835e-05,0,7.427748e-07,0.78271773,10.934536,-1.9168694e-13,0.93143685\n77000,3.813922e-05,1794727714.164,5.3977,3.7793697e-05,5.1221365e-06,0,3.5350124e-06,0.78251094,10.934075,4.2500725e-13,0.93376522\n78000,8.890840e-05,1794727826.025,5.4020,8.5773731e-05,2.3400244e-05,0,1.8410895e-06,0.78230931,10.936013,-2.8362729e-13,0.9360145\n79000,7.429382e-05,1794727937.605,5.4064,7.4219755e-05,3.3166447e-06,0,2.2341672e-06,0.78211283,10.936468,3.989864e-14,0.93818742\n80000,3.828019e-05,1794728049.264,5.4106,3.6301698e-05,1.214741e-05,0,3.0215866e-06,0.7819214,10.935415,-3.4954678e-13,0.94028658\n81000,8.764064e-05,1794728161.529,5.4144,8.6696739e-05,1.2827974e-05,0,7.5590181e-07,0.78173474,10.934364,7.2858386e-14,0.94231445\n82000,2.643503e-05,1794728273.222,5.4185,2.5656068e-05,6.3699899e-06,0,2.8634378e-06,0.78155255,10.934242,-3.7296555e-13,0.94427342\n83000,6.616374e-05,1794728384.832,5.4224,6.4047059e-05,1.660166e-05,0,1.7197964e-06,0.78137464,10.936009,3.8944542e-13,0.94616586\n84000,6.315776e-05,1794728496.636,5.4262,6.3120606e-05,2.1661787e-06,0,1.6283751e-06,0.78120099,10.936247,4.0332321e-13,0.94799404\n85000,3.031526e-05,1794728608.232,5.4300,2.9223898e-05,8.0609378e-06,0,2.4235962e-06,0.78103153,10.936017,2.8449465e-13,0.94976016\n86000,7.132683e-05,1794728720.424,5.4335,7.0295506e-05,1.2085451e-05,0,3.6026343e-07,0.78086606,10.934652,-4.8572257e-14,0.95146631\n87000,2.684820e-05,1794728832.228,5.4370,2.5329188e-05,8.9026873e-06,0,2.2074422e-06,0.78070432,10.934889,-1.5785984e-13,0.95311449\n88000,5.086751e-05,1794728944.341,5.4403,5.0029743e-05,9.1939166e-06,0,1.4724278e-06,0.78054619,10.935878,9.8879238e-14,0.95470669\n89000,5.238515e-05,1794729056.873,5.4433,5.22878e-05,3.1921757e-06,0,1.2188434e-06,0.78039161,10.93629,8.3266727e-14,0.95624483\n90000,1.754716e-05,1794729168.789,5.4466,1.5129451e-05,8.8883356e-06,0,2.0213753e-06,0.78024054,10.936007,-7.4332901e-13,0.95773075\n91000,5.576112e-05,1794729280.860,5.4497,5.5182401e-05,8.0128135e-06,0,4.9763531e-07,0.78009284,10.93474,-2.6020852e-14,0.95916621\n92000,2.436622e-05,1794729392.486,5.4530,2.3513855e-05,6.3883805e-06,0,1.7211215e-06,0.7799483,10.934978,1.9602375e-13,0.96055291\n93000,3.946759e-05,1794729504.295,5.4561,3.8974084e-05,6.2218687e-06,0,1.2350207e-06,0.77980681,10.935419,-5.2388649e-13,0.96189252\n94000,4.440475e-05,1794729615.954,5.4593,4.4247354e-05,3.7354722e-06,0,8.288185e-07,0.77966833,10.936154,-4.0939474e-13,0.96318663\n95000,1.294463e-05,1794729727.660,5.4623,9.0267475e-06,9.278005e-06,0,1.6244252e-06,0.77953282,10.93562,-2.5500435e-13,0.96443681\n96000,4.457720e-05,1794729840.299,5.4649,4.4423834e-05,3.6945497e-06,0,4.109982e-07,0.77940016,10.934952,-1.8388069e-13,0.96564453\n97000,2.182246e-05,1794729951.924,5.4678,2.1570338e-05,3.307581e-06,0,1.3384214e-06,0.77927022,10.934874,3.469447e-14,0.96681123\n98000,2.881507e-05,1794730063.902,5.4706,2.804639e-05,6.6112438e-06,0,1.0874244e-06,0.77914288,10.935403,3.469447e-14,0.9679383\n99000,3.602865e-05,1794730175.695,5.4734,3.5975767e-05,1.9513048e-06,0,6.2536166e-07,0.7790181,10.936052,1.3097162e-13,0.9690271\n100000,8.062486e-06,1794730287.391,5.4762,4.8442381e-06,6.4449229e-06,0,1.320162e-06,0.77889586,10.935642,-1.5612511e-14,0.97007894\n101000,3.561165e-05,1794730399.535,5.4787,3.5526513e-05,2.4610535e-06,0,3.5265345e-07,0.77877608,10.935245,-6.9215467e-13,0.97109505\n102000,2.012137e-05,1794730511.867,5.4811,2.000205e-05,2.188071e-06,0,1.0141913e-06,0.77865862,10.934974,2.7755576e-14,0.97207665\n103000,2.162838e-05,1794730623.830,5.4836,2.0725357e-05,6.1843581e-06,0,9.1275424e-07,0.77854341,10.935543,-7.3639012e-13,0.97302492\n104000,2.988645e-05,1794730735.689,5.4861,2.9865194e-05,1.12692e-06,0,4.2032428e-07,0.7784304,10.935922,-1.7433971e-13,0.97394098\n105000,5.988546e-06,1794730847.719,5.4885,4.624072e-06,3.8053441e-06,0,1.0627112e-06,0.77831957,10.935726,-3.469447e-13,0.97482594\n106000,2.776591e-05,1794730959.947,5.4907,2.7615806e-05,2.8832228e-06,0,3.666965e-07,0.77821086,10.935294,1.2490009e-13,0.97568084\n107000,1.697494e-05,1794731071.590,5.4932,1.6815384e-05,2.3219721e-06,0,7.8853259e-07,0.77810418,10.935035,2.5673907e-13,0.97650671\n108000,1.557621e-05,1794731183.340,5.4956,1.4992614e-05,4.2237297e-06,0,7.7752166e-07,0.77799944,10.935483,3.4174052e-13,0.97730454\n109000,2.468209e-05,1794731295.008,5.4979,2.4663328e-05,9.6213825e-07,0,2.7050745e-07,0.77789661,10.935728,-6.1929628e-13,0.97807527\n110000,5.853356e-06,1794731406.801,5.5002,5.2129907e-06,2.6620486e-06,0,8.4412006e-07,0.77779567,10.9357,-4.2760934e-13,0.97881982\n111000,2.183453e-05,1794731518.902,5.5023,2.1640716e-05,2.9027616e-06,0,3.2890367e-07,0.77769658,10.935241,-5.6812194e-13,0.9795391\n", "intervalo": 5, "pasta": "calor_circulo_comsolido_Re1_D10", "andamento": {"caso": "calor_circulo_comsolido_Re1_D10", "pasta": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_comsolido_Re1_D10", "pid": 23770, "situacao": "rodando", "inicio_unix": 1794718527.1966898, "atualizado_unix": 1794731518.6212401, "decorrido_total_s": 12991.424550294876, "decorrido_execucao_s": 12991.424550294876, "it": 110999, "max_iter": 20000000, "it_por_s": 8.971850982412263, "progresso": 0.9941671831949982, "restante_s": 76.19069909160503}}/*__FIM__*/;
+
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("lbm3d:" + k); return v === null ? d : v; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem("lbm3d:" + k, v); } catch (e) {} }
+};
+
+function parseCSV(text) {
+  const meta = {}; let header = null; const rows = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (line.startsWith("#")) {
+      for (const tok of line.slice(1).trim().split(/\s+/)) {
+        const i = tok.indexOf("="); if (i > 0) meta[tok.slice(0, i)] = tok.slice(i + 1);
+      }
+      continue;
+    }
+    if (line.startsWith("it,")) { header = line.split(","); continue; }
+    if (!header) continue;
+    const v = line.split(",").map(Number);
+    if (v.length === header.length && v.every(Number.isFinite)) rows.push(v);
+  }
+  if (!header || !rows.length) return { meta, cols: null };
+  // reinicio a partir de checkpoint anterior: fica so a ultima passagem
+  let ini = 0;
+  for (let i = 1; i < rows.length; i++) if (rows[i][0] <= rows[i - 1][0]) ini = i;
+  const cols = {};
+  header.forEach((h, j) => { cols[h] = rows.slice(ini).map(r => r[j]); });
+  return { meta, cols };
+}
+
+function refs(meta) {
+  const r = {};
+  for (const k in meta) if (k.startsWith("ref_")) {
+    const [lo, hi] = meta[k].split(":").map(Number);
+    if (Number.isFinite(lo) && Number.isFinite(hi)) r[k.slice(4)] = [lo, hi];
+  }
+  return r;
+}
+
+function polyfit1(x, y) {
+  const n = x.length; let sx = 0, sy = 0, sxx = 0, sxy = 0;
+  for (let i = 0; i < n; i++) { sx += x[i]; sy += y[i]; sxx += x[i] * x[i]; sxy += x[i] * y[i]; }
+  const d = n * sxx - sx * sx; if (!d) return [NaN, NaN];
+  const a = (n * sxy - sx * sy) / d; return [a, (sy - a * sx) / n];
+}
+
+function diagnose(meta, c) {
+  const it = c.it, res = c.res, t = c.tempo_unix, N = it.length;
+  const tol = Number(meta.tol || 1e-7), steady = meta.steady !== "0";
+  const out = { it: it[N - 1], res: res[N - 1], tol, steady, rate: NaN, its: NaN, etaIt: NaN, etaS: NaN, fit: null };
+  const n = Math.min(20, N);
+  if (n >= 3) {
+    const xs = [], ys = [];
+    for (let i = N - n; i < N; i++) if (res[i] > 0) { xs.push(it[i]); ys.push(Math.log10(res[i])); }
+    if (xs.length >= 3) {
+      const [a, b] = polyfit1(xs, ys);
+      out.rate = -a * 1000;
+      const dt = t[N - 1] - t[N - n];
+      if (dt > 0) out.its = (it[N - 1] - it[N - n]) / dt;
+      if (steady && a < 0 && out.res > tol) {
+        out.etaIt = (Math.log10(tol) - Math.log10(out.res)) / a;
+        out.etaS = out.its > 0 ? out.etaIt / out.its : NaN;
+        out.fit = [a, b];
+      }
+    }
+  }
+  const age = Date.now() / 1000 - t[N - 1];
+  const limite = Math.max(120, out.its > 0 ? 5 * 100 / out.its : 120);
+  out.age = age;
+  out.state = !Number.isFinite(out.res) ? "bad" : (steady && out.res <= tol) ? "ok" : (age < limite ? "run" : "stop");
+  return out;
+}
+
+const fmtT = s => {
+  if (!Number.isFinite(s)) return "—";
+  s = Math.max(0, Math.round(s));
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60;
+  return h ? `${h} h ${String(m).padStart(2, "0")} min` : m ? `${m} min ${String(ss).padStart(2, "0")} s` : `${ss} s`;
+};
+const fmtE = v => Number.isFinite(v) ? v.toExponential(2).replace("e", "e") : "—";
+const fmtG = v => {
+  if (!Number.isFinite(v)) return "—";
+  const a = Math.abs(v);
+  return (a !== 0 && (a < 1e-3 || a >= 1e5)) ? v.toExponential(3) : Number(v.toPrecision(6)).toString();
+};
+const fmtInt = v => Number.isFinite(v) ? Math.round(v).toLocaleString("pt-BR") : "—";
+
+function el(tag, attrs = {}, parent) {
+  const ns = ["svg", "g", "line", "path", "rect", "text", "circle"].includes(tag) ? "http://www.w3.org/2000/svg" : null;
+  const e = ns ? document.createElementNS(ns, tag) : document.createElement(tag);
+  for (const k in attrs) {
+    if (k === "text") e.textContent = attrs[k]; else e.setAttribute(k, attrs[k]);
+  }
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+function niceTicks(lo, hi, n) {
+  if (!(hi > lo)) { const d = Math.abs(lo) * 0.01 || 1; lo -= d; hi += d; }
+  const span = hi - lo, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map(f => f * mag).find(s => s >= step0);
+  const ticks = []; for (let v = Math.ceil(lo / step) * step; v <= hi + step * 1e-9; v += step) ticks.push(+v.toPrecision(12));
+  return ticks;
+}
+
+function chart(card, x, y, o) {
+  // viewBox na largura real do cartao: texto sempre em pixels reais
+  const W = Math.max(280, card.clientWidth - 28), H = o.height || 220;
+  const m = { l: 62, r: (o.rightLabel || o.band || o.tol) ? 78 : 16, t: 10, b: 28 };
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": o.aria }, card);
+  const tip = el("div", { class: "tip" }, card);
+  const xi = x[0], xa = Math.max(x[x.length - 1], o.xmax || 0, xi + 1);
+  let ys = y.filter(Number.isFinite);
+  if (o.log) ys = ys.filter(v => v > 0);
+  if (!ys.length) return;
+  let ylo = Math.min(...ys), yhi = Math.max(...ys);
+  for (const v of (o.extraY || [])) if (Number.isFinite(v) && (!o.log || v > 0)) { ylo = Math.min(ylo, v); yhi = Math.max(yhi, v); }
+  let ty, Y;
+  if (o.log) {
+    const a = Math.floor(Math.log10(ylo)), b = Math.ceil(Math.log10(yhi) + 1e-9);
+    const lo = a === b ? a - 1 : a, hi = b;
+    Y = v => m.t + (H - m.t - m.b) * (hi - Math.log10(v)) / (hi - lo);
+    ty = []; const st = Math.max(1, Math.ceil((hi - lo) / 6)); for (let k = lo; k <= hi; k += st) ty.push(Math.pow(10, k));
+  } else {
+    const pad = (yhi - ylo) * 0.08 || Math.abs(yhi) * 0.01 || 1;
+    ty = niceTicks(ylo - pad, yhi + pad, 5);
+    const lo = Math.min(ty[0], ylo - pad), hi = Math.max(ty[ty.length - 1], yhi + pad);
+    Y = v => m.t + (H - m.t - m.b) * (hi - v) / (hi - lo);
+  }
+  const X = v => m.l + (W - m.l - m.r) * (v - xi) / (xa - xi);
+  const ax = el("g", { class: "axis" }, svg);
+  for (const v of ty) {
+    const yy = Y(v);
+    el("line", { class: "gridline", x1: m.l, x2: W - m.r, y1: yy, y2: yy }, ax);
+    el("text", { x: m.l - 8, y: yy + 4, "text-anchor": "end", text: o.log ? "1e" + Math.round(Math.log10(v)) : fmtG(v) }, ax);
+  }
+  for (const v of niceTicks(xi, xa, 6)) {
+    if (v < xi || v > xa) continue;
+    el("text", { x: X(v), y: H - 8, "text-anchor": "middle", text: fmtInt(v) }, ax);
+  }
+  el("line", { class: "baseline", x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b }, ax);
+  const top = m.t, bot = H - m.b, inside = yy => yy >= top - 0.5 && yy <= bot + 0.5;
+  if (o.band) {
+    const [lo, hi] = o.band, y1 = Math.max(top, Y(hi)), y2 = Math.min(bot, Y(lo));
+    if (hi > lo && y2 > y1) el("rect", { class: "band", x: m.l, width: W - m.l - m.r, y: y1, height: y2 - y1 }, svg);
+    for (const v of (hi > lo ? [lo, hi] : [lo])) if (inside(Y(v)))
+      el("line", { class: "bandedge", x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v) }, svg);
+    const ym = Y((lo + hi) / 2);
+    const lab = hi > lo ? "referência" : "ref. " + fmtG(lo);
+    if (inside(ym)) el("text", { class: "dlabel", x: W - m.r + 6, y: ym + 4, text: lab }, svg);
+    else el("text", { class: "dlabel", x: W - m.r + 6, y: ym < top ? top + 10 : bot - 4, text: lab + (ym < top ? " ↑" : " ↓") }, svg);
+  }
+  if (o.tol) {
+    el("line", { class: "tol", x1: m.l, x2: W - m.r, y1: Y(o.tol), y2: Y(o.tol) }, svg);
+    el("text", { class: "dlabel", x: W - m.r + 6, y: Y(o.tol) + 4, text: "tol " + o.tol.toExponential(0) }, svg);
+  }
+  if (o.fit) {
+    const [a, b] = o.fit, x0 = x[x.length - 1], x1 = Math.min(xa, (Math.log10(o.tol) - b) / a);
+    el("path", { class: "extrap", d: `M${X(x0)},${Y(Math.pow(10, a * x0 + b))}L${X(x1)},${Y(Math.pow(10, a * x1 + b))}` }, svg);
+  }
+  let d = "", pen = false;
+  for (let i = 0; i < x.length; i++) {
+    const v = y[i];
+    if (!Number.isFinite(v) || (o.log && v <= 0)) { pen = false; continue; }
+    d += (pen ? "L" : "M") + X(x[i]).toFixed(1) + "," + Y(v).toFixed(1); pen = true;
+  }
+  el("path", { class: "line", d }, svg);
+  if (o.rightLabel) {
+    const k = y.length - 1;
+    if (Number.isFinite(y[k])) el("text", { class: "dlabel", x: X(x[k]) + 6, y: Y(y[k]) - 6, text: o.rightLabel }, svg);
+  }
+  // camada de hover: linha vertical + ponto + tooltip
+  const cross = el("line", { class: "cross", y1: m.t, y2: H - m.b, visibility: "hidden" }, svg);
+  const dot = el("circle", { class: "hoverdot", r: 4.5, visibility: "hidden" }, svg);
+  const hit = el("rect", { x: m.l, y: 0, width: W - m.l - m.r, height: H, fill: "transparent", tabindex: 0 }, svg);
+  const show = clientX => {
+    const r = svg.getBoundingClientRect(), sx = (clientX - r.left) * W / r.width;
+    const xv = xi + (sx - m.l) / (W - m.l - m.r) * (xa - xi);
+    let lo = 0, hi = x.length - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (x[mid] < xv) lo = mid; else hi = mid; }
+    const i = Math.abs(x[lo] - xv) < Math.abs(x[hi] - xv) ? lo : hi;
+    if (!Number.isFinite(y[i]) || (o.log && y[i] <= 0)) return;
+    const px = X(x[i]), py = Y(y[i]);
+    cross.setAttribute("x1", px); cross.setAttribute("x2", px); cross.setAttribute("visibility", "visible");
+    dot.setAttribute("cx", px); dot.setAttribute("cy", py); dot.setAttribute("visibility", "visible");
+    tip.replaceChildren();
+    const l1 = el("div", {}, tip); el("span", { class: "k" }, l1); el("strong", { text: o.fmt(y[i]) }, l1);
+    el("span", { text: "  " + o.name }, l1);
+    el("div", { class: "sub", text: "iteração " + fmtInt(x[i]) }, tip);
+    tip.style.display = "block";
+    const cr = card.getBoundingClientRect(), cw = card.clientWidth;
+    const left = r.left - cr.left + px * r.width / W, topPx = r.top - cr.top + py * r.height / H;
+    tip.style.left = Math.min(Math.max(4, left + 12), cw - tip.offsetWidth - 4) + "px";
+    tip.style.top = Math.max(4, topPx - tip.offsetHeight - 10) + "px";
+  };
+  const hide = () => { tip.style.display = "none"; cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden"); };
+  hit.addEventListener("pointermove", e => show(e.clientX));
+  hit.addEventListener("pointerdown", e => show(e.clientX));
+  hit.addEventListener("pointerleave", hide);
+  hit.addEventListener("blur", hide);
+  hit.addEventListener("focus", () => { const r = svg.getBoundingClientRect(); show(r.right - 1); });
+}
+
+let STATE = { meta: {}, cols: null };
+let zoom = store.get("zoom", "terco");
+
+function tile(parent, lab, val, det) {
+  const t = el("div", { class: "tile" }, parent);
+  el("div", { class: "lab", text: lab }, t);
+  el("div", { class: "val", text: val }, t);
+  el("div", { class: "det", text: det || "" }, t);
+}
+
+function render() {
+  const { meta, cols: c } = STATE;
+  const charts = document.getElementById("charts"), tiles = document.getElementById("tiles");
+  charts.replaceChildren(); tiles.replaceChildren();
+  document.getElementById("titulo").textContent = "Convergência — " + (meta.caso || "LBM");
+  if (!c) {
+    el("div", { class: "card wide empty", text: "Aguardando o primeiro relatório (100 iterações)…" }, charts);
+    return;
+  }
+  const d = diagnose(meta, c), N = c.it.length;
+  const st = { run: "Rodando", ok: "Convergido", stop: "Parada ou pausada", bad: "Divergiu (NaN)" }[d.state];
+  const sEl = document.getElementById("status");
+  sEl.className = "status " + d.state;
+  document.getElementById("statusTxt").textContent = st;
+  document.getElementById("subtitulo").textContent =
+    `modelo ${meta.modelo || "?"} · pasta ${EMBED.pasta} · última leitura há ${fmtT(d.age)}`;
+  document.title = `${d.state === "ok" ? "✓" : d.state === "run" ? "▶" : "■"} ${meta.caso || ""} it ${d.it} — res ${fmtE(d.res)}`;
+
+  tile(tiles, "Iteração", fmtInt(d.it), meta.max_iter ? "máx. " + fmtInt(Number(meta.max_iter)) : "");
+  tile(tiles, "Resíduo", fmtE(d.res), d.steady ? "tolerância " + d.tol.toExponential(0) : "caso transiente");
+  tile(tiles, "Taxa de convergência", Number.isFinite(d.rate) ? d.rate.toFixed(3) : "—", "décadas / 1000 it (últimas 20 leituras)");
+  tile(tiles, "Velocidade", Number.isFinite(d.its) ? d.its.toFixed(2) + " it/s" : "—",
+       N ? (c.mlups[N - 1]).toFixed(2) + " MLUPS" : "");
+  if (d.steady) tile(tiles, "Tempo restante (estim.)",
+       d.state === "ok" ? "0" : fmtT(d.etaS),
+       d.state === "ok" ? "tolerância atingida" : Number.isFinite(d.etaIt) ? "~" + fmtInt(d.etaIt) + " it" : "resíduo não está caindo");
+
+  const card = el("div", { class: "card wide" }, charts);
+  el("h2", { text: "Resíduo ‖uⁿ − uⁿ⁻¹⁰⁰‖₂ / ‖uⁿ‖₂" }, card);
+  el("div", { class: "note", text: d.fit ? "linha pontilhada: extrapolação log-linear até a tolerância" : "" }, card);
+  chart(card, c.it, c.res, {
+    log: true, name: "resíduo", fmt: fmtE, height: 260, tol: d.steady ? d.tol : null, rightLabel: "resíduo",
+    extraY: d.steady ? [d.tol] : [], fit: d.fit, xmax: d.fit ? Math.min(c.it[N - 1] + d.etaIt, c.it[N - 1] * 3) : 0,
+    aria: "Resíduo de convergência em escala log versus iteração"
+  });
+
+  const R = refs(meta);
+  const extras = Object.keys(c).filter(k => !["it", "res", "tempo_unix", "mlups"].includes(k) && !k.startsWith("res_"));
+  const resComp = Object.keys(c).filter(k => k.startsWith("res_"));
+  const start = zoom === "terco" ? Math.max(0, Math.min(N - 5, Math.floor(N * 2 / 3))) : 0;
+  for (const k of extras) {
+    const v = c[k], cd = el("div", { class: "card" }, charts);
+    const last = v[N - 1], prev = N > 5 ? v[N - 6] : NaN;
+    const rel = Math.abs(last - prev) / Math.max(Math.abs(last), 1e-300);
+    el("h2", { text: `${k} = ${fmtG(last)}` }, cd);
+    let note = Number.isFinite(rel) ? `variação relativa em 500 it: ${rel.toExponential(1)}` : "";
+    if (R[k]) {
+      const [lo, hi] = R[k];
+      note += hi > lo ? ` · referência [${fmtG(lo)}, ${fmtG(hi)}]` : ` · referência ${fmtG(lo)} (erro ${(100 * (last - lo) / lo).toFixed(2)}%)`;
+    }
+    el("div", { class: "note", text: note }, cd);
+    chart(cd, c.it.slice(start), v.slice(start), {
+      name: k, fmt: fmtG, band: R[k], extraY: zoom === "tudo" && R[k] ? R[k] : [],
+      aria: `${k} versus iteração`
+    });
+  }
+
+  const tb = document.getElementById("tabela");
+  tb.replaceChildren();
+  const cols = ["it", "res", ...resComp, ...extras, "mlups"];
+  const hr = el("tr", {}, el("thead", {}, tb));
+  for (const k of cols) el("th", { text: k }, hr);
+  const body = el("tbody", {}, tb);
+  for (let i = N - 1; i >= Math.max(0, N - 30); i--) {
+    const tr = el("tr", {}, body);
+    for (const k of cols) el("td", { text: k === "it" ? fmtInt(c[k][i]) : k.startsWith("res") ? fmtE(c[k][i]) : fmtG(c[k][i]) }, tr);
+  }
+  document.getElementById("rodape").textContent =
+    `Gerado por lbm3d.py · ${N} leituras (uma a cada 100 iterações) · página atualizada às ${new Date().toLocaleTimeString("pt-BR")}`;
+}
+
+function setData(text) { STATE = parseCSV(text); render(); }
+
+// atualizacao: servido por http -> busca o CSV; aberto do disco -> recarrega a pagina
+const intervalo = Number(EMBED.intervalo) || 5;
+document.getElementById("intv").textContent = intervalo;
+const viaHttp = location.protocol.startsWith("http");
+document.getElementById("modo").textContent = viaHttp ? "· modo servidor (dados ao vivo)" : "· arquivo local (recarrega a página)";
+const auto = document.getElementById("auto");
+auto.checked = store.get("auto", "1") === "1";
+auto.addEventListener("change", () => { store.set("auto", auto.checked ? "1" : "0"); agenda(); });
+let timer = null;
+function agenda() {
+  clearTimeout(timer);
+  if (!auto.checked) return;
+  timer = setTimeout(async () => {
+    if (viaHttp) {
+      try { const r = await fetch("convergencia.csv?t=" + Date.now(), { cache: "no-store" }); if (r.ok) setData(await r.text()); }
+      catch (e) {}
+      agenda();
+    } else location.reload();
+  }, intervalo * 1000);
+}
+for (const b of document.querySelectorAll(".seg button")) {
+  b.setAttribute("aria-pressed", b.dataset.zoom === zoom ? "true" : "false");
+  b.addEventListener("click", () => {
+    zoom = b.dataset.zoom; store.set("zoom", zoom);
+    for (const o of document.querySelectorAll(".seg button")) o.setAttribute("aria-pressed", o === b ? "true" : "false");
+    render();
+  });
+}
+let rz = null;
+window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 150); });
+// contador do tempo de simulacao (andamento.json gravado pelo lbm3d.py a cada segundo)
+let ANDAMENTO = EMBED.andamento || null;
+function hms(s) { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  return h + "h" + String(m).padStart(2, "0") + "m" + String(x).padStart(2, "0") + "s"; }
+function contadorTick() {
+  const a = ANDAMENTO, el = document.getElementById("contadorTxt"), box = document.getElementById("contador");
+  if (!a) { el.textContent = "—"; return; }
+  const agora = Date.now() / 1000, atraso = agora - a.atualizado_unix;
+  const vivo = a.situacao === "rodando" && atraso < 120;
+  const total = a.decorrido_total_s + (vivo ? atraso : 0);
+  let t = hms(total) + " · it " + a.it;
+  if (a.it_por_s) t += " · " + a.it_por_s.toFixed(1) + " it/s";
+  if (a.progresso != null) t += " · " + Math.round(100 * a.progresso) + "%";
+  if (a.restante_s != null && vivo) t += " · restante ~" + hms(a.restante_s - atraso);
+  if (!vivo) t += " · " + (a.situacao === "rodando" ? "sem atualização" : a.situacao);
+  el.textContent = t;
+  box.className = "status " + (vivo ? "run" : a.situacao === "terminou" ? "ok" : "stop");
+}
+async function buscaAndamento() {
+  if (!viaHttp) return;
+  try { const r = await fetch("andamento.json?t=" + Date.now(), { cache: "no-store" }); if (r.ok) ANDAMENTO = await r.json(); }
+  catch (e) {}
+}
+setInterval(() => { contadorTick(); }, 1000);
+setInterval(buscaAndamento, 2000);
+contadorTick();
+setData(EMBED.csv);
+agenda();
+</script>
+</body>
+</html>

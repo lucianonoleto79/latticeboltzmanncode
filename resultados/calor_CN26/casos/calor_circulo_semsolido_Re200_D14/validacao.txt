@@ -1,0 +1,1 @@
+Circular cylinder, Re = 200, metodo sem_solido (D = 14, Ds = 30 D): Nu = 7.0182   Nu_ref (Eq. 17) = 7.244   dif = 3.11%   instantes = 36680   (duracao de 131 D/U atingida)
