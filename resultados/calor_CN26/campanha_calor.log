@@ -1,0 +1,123 @@
+Casos a rodar: 48 (processos simultaneos: 3)
+Contador de todas as simulacoes:  python acompanhar.py --todos
+21:54:28 iniciado: calor_circulo_comsolido_Re1_D10 (pid 1570)
+21:54:28 iniciado: calor_circulo_comsolido_Re100_D20 (pid 1571)
+21:54:28 iniciado: calor_circulo_semsolido_Re1_D10 (pid 1572)
+23:46:00 terminou: calor_circulo_semsolido_Re1_D10 Nu = 0.8200
+23:46:00 iniciado: calor_elipse_semsolido_Re1_D10 (pid 44549)
+01:48:39 terminou: calor_elipse_semsolido_Re1_D10 Nu = 0.5503
+01:48:39 iniciado: calor_placa_semsolido_Re1_D10 (pid 91525)
+02:02:55 terminou: calor_circulo_comsolido_Re1_D10 Nu = 0.7747
+02:02:55 iniciado: calor_hexagono_semsolido_Re1_D10 (pid 96859)
+02:06:35 terminou: calor_circulo_comsolido_Re100_D20 Nu = 4.1260
+02:06:35 iniciado: calor_hexagono45_semsolido_Re1_D10 (pid 98229)
+03:36:52 terminou: calor_placa_semsolido_Re1_D10 Nu = 0.9537
+03:36:52 iniciado: calor_quadrado_semsolido_Re1_D10 (pid 32508)
+03:52:08 terminou: calor_hexagono_semsolido_Re1_D10 Nu = 0.7576
+03:52:08 iniciado: calor_quadrado45_semsolido_Re1_D10 (pid 38158)
+03:55:28 terminou: calor_hexagono45_semsolido_Re1_D10 Nu = 0.8126
+03:55:28 iniciado: calor_circulo_comsolido_Re10_D10 (pid 39456)
+05:27:10 terminou: calor_quadrado_semsolido_Re1_D10 Nu = 0.6697
+05:27:10 iniciado: calor_circulo_comsolido_Re200_D20 (pid 74825)
+05:40:51 terminou: calor_quadrado45_semsolido_Re1_D10 Nu = 0.8564
+05:40:51 iniciado: calor_circulo_semsolido_Re100_D20 (pid 79815)
+06:38:06 terminou: calor_circulo_comsolido_Re10_D10 Nu = 1.7542
+06:38:06 iniciado: calor_elipse_semsolido_Re100_D20 (pid 1556)
+07:55:11 terminou: calor_circulo_semsolido_Re100_D20 Nu = 5.1252
+07:55:11 iniciado: calor_placa_semsolido_Re100_D20 (pid 31930)
+08:52:40 terminou: calor_elipse_semsolido_Re100_D20 Nu = 3.7068
+08:52:40 iniciado: calor_hexagono_semsolido_Re100_D20 (pid 53291)
+10:10:16 terminou: calor_placa_semsolido_Re100_D20 Nu = 6.0474
+10:10:16 iniciado: calor_hexagono45_semsolido_Re100_D20 (pid 83862)
+11:08:10 terminou: calor_hexagono_semsolido_Re100_D20 Nu = 4.9511
+11:08:10 iniciado: calor_quadrado_semsolido_Re100_D20 (pid 5978)
+12:25:51 terminou: calor_hexagono45_semsolido_Re100_D20 Nu = 5.0658
+12:25:51 iniciado: calor_quadrado45_semsolido_Re100_D20 (pid 34688)
+13:23:25 terminou: calor_quadrado_semsolido_Re100_D20 Nu = 4.2170
+13:23:25 iniciado: calor_circulo_comsolido_Re1_D7 (pid 57733)
+14:40:56 terminou: calor_quadrado45_semsolido_Re100_D20 Nu = 5.4564
+14:40:56 iniciado: calor_circulo_comsolido_Re100_D14 (pid 86270)
+14:57:08 terminou: calor_circulo_comsolido_Re1_D7 Nu = 0.7895
+14:57:08 iniciado: calor_circulo_semsolido_Re1_D7 (pid 92201)
+15:35:30 terminou: calor_circulo_semsolido_Re1_D7 Nu = 0.8210
+15:35:30 iniciado: calor_circulo_semsolido_Re200_D20 (pid 6885)
+16:08:48 terminou: calor_circulo_comsolido_Re100_D14 Nu = 4.0209
+16:08:48 iniciado: calor_elipse_semsolido_Re200_D20 (pid 21000)
+16:43:56 terminou: calor_circulo_semsolido_Re200_D20 Nu = 7.1534
+16:43:56 iniciado: calor_placa_semsolido_Re200_D20 (pid 33810)
+17:17:08 terminou: calor_elipse_semsolido_Re200_D20 Nu = 5.1571
+17:17:08 iniciado: calor_hexagono_semsolido_Re200_D20 (pid 46066)
+17:53:40 terminou: calor_placa_semsolido_Re200_D20 Nu = 9.2472
+17:53:40 iniciado: calor_hexagono45_semsolido_Re200_D20 (pid 56248)
+18:27:33 terminou: calor_hexagono_semsolido_Re200_D20 Nu = 7.1783
+18:27:33 iniciado: calor_quadrado_semsolido_Re200_D20 (pid 68924)
+19:03:00 terminou: calor_hexagono45_semsolido_Re200_D20 Nu = 7.2375
+19:03:00 iniciado: calor_quadrado45_semsolido_Re200_D20 (pid 83577)
+19:36:43 terminou: calor_quadrado_semsolido_Re200_D20 Nu = 5.9755
+19:36:43 iniciado: calor_circulo_comsolido_Re10_D7 (pid 96008)
+20:12:15 terminou: calor_quadrado45_semsolido_Re200_D20 Nu = 8.0075
+20:12:15 iniciado: calor_circulo_semsolido_Re10_D10 (pid 9654)
+20:37:52 terminou: calor_circulo_comsolido_Re10_D7 Nu = 1.8357
+20:37:52 iniciado: calor_elipse_semsolido_Re10_D10 (pid 19078)
+21:12:30 terminou: calor_circulo_semsolido_Re10_D10 Nu = 1.8681
+21:12:30 iniciado: calor_placa_semsolido_Re10_D10 (pid 27982)
+21:41:41 terminou: calor_elipse_semsolido_Re10_D10 Nu = 1.3528
+21:41:41 iniciado: calor_hexagono_semsolido_Re10_D10 (pid 28798)
+22:15:07 terminou: calor_placa_semsolido_Re10_D10 Nu = 2.0071
+22:15:07 iniciado: calor_hexagono45_semsolido_Re10_D10 (pid 41002)
+22:40:44 terminou: calor_hexagono_semsolido_Re10_D10 Nu = 1.7476
+22:40:44 iniciado: calor_quadrado_semsolido_Re10_D10 (pid 50291)
+23:12:52 terminou: calor_hexagono45_semsolido_Re10_D10 Nu = 1.8374
+23:12:52 iniciado: calor_quadrado45_semsolido_Re10_D10 (pid 62072)
+23:38:14 terminou: calor_quadrado_semsolido_Re10_D10 Nu = 1.5468
+23:38:14 iniciado: calor_circulo_comsolido_Re200_D14 (pid 71288)
+00:10:16 terminou: calor_quadrado45_semsolido_Re10_D10 Nu = 1.9359
+00:10:16 iniciado: calor_circulo_semsolido_Re100_D14 (pid 83098)
+00:59:10 terminou: calor_circulo_semsolido_Re100_D14 Nu = 5.1044
+00:59:10 iniciado: calor_circulo_comsolido_Re1_D5 (pid 1682)
+01:37:18 terminou: calor_circulo_comsolido_Re1_D5 Nu = 0.8049
+01:37:18 iniciado: calor_circulo_comsolido_Re100_D10 (pid 17299)
+02:01:20 terminou: calor_circulo_comsolido_Re100_D10 Nu = 5.0882
+02:01:20 iniciado: calor_circulo_semsolido_Re1_D5 (pid 25994)
+02:15:51 terminou: calor_circulo_semsolido_Re1_D5 Nu = 0.8189
+02:15:51 iniciado: calor_circulo_comsolido_Re10_D5 (pid 31261)
+02:39:53 terminou: calor_circulo_comsolido_Re10_D5 Nu = 1.9053
+02:39:53 iniciado: calor_circulo_semsolido_Re200_D14 (pid 39893)
+03:03:14 terminou: calor_circulo_semsolido_Re200_D14 Nu = 7.0182
+03:03:14 iniciado: calor_circulo_comsolido_Re200_D10 (pid 48341)
+03:17:00 terminou: calor_circulo_comsolido_Re200_D10 Nu = 10.3283
+03:17:00 iniciado: calor_circulo_semsolido_Re10_D7 (pid 53353)
+03:37:57 terminou: calor_circulo_semsolido_Re10_D7 Nu = 1.8625
+03:37:57 iniciado: calor_circulo_semsolido_Re100_D10 (pid 61172)
+03:56:08 terminou: calor_circulo_semsolido_Re100_D10 Nu = 5.1133
+03:56:08 iniciado: calor_circulo_semsolido_Re200_D10 (pid 67838)
+04:05:29 terminou: calor_circulo_semsolido_Re200_D10 Nu = 7.5373
+04:05:29 iniciado: calor_circulo_semsolido_Re10_D5 (pid 73018)
+04:13:04 terminou: calor_circulo_semsolido_Re10_D5 Nu = 1.8428
+Casos a rodar: 12 (processos simultaneos: 3)
+Contador de todas as simulacoes:  python acompanhar.py --todos
+21:25:22 iniciado: calor_circulo_comsolido_Re200_D10 (pid 2435)
+21:25:22 iniciado: calor_circulo_comsolido_Re10_D5 (pid 2436)
+21:25:22 iniciado: calor_circulo_comsolido_Re100_D10 (pid 2437)
+22:00:44 terminou: calor_circulo_comsolido_Re10_D5 Nu = 1.8715
+22:00:44 iniciado: calor_circulo_comsolido_Re1_D5 (pid 7910)
+22:01:49 terminou: calor_circulo_comsolido_Re200_D10 Nu = 5.5583
+22:01:49 iniciado: calor_circulo_comsolido_Re200_D14 (pid 8465)
+22:04:49 terminou: calor_circulo_comsolido_Re100_D10 Nu = 4.2829
+22:04:49 iniciado: calor_circulo_comsolido_Re10_D7 (pid 9990)
+22:38:31 terminou: calor_circulo_comsolido_Re1_D5 Nu = 0.8076
+22:38:31 iniciado: calor_circulo_comsolido_Re100_D14 (pid 26274)
+23:02:13 terminou: calor_circulo_comsolido_Re200_D14 Nu = 6.6667
+23:02:13 iniciado: calor_circulo_comsolido_Re1_D7 (pid 37775)
+23:05:58 terminou: calor_circulo_comsolido_Re10_D7 Nu = 1.8147
+23:05:58 iniciado: calor_circulo_comsolido_Re200_D20 (pid 39573)
+23:52:32 terminou: calor_circulo_comsolido_Re100_D14 Nu = 4.7254
+23:52:32 iniciado: calor_circulo_comsolido_Re10_D10 (pid 61921)
+00:34:55 terminou: calor_circulo_comsolido_Re1_D7 Nu = 0.7923
+00:34:55 iniciado: calor_circulo_comsolido_Re100_D20 (pid 84286)
+01:55:10 terminou: calor_circulo_comsolido_Re200_D20 Nu = 7.2111
+01:55:10 iniciado: calor_circulo_comsolido_Re1_D10 (pid 23770)
+02:34:53 terminou: calor_circulo_comsolido_Re10_D10 Nu = 1.7563
+03:53:40 terminou: calor_circulo_comsolido_Re100_D20 Nu = 4.9313
+05:33:23 terminou: calor_circulo_comsolido_Re1_D10 Nu = 0.7776
+Campanha concluida.

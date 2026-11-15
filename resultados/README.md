@@ -33,6 +33,8 @@ Arquivos:
 * `contorno/contorno_cortes.png`
 * `dominio/dominio_3d.png`
 * `dominio/dominio_cortes.png`
+* `checkpoint/checkpoint.npz` (fora do git)
+* `escoamento/final/calor_it<n>.vtk` (fora do git)
 * `escoamento/final/componentes_pressao.png`
 * `escoamento/final/velocidade_cortes.png`
 * `graficos/convergencia.csv`
@@ -167,10 +169,11 @@ Arquivos:
 
 Resultado: tabelas no formato do artigo (Tabelas 2–6, Fig. 12, Strouhal) em `comparacao_CN26.md`. Reproduzir: `python campanha_calor.py --plano completo --rodar --processos 3` e depois `python campanha_calor.py --relatorio`; o relatório também copia os casos para cá.
 
-Rodado com a versão atual. As 48 rodadas estão completas em `casos/`, cada uma com a organização padrão (`dominio/`, `contorno/`, `malha/`, `escoamento/final/`, `graficos/`, logs e json). Ficaram de fora os checkpoints, os `.npz` e os `.vtk`. Em `resultado_calor.json`, `Strouhal` é o St pelo período de C_L; `Strouhal_Nu` é o St pelo período do Nu, que só vale para corpos simétricos.
+Rodado com a versão atual. As 48 rodadas estão completas em `casos/`, cada uma com a organização padrão (`dominio/`, `contorno/`, `malha/`, `escoamento/final/`, `graficos/`, logs e json). Os campos `escoamento/final/*.vtk` (velocidade, pressão e θ) e os checkpoints `checkpoint/checkpoint.npz` também estão nas pastas, mas não vão para o git (`.gitignore`); foram copiados como clones do APFS, sem ocupar disco a mais. Com o checkpoint, `python lbm3d.py --restart resultados/calor_CN26/casos/<pasta>` continua a rodada. O log da campanha está em `campanha_calor.log`. Em `resultado_calor.json`, `Strouhal` é o St pelo período de C_L; `Strouhal_Nu` é o St pelo período do Nu, que só vale para corpos simétricos.
 
 Arquivos na raiz:
 
+* `campanha_calor.log`
 * `comparacao_CN26.md`
 * `fig12_correlacoes.png`
 * `nusselt_lbm_x_artigo.png`

@@ -351,8 +351,16 @@ def figuras_relatorio(lista, porchave, corr, nivel_nc, saida):
     copiar_casos(lista, saida)
 
 
-IGNORAR = (".npz", ".vtk")
-IGNORAR_NOMES = {"andamento.json", "campanha.out", "SALVAR", "PAUSAR", "PARAR"}
+BRUTOS = (".npz", ".vtk")           # campos e checkpoints: copiados como clones (fora do git)
+IGNORAR_NOMES = {"andamento.json", "campanha.out", "SALVAR", "PAUSAR", "PARAR", ".DS_Store"}
+
+
+def clonar(src, dst):
+    """Copia sem gastar disco no APFS (cp -c, copy-on-write); senao, copia normal."""
+    import shutil
+    if sys.platform == "darwin" and subprocess.call(["cp", "-c", src, dst]) == 0:
+        return
+    shutil.copy2(src, dst)
 
 
 def atualizar_strouhal(c):
@@ -370,8 +378,9 @@ def atualizar_strouhal(c):
 
 
 def copiar_casos(lista, saida):
-    """Copia cada caso inteiro (dominio/, contorno/, malha/, escoamento/, graficos/, logs, json)
-    para <saida>/casos/<tag>/, sem checkpoint, .npz e .vtk."""
+    """Copia cada caso inteiro para <saida>/casos/<tag>/: dominio/, contorno/, malha/, escoamento/
+    (com os .vtk), graficos/, checkpoint/, logs e json.  .npz, .vtk e checkpoint/ ficam fora do git
+    (.gitignore) e sao copiados como clones, sem ocupar disco a mais."""
     import shutil
     raiz = os.path.join(saida, "casos")
     for c in lista:
@@ -382,13 +391,18 @@ def copiar_casos(lista, saida):
         if os.path.isdir(dst):
             shutil.rmtree(dst)
         for base, dirs, arqs in os.walk(c["pasta"]):
-            dirs[:] = [d for d in dirs if d != "checkpoint"]
             for n in arqs:
-                if n.endswith(IGNORAR) or n in IGNORAR_NOMES:
+                if n in IGNORAR_NOMES:
                     continue
                 rel = os.path.relpath(os.path.join(base, n), c["pasta"])
                 os.makedirs(os.path.dirname(os.path.join(dst, rel)), exist_ok=True)
-                shutil.copy2(os.path.join(base, n), os.path.join(dst, rel))
+                if n.endswith(BRUTOS):
+                    clonar(os.path.join(base, n), os.path.join(dst, rel))
+                else:
+                    shutil.copy2(os.path.join(base, n), os.path.join(dst, rel))
+    log = os.path.join(os.path.dirname(lista[0]["pasta"]), "campanha_calor.log") if lista else ""
+    if os.path.exists(log):
+        shutil.copy2(log, saida)
 
 
 def main():
