@@ -1,0 +1,14 @@
+Pos-processamento do cilindro 3D-1Z, D = 6 (plano z = H/2), via scripts/pos_cilindro.py
+
+rodada                   L_a/D   L_a [m]    separacao     C_p frente
+K17, Um=0,05             0.660    0.0660      151.3 deg          7.823
+K17, Um=0,1              0.660    0.0660      151.2 deg          7.763
+K17, Um=0,025            0.658    0.0658      151.4 deg          7.861
+cumulante, Um=0,05       0.599    0.0599      153.3 deg          8.618
+BGK, Um=0,05             0.617    0.0617      153.5 deg          8.981
+K17 + limitador          0.659    0.0659      151.4 deg          7.871
+
+L_a: da traseira ate u_x = 0 na linha de centro; separacao: angulo a partir da frente (lado de cima)
+em que a velocidade tangencial junto a parede troca de sinal; C_p = 2 (p - p_traseira)/(rho U_media^2).
+Com D = 6 (3 nos no raio) L_a e a separacao sao estimativas grosseiras; sem valor de referencia
+conferido para o caso 3D-1Z: servem para comparar as rodadas entre si.

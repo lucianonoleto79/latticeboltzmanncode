@@ -1,0 +1,9 @@
+Cilindro 3D-1Z, D = 6, Um = 0,05: comparacao de modelos de colisao
+
+rodada              it   residuo        C_D   desvio%        C_L   desvio%    dp [Pa]   desvio%  pasta
+K17              15600  7.00e-07    6.32927     +1.27    0.02346    +134.6    0.16565     +0.00  resultados/cylinder_D6_Re20_U0.05
+cumulante        16200  5.70e-07    6.76358     +8.22    0.03374    +237.4    0.18107     +3.47  resultados/cylinder_D6_Re20_U0.05_cumulant
+BGK              15700  9.25e-07    6.88256    +10.12    0.02935    +193.5    0.18602     +6.30  resultados/cylinder_D6_Re20_U0.05_bgk
+
+desvio% = distancia ate a faixa de referencia, em % do limite mais proximo (0 = dentro).
+Faixas: C_D [6.05, 6.25], C_L [0.008, 0.01], dp [0.165, 0.175]

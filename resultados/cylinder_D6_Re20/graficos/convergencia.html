@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convergência LBM</title>
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f4f3f0;
+  --surface-1: #fcfcfb;
+  --border: #e3e2dd;
+  --grid: #ecebe7;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #7a7974;
+  --series-1: #2a78d6;
+  --band: rgba(27, 175, 122, 0.16);
+  --band-edge: #1baf7a;
+  --good: #008300;
+  --warning: #b87900;
+  --critical: #d03b3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0: #121211;
+    --surface-1: #1a1a19;
+    --border: #2e2d2b;
+    --grid: #262624;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #8f8e86;
+    --series-1: #3987e5;
+    --band: rgba(25, 158, 112, 0.22);
+    --band-edge: #199e70;
+    --good: #3fae3f;
+    --warning: #d9a03a;
+    --critical: #e66767;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #121211;
+  --surface-1: #1a1a19;
+  --border: #2e2d2b;
+  --grid: #262624;
+  --text-primary: #f0efec;
+  --text-secondary: #c3c2b7;
+  --text-muted: #8f8e86;
+  --series-1: #3987e5;
+  --band: rgba(25, 158, 112, 0.22);
+  --band-edge: #199e70;
+  --good: #3fae3f;
+  --warning: #d9a03a;
+  --critical: #e66767;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--surface-0); color: var(--text-primary);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 1120px; margin: 0 auto; padding: 20px 16px 40px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 14px; }
+h1 { font-size: 20px; margin: 0; font-weight: 650; }
+.sub { color: var(--text-secondary); }
+.status { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; padding: 2px 10px;
+  border-radius: 999px; border: 1px solid var(--border); background: var(--surface-1); }
+.status .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+.status.run { color: var(--series-1); }
+.status.ok { color: var(--good); }
+.status.stop { color: var(--warning); }
+.status.bad { color: var(--critical); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+.tile .lab { color: var(--text-secondary); font-size: 12px; }
+.tile .val { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.tile .det { color: var(--text-muted); font-size: 12px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin: 4px 0 12px; color: var(--text-secondary); }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface-1); color: var(--text-secondary); padding: 5px 12px; cursor: pointer; font: inherit; }
+.seg button[aria-pressed="true"] { background: var(--series-1); color: #fff; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 12px; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px 8px; position: relative; min-width: 0; }
+.card.wide { grid-column: 1 / -1; }
+.card h2 { font-size: 14px; margin: 0; font-weight: 600; }
+.card .note { color: var(--text-muted); font-size: 12px; min-height: 17px; }
+svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: none; }
+.axis text { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.gridline { stroke: var(--grid); stroke-width: 1; }
+.baseline { stroke: var(--border); stroke-width: 1; }
+.line { fill: none; stroke: var(--series-1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.tol { stroke: var(--text-secondary); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.extrap { fill: none; stroke: var(--series-1); stroke-width: 1.5; stroke-dasharray: 2 4; opacity: .8; }
+.band { fill: var(--band); }
+.bandedge { stroke: var(--band-edge); stroke-width: 1; stroke-dasharray: 3 3; }
+.dlabel { fill: var(--text-secondary); font-size: 11px; }
+.cross { stroke: var(--text-muted); stroke-width: 1; }
+.hoverdot { fill: var(--series-1); stroke: var(--surface-1); stroke-width: 2; }
+.tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
+  white-space: nowrap; display: none; z-index: 5; }
+.tip strong { font-variant-numeric: tabular-nums; }
+.tip .k { display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--series-1); vertical-align: middle; margin-right: 6px; }
+details { margin-top: 14px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; }
+summary { cursor: pointer; color: var(--text-secondary); }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 12px; }
+th, td { text-align: right; padding: 3px 8px; border-bottom: 1px solid var(--grid); }
+th { color: var(--text-secondary); font-weight: 600; }
+.tablewrap { overflow-x: auto; }
+footer { color: var(--text-muted); font-size: 12px; margin-top: 14px; }
+.empty { padding: 40px; text-align: center; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 id="titulo">Convergência LBM</h1>
+    <span class="status" id="status"><span class="dot"></span><span id="statusTxt">—</span></span>
+    <span class="sub" id="subtitulo"></span>
+  </header>
+  <section class="tiles" id="tiles"></section>
+  <div class="controls">
+    <span>Grandezas:</span>
+    <div class="seg" role="group" aria-label="Janela das grandezas">
+      <button data-zoom="tudo" aria-pressed="false">Tudo</button>
+      <button data-zoom="terco" aria-pressed="true">Último terço</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="auto" checked> Atualização automática (<span id="intv"></span> s)</label>
+    <span id="modo"></span>
+  </div>
+  <section class="grid" id="charts"></section>
+  <details>
+    <summary>Tabela (últimas 30 leituras)</summary>
+    <div class="tablewrap"><table id="tabela"></table></div>
+  </details>
+  <footer id="rodape"></footer>
+</main>
+<script>
+const EMBED = /*__DADOS__*/{"csv": "# caso=cylinder tol=1e-06 max_iter=200000 steady=1 modelo=k17 ref_C_D=6.05:6.25 ref_C_L=0.008:0.01 ref_dp=0.165:0.175\nit,res,tempo_unix,mlups,res_ux,res_uy,res_uz,res_rho,C_D,C_L,dp\n100,2.036666e-01,1794142372.132,1.3350,0.17653345,0.097450561,0.028625582,0.007418012,12.10054,0.10760041,0.28789113\n200,1.189720e-01,1794142380.424,1.3312,0.11246413,0.036411385,0.013429676,0.0073403657,7.1672994,-0.10133434,0.18437734\n300,9.090043e-02,1794142390.599,1.2362,0.087005187,0.024112859,0.010561978,0.0064795401,6.2378306,-0.024173436,0.16135772\n400,6.616209e-02,1794142400.057,1.2173,0.063967173,0.015402061,0.0069569705,0.0056024367,5.3140584,3.4703531e-05,0.14221465\n500,5.379615e-02,1794142410.804,1.1731,0.052381921,0.011178448,0.0050201504,0.0045990736,6.9132569,0.022106297,0.17694588\n600,4.361690e-02,1794142421.693,1.1425,0.042468035,0.0090406931,0.0041431176,0.0034577456,6.4806919,0.035771586,0.16885621\n700,3.940400e-02,1794142432.374,1.1251,0.038549244,0.0074434795,0.003350502,0.0025883747,6.4590059,0.021791338,0.16737258\n800,2.080838e-02,1794142440.862,1.1440,0.019874904,0.0054898381,0.0027997661,0.0033575643,6.4541234,0.01533096,0.1668575\n900,2.677414e-02,1794142448.965,1.1645,0.026321394,0.0043560805,0.0022502083,0.0022227339,6.4133462,0.020589627,0.16638632\n1000,2.304490e-02,1794142457.882,1.1711,0.022682133,0.0036298619,0.0018473192,0.0020424366,6.4841331,0.023911715,0.16835056\n1100,2.636711e-02,1794142466.662,1.1782,0.025994776,0.0041314436,0.0015579002,0.00066523452,6.078422,0.01308032,0.15915567\n1200,1.958046e-02,1794142476.472,1.1733,0.01931802,0.0028849326,0.0013731636,0.0012333099,6.3139818,0.017886456,0.16421155\n1300,1.607769e-02,1794142486.831,1.1640,0.015876958,0.002209273,0.0012382629,0.0012876549,6.2118499,0.0216184,0.16242096\n1400,1.016708e-02,1794142497.253,1.1555,0.0099638605,0.0017682148,0.00098204242,0.0015076131,6.2172007,0.021757191,0.16256176\n1500,1.050209e-02,1794142506.596,1.1570,0.010371364,0.0014594522,0.00077375871,0.0012392201,6.0883545,0.02113057,0.15969676\n1600,1.133530e-02,1794142514.850,1.1667,0.011253812,0.0012106289,0.00061246416,0.00090929976,6.4254344,0.021254669,0.1668329\n1700,1.186500e-02,1794142523.013,1.1760,0.011794343,0.0011773412,0.00053429472,0.00040530542,6.3512601,0.022445133,0.16539268\n1800,9.641241e-03,1794142531.381,1.1830,0.0095957589,0.00081124623,0.00046564476,0.00051689171,6.3254602,0.021751231,0.16469038\n1900,4.376977e-03,1794142539.286,1.1924,0.0043193965,0.00061317244,0.00035321739,0.00081793151,6.3693001,0.021759309,0.16549994\n2000,4.758137e-03,1794142547.969,1.1960,0.0047264667,0.00046673895,0.00028728138,0.00073062307,6.3681047,0.021888603,0.16552177\n2100,5.073732e-03,1794142558.530,1.1876,0.0050546518,0.00039073682,0.00020144129,0.00061927906,6.3478078,0.021951974,0.1651641\n2200,6.764058e-03,1794142566.396,1.1959,0.0067369994,0.00058331389,0.00015830681,0.00027928224,6.254107,0.021021434,0.16309596\n2300,6.144772e-03,1794142574.514,1.2020,0.0061332074,0.00034052565,0.00016135718,0.00020062005,6.2822326,0.020859914,0.16370683\n2400,4.514438e-03,1794142583.236,1.2044,0.0045037459,0.00027373637,0.00014660297,0.0003306998,6.2711407,0.021123666,0.16356098\n2500,1.924364e-03,1794142591.594,1.2086,0.0019079877,0.00022231244,0.00011548537,0.0004543215,6.2667648,0.02117457,0.16348786\n2600,2.197695e-03,1794142600.478,1.2097,0.0021890243,0.00017227483,9.1412069e-05,0.00040840921,6.2531387,0.021146687,0.16317269\n2700,3.170184e-03,1794142609.932,1.2080,0.0031646993,0.00017464522,6.5136517e-05,0.00029467261,6.3077167,0.021287373,0.16433071\n2800,3.827618e-03,1794142617.968,1.2131,0.0038202156,0.0002257661,7.5125721e-05,9.5030071e-05,6.3175392,0.021571678,0.16456238\n2900,3.293473e-03,1794142626.432,1.2159,0.0032895642,0.00014246616,7.374419e-05,0.0001089815,6.3139125,0.02149011,0.16445329\n3000,1.853489e-03,1794142636.133,1.2130,0.001848582,0.00011728297,6.6412599e-05,0.00023083368,6.3240224,0.021454768,0.16463318\n3100,1.014697e-03,1794142645.738,1.2107,0.0010089727,9.5284786e-05,5.0053897e-05,0.00025436187,6.3265378,0.021475525,0.16468672\n3200,1.334781e-03,1794142655.942,1.2061,0.001332117,7.5423809e-05,3.7631136e-05,0.00022049744,6.3167109,0.021507934,0.16448918\n3300,2.065060e-03,1794142663.979,1.2105,0.0020613182,0.00011940811,3.4389849e-05,0.00012492693,6.2953149,0.021337688,0.16402415\n3400,2.162472e-03,1794142671.883,1.2152,0.0021602561,8.9659787e-05,3.9253209e-05,3.0340829e-05,6.2942094,0.0212452,0.16400353\n3500,1.670882e-03,1794142680.638,1.2163,0.0016691201,6.6946446e-05,3.7443605e-05,8.8446855e-05,6.290558,0.021270062,0.16394756\n3600,8.070633e-04,1794142690.808,1.2122,0.00080436844,5.8364085e-05,3.0596882e-05,0.00014419594,6.287982,0.021272582,0.16390274\n3700,5.191258e-04,1794142700.023,1.2117,0.00051650549,4.6639356e-05,2.3205152e-05,0.000145687,6.2874069,0.021265033,0.16388786\n3800,9.388312e-04,1794142708.220,1.2148,0.00093756002,4.5387372e-05,1.8034487e-05,0.00011242655,6.2986087,0.021312112,0.16412598\n3900,1.272386e-03,1794142716.318,1.2181,0.0012708299,5.9564927e-05,2.0224005e-05,4.9148234e-05,6.3049555,0.021394594,0.16426409\n4000,1.199880e-03,1794142724.343,1.2215,0.0011989605,4.1970707e-05,2.1101372e-05,1.7510606e-05,6.3063635,0.021405729,0.16428643\n4100,7.959767e-04,1794142732.164,1.2255,0.00079495697,3.5497034e-05,1.9035259e-05,6.6695234e-05,6.3091654,0.021399902,0.16433613\n4200,3.488345e-04,1794142740.652,1.2271,0.00034725078,2.969353e-05,1.4856287e-05,8.6812257e-05,6.310204,0.021401658,0.16435553\n4300,3.470694e-04,1794142750.083,1.2256,0.00034612833,2.2939487e-05,1.1231632e-05,8.1124348e-05,6.307325,0.021398404,0.16429523\n4400,6.425017e-04,1794142759.169,1.2253,0.00064170098,3.037209e-05,1.0288301e-05,5.365399e-05,6.3017358,0.021359099,0.16417481\n4500,7.536922e-04,1794142770.075,1.2195,0.00075306588,2.8398941e-05,1.1714403e-05,1.5521576e-05,6.2995088,0.021329217,0.16412856\n4600,6.375559e-04,1794142779.683,1.2178,0.00063706681,2.2165975e-05,1.1492921e-05,2.1113182e-05,6.2978186,0.021325601,0.16409816\n4700,3.686060e-04,1794142790.686,1.2122,0.00036796655,1.938306e-05,9.7610223e-06,4.4949992e-05,6.2966535,0.021323585,0.16407725\n4800,1.470647e-04,1794142799.687,1.2124,0.00014606313,1.5410011e-05,7.4920063e-06,5.1307531e-05,6.2967964,0.021322615,0.16408097\n4900,2.657888e-04,1794142808.802,1.2123,0.00026536706,1.3739386e-05,5.9364056e-06,4.3216544e-05,6.2994741,0.021335829,0.16413829\n5000,4.155075e-04,1794142817.375,1.2137,0.00041510258,1.7234518e-05,6.2663741e-06,2.3855095e-05,6.3018549,0.021358712,0.16418932\n5100,4.318398e-04,1794142827.772,1.2102,0.0004315438,1.4508575e-05,6.7131738e-06,1.3286993e-06,6.3030606,0.021368851,0.16421296\n5200,3.242821e-04,1794142837.583,1.2084,0.00032398182,1.2476706e-05,6.2452039e-06,1.8283249e-05,6.3041098,0.02137131,0.16423237\n5300,1.608570e-04,1794142846.680,1.2084,0.00016043426,1.0487392e-05,5.0832786e-06,2.8620591e-05,6.304534,0.021372395,0.1642399\n5400,8.543692e-05,1794142854.606,1.2113,8.4972912e-05,7.992629e-06,3.8974776e-06,2.9403574e-05,6.3037761,0.021369608,0.1642234\n5500,1.935067e-04,1794142865.661,1.2066,0.00019327498,8.8209128e-06,3.4396594e-06,2.1923923e-05,6.3022137,0.021358706,0.16418979\n5600,2.560243e-04,1794142873.487,1.2097,0.00025582908,9.2599382e-06,3.7681459e-06,9.396542e-06,6.3011377,0.021348522,0.16416729\n5700,2.381370e-04,1794142881.434,1.2124,0.00023797184,8.0047673e-06,3.8140222e-06,3.7713464e-06,6.3003632,0.021344443,0.16415233\n5800,1.586429e-04,1794142891.295,1.2106,0.00015845191,7.0084754e-06,3.3813682e-06,1.3424851e-05,6.2998584,0.021342711,0.16414295\n5900,6.389219e-05,1794142900.464,1.2104,6.3593174e-05,5.5610708e-06,2.6823059e-06,1.7551419e-05,6.2998685,0.021342606,0.16414378\n6000,6.971527e-05,1794142909.951,1.2095,6.9533459e-05,4.5649436e-06,2.1163053e-06,1.6223335e-05,6.3005561,0.021346458,0.16415871\n6100,1.314946e-04,1794142920.636,1.2061,0.00013137198,5.2850986e-06,2.0741764e-06,1.0515407e-05,6.3013595,0.021353088,0.16417588\n6200,1.516296e-04,1794142929.525,1.2066,0.00015152828,5.0771406e-06,2.223582e-06,2.8100987e-06,6.3019352,0.021357587,0.16418757\n6300,1.265207e-04,1794142938.712,1.2064,0.00012642045,4.5553504e-06,2.1475888e-06,4.4737245e-06,6.3023713,0.021359679,0.16419597\n6400,7.342801e-05,1794142949.490,1.2030,7.3303886e-05,3.8562044e-06,1.8283095e-06,9.0706113e-06,6.3025671,0.021360506,0.16419951\n6500,2.559909e-05,1794142958.112,1.2041,2.5391652e-05,2.9207246e-06,1.4306914e-06,1.0381114e-05,6.3023908,0.021359613,0.16419545\n6600,5.513557e-05,1794142966.356,1.2059,5.5052102e-05,2.783103e-06,1.2045297e-06,8.5923195e-06,6.3019433,0.021356464,0.16418577\n6700,8.440500e-05,1794142976.932,1.2031,8.4341014e-05,3.0390433e-06,1.2498392e-06,4.6646456e-06,6.3015255,0.021353017,0.16417699\n6800,8.649251e-05,1794142985.712,1.2038,8.643488e-05,2.8791749e-06,1.2943925e-06,4.0076742e-07,6.3011969,0.021350915,0.16417042\n6900,6.472572e-05,1794142993.996,1.2054,6.4663308e-05,2.5767877e-06,1.1978721e-06,3.7472669e-06,6.3009799,0.021349852,0.16416627\n7000,3.132631e-05,1794143002.338,1.2069,3.1242615e-05,2.0644531e-06,9.8714984e-07,5.8061974e-06,6.3009465,0.021349688,0.16416586\n7100,1.699425e-05,1794143010.748,1.2082,1.690068e-05,1.602699e-06,7.7646341e-07,5.9179614e-06,6.3011224,0.021350794,0.16416977\n7200,3.988430e-05,1794143018.870,1.2101,3.9842511e-05,1.6824313e-06,7.0763641e-07,4.3466082e-06,6.3013822,0.021352801,0.16417534\n7300,5.177279e-05,1794143027.512,1.2109,5.1737947e-05,1.7467521e-06,7.454596e-07,1.8173538e-06,6.3016133,0.021354531,0.16418011\n7400,4.763069e-05,1794143036.531,1.2110,4.7596189e-05,1.6525349e-06,7.4501095e-07,8.5127479e-07,6.3017929,0.021355589,0.16418366\n7500,3.159853e-05,1794143048.173,1.2065,3.1559317e-05,1.427524e-06,6.6263664e-07,2.7370267e-06,6.301885,0.021356074,0.16418538\n7600,1.202611e-05,1794143059.622,1.2025,1.1964918e-05,1.0884228e-06,5.3228984e-07,3.5577408e-06,6.3018551,0.021355883,0.16418459\n7700,1.453973e-05,1794143069.527,1.2012,1.4503627e-05,9.2844012e-07,4.3201724e-07,3.249525e-06,6.3017283,0.021354973,0.16418181\n7800,2.686571e-05,1794143080.511,1.1981,2.6843819e-05,9.9932328e-07,4.2090725e-07,2.0765635e-06,6.3015801,0.021353827,0.16417868\n7900,3.053060e-05,1794143090.403,1.1970,3.0510585e-05,1.0139623e-06,4.4021167e-07,5.3509856e-07,6.30145,0.021352943,0.16417603\n8000,2.531047e-05,1794143102.013,1.1931,2.5289425e-05,9.4081485e-07,4.2402741e-07,9.3446373e-07,6.3013587,0.021352415,0.16417425\n8100,1.448964e-05,1794143111.795,1.1922,1.4464552e-05,7.7084973e-07,3.6349149e-07,1.8479907e-06,6.3013305,0.021352262,0.16417377\n8200,4.916540e-06,1794143121.406,1.1916,4.8733633e-06,5.8288005e-07,2.8800719e-07,2.0962785e-06,6.301372,0.021352551,0.16417473\n8300,1.143328e-05,1794143131.617,1.1901,1.1417304e-05,5.5150631e-07,2.4664035e-07,1.7143791e-06,6.301453,0.021353164,0.16417648\n8400,1.714163e-05,1794143140.827,1.1901,1.7129593e-05,5.9128016e-07,2.5095709e-07,9.1510207e-07,6.3015384,0.021353791,0.16417826\n8500,1.737655e-05,1794143151.898,1.1874,1.736465e-05,5.8911958e-07,2.5738153e-07,9.928993e-08,6.3016097,0.021354248,0.1641797\n8600,1.291584e-05,1794143161.385,1.1871,1.2902944e-05,5.2542205e-07,2.3866964e-07,7.7171412e-07,6.3016514,0.021354493,0.1641805\n8700,6.086056e-06,1794143171.950,1.1852,6.0690861e-06,4.0881786e-07,1.9782651e-07,1.1800523e-06,6.3016524,0.021354487,0.16418045\n8800,3.539166e-06,1794143180.573,1.1861,3.5208071e-06,3.2371878e-07,1.5755121e-07,1.1902327e-06,6.301618,0.021354232,0.16417969\n8900,8.191317e-06,1794143188.919,1.1875,8.18341e-06,3.2988558e-07,1.4372233e-07,8.6378238e-07,6.3015683,0.021353858,0.16417863\n9000,1.046735e-05,1794143197.479,1.1885,1.0460434e-05,3.4998118e-07,1.4926462e-07,3.5236517e-07,6.3015194,0.021353519,0.16417762\n9100,9.553660e-06,1794143207.162,1.1879,9.5464933e-06,3.3872516e-07,1.4885204e-07,1.8470136e-07,6.3014823,0.021353285,0.16417688\n9200,6.270509e-06,1794143218.339,1.1852,6.2625405e-06,2.8677944e-07,1.3278454e-07,5.6069008e-07,6.3014662,0.02135319,0.16417658\n9300,2.306072e-06,1794143228.657,1.1838,2.2933622e-06,2.1673721e-07,1.0715934e-07,7.2046693e-07,6.3014738,0.021353252,0.16417678\n9400,3.038055e-06,1794143238.545,1.1830,3.0310665e-06,1.8631786e-07,8.7741531e-08,6.5113109e-07,6.301498,0.021353435,0.16417731\n9500,5.479308e-06,1794143249.530,1.1808,5.4750713e-06,1.9799e-07,8.4908814e-08,4.1056424e-07,6.3015279,0.021353653,0.16417794\n9600,6.155083e-06,1794143260.651,1.1784,6.1509952e-06,2.0619618e-07,8.8255678e-08,1.0044075e-07,6.3015552,0.021353836,0.16417849\n9700,5.063382e-06,1794143271.551,1.1764,5.0590529e-06,1.9126351e-07,8.5062099e-08,1.9529773e-07,6.3015731,0.021353948,0.16417885\n9800,2.850588e-06,1794143282.296,1.1746,2.8455118e-06,1.5356674e-07,7.3033275e-08,3.7695271e-07,6.3015775,0.021353971,0.16417892\n9900,9.802271e-07,1794143292.021,1.1742,9.7148284e-07,1.1699857e-07,5.8116741e-08,4.22944e-07,6.3015691,0.021353905,0.16417872\n", "intervalo": 5, "pasta": "cylinder_D6_Re20"}/*__FIM__*/;
+
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("lbm3d:" + k); return v === null ? d : v; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem("lbm3d:" + k, v); } catch (e) {} }
+};
+
+function parseCSV(text) {
+  const meta = {}; let header = null; const rows = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (line.startsWith("#")) {
+      for (const tok of line.slice(1).trim().split(/\s+/)) {
+        const i = tok.indexOf("="); if (i > 0) meta[tok.slice(0, i)] = tok.slice(i + 1);
+      }
+      continue;
+    }
+    if (line.startsWith("it,")) { header = line.split(","); continue; }
+    if (!header) continue;
+    const v = line.split(",").map(Number);
+    if (v.length === header.length && v.every(Number.isFinite)) rows.push(v);
+  }
+  if (!header || !rows.length) return { meta, cols: null };
+  // reinicio a partir de checkpoint anterior: fica so a ultima passagem
+  let ini = 0;
+  for (let i = 1; i < rows.length; i++) if (rows[i][0] <= rows[i - 1][0]) ini = i;
+  const cols = {};
+  header.forEach((h, j) => { cols[h] = rows.slice(ini).map(r => r[j]); });
+  return { meta, cols };
+}
+
+function refs(meta) {
+  const r = {};
+  for (const k in meta) if (k.startsWith("ref_")) {
+    const [lo, hi] = meta[k].split(":").map(Number);
+    if (Number.isFinite(lo) && Number.isFinite(hi)) r[k.slice(4)] = [lo, hi];
+  }
+  return r;
+}
+
+function polyfit1(x, y) {
+  const n = x.length; let sx = 0, sy = 0, sxx = 0, sxy = 0;
+  for (let i = 0; i < n; i++) { sx += x[i]; sy += y[i]; sxx += x[i] * x[i]; sxy += x[i] * y[i]; }
+  const d = n * sxx - sx * sx; if (!d) return [NaN, NaN];
+  const a = (n * sxy - sx * sy) / d; return [a, (sy - a * sx) / n];
+}
+
+function diagnose(meta, c) {
+  const it = c.it, res = c.res, t = c.tempo_unix, N = it.length;
+  const tol = Number(meta.tol || 1e-7), steady = meta.steady !== "0";
+  const out = { it: it[N - 1], res: res[N - 1], tol, steady, rate: NaN, its: NaN, etaIt: NaN, etaS: NaN, fit: null };
+  const n = Math.min(20, N);
+  if (n >= 3) {
+    const xs = [], ys = [];
+    for (let i = N - n; i < N; i++) if (res[i] > 0) { xs.push(it[i]); ys.push(Math.log10(res[i])); }
+    if (xs.length >= 3) {
+      const [a, b] = polyfit1(xs, ys);
+      out.rate = -a * 1000;
+      const dt = t[N - 1] - t[N - n];
+      if (dt > 0) out.its = (it[N - 1] - it[N - n]) / dt;
+      if (steady && a < 0 && out.res > tol) {
+        out.etaIt = (Math.log10(tol) - Math.log10(out.res)) / a;
+        out.etaS = out.its > 0 ? out.etaIt / out.its : NaN;
+        out.fit = [a, b];
+      }
+    }
+  }
+  const age = Date.now() / 1000 - t[N - 1];
+  const limite = Math.max(120, out.its > 0 ? 5 * 100 / out.its : 120);
+  out.age = age;
+  out.state = !Number.isFinite(out.res) ? "bad" : (steady && out.res <= tol) ? "ok" : (age < limite ? "run" : "stop");
+  return out;
+}
+
+const fmtT = s => {
+  if (!Number.isFinite(s)) return "—";
+  s = Math.max(0, Math.round(s));
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60;
+  return h ? `${h} h ${String(m).padStart(2, "0")} min` : m ? `${m} min ${String(ss).padStart(2, "0")} s` : `${ss} s`;
+};
+const fmtE = v => Number.isFinite(v) ? v.toExponential(2).replace("e", "e") : "—";
+const fmtG = v => {
+  if (!Number.isFinite(v)) return "—";
+  const a = Math.abs(v);
+  return (a !== 0 && (a < 1e-3 || a >= 1e5)) ? v.toExponential(3) : Number(v.toPrecision(6)).toString();
+};
+const fmtInt = v => Number.isFinite(v) ? Math.round(v).toLocaleString("pt-BR") : "—";
+
+function el(tag, attrs = {}, parent) {
+  const ns = ["svg", "g", "line", "path", "rect", "text", "circle"].includes(tag) ? "http://www.w3.org/2000/svg" : null;
+  const e = ns ? document.createElementNS(ns, tag) : document.createElement(tag);
+  for (const k in attrs) {
+    if (k === "text") e.textContent = attrs[k]; else e.setAttribute(k, attrs[k]);
+  }
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+function niceTicks(lo, hi, n) {
+  if (!(hi > lo)) { const d = Math.abs(lo) * 0.01 || 1; lo -= d; hi += d; }
+  const span = hi - lo, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map(f => f * mag).find(s => s >= step0);
+  const ticks = []; for (let v = Math.ceil(lo / step) * step; v <= hi + step * 1e-9; v += step) ticks.push(+v.toPrecision(12));
+  return ticks;
+}
+
+function chart(card, x, y, o) {
+  // viewBox na largura real do cartao: texto sempre em pixels reais
+  const W = Math.max(280, card.clientWidth - 28), H = o.height || 220;
+  const m = { l: 62, r: (o.rightLabel || o.band || o.tol) ? 78 : 16, t: 10, b: 28 };
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": o.aria }, card);
+  const tip = el("div", { class: "tip" }, card);
+  const xi = x[0], xa = Math.max(x[x.length - 1], o.xmax || 0, xi + 1);
+  let ys = y.filter(Number.isFinite);
+  if (o.log) ys = ys.filter(v => v > 0);
+  if (!ys.length) return;
+  let ylo = Math.min(...ys), yhi = Math.max(...ys);
+  for (const v of (o.extraY || [])) if (Number.isFinite(v) && (!o.log || v > 0)) { ylo = Math.min(ylo, v); yhi = Math.max(yhi, v); }
+  let ty, Y;
+  if (o.log) {
+    const a = Math.floor(Math.log10(ylo)), b = Math.ceil(Math.log10(yhi) + 1e-9);
+    const lo = a === b ? a - 1 : a, hi = b;
+    Y = v => m.t + (H - m.t - m.b) * (hi - Math.log10(v)) / (hi - lo);
+    ty = []; const st = Math.max(1, Math.ceil((hi - lo) / 6)); for (let k = lo; k <= hi; k += st) ty.push(Math.pow(10, k));
+  } else {
+    const pad = (yhi - ylo) * 0.08 || Math.abs(yhi) * 0.01 || 1;
+    ty = niceTicks(ylo - pad, yhi + pad, 5);
+    const lo = Math.min(ty[0], ylo - pad), hi = Math.max(ty[ty.length - 1], yhi + pad);
+    Y = v => m.t + (H - m.t - m.b) * (hi - v) / (hi - lo);
+  }
+  const X = v => m.l + (W - m.l - m.r) * (v - xi) / (xa - xi);
+  const ax = el("g", { class: "axis" }, svg);
+  for (const v of ty) {
+    const yy = Y(v);
+    el("line", { class: "gridline", x1: m.l, x2: W - m.r, y1: yy, y2: yy }, ax);
+    el("text", { x: m.l - 8, y: yy + 4, "text-anchor": "end", text: o.log ? "1e" + Math.round(Math.log10(v)) : fmtG(v) }, ax);
+  }
+  for (const v of niceTicks(xi, xa, 6)) {
+    if (v < xi || v > xa) continue;
+    el("text", { x: X(v), y: H - 8, "text-anchor": "middle", text: fmtInt(v) }, ax);
+  }
+  el("line", { class: "baseline", x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b }, ax);
+  const top = m.t, bot = H - m.b, inside = yy => yy >= top - 0.5 && yy <= bot + 0.5;
+  if (o.band) {
+    const [lo, hi] = o.band, y1 = Math.max(top, Y(hi)), y2 = Math.min(bot, Y(lo));
+    if (hi > lo && y2 > y1) el("rect", { class: "band", x: m.l, width: W - m.l - m.r, y: y1, height: y2 - y1 }, svg);
+    for (const v of (hi > lo ? [lo, hi] : [lo])) if (inside(Y(v)))
+      el("line", { class: "bandedge", x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v) }, svg);
+    const ym = Y((lo + hi) / 2);
+    const lab = hi > lo ? "referência" : "ref. " + fmtG(lo);
+    if (inside(ym)) el("text", { class: "dlabel", x: W - m.r + 6, y: ym + 4, text: lab }, svg);
+    else el("text", { class: "dlabel", x: W - m.r + 6, y: ym < top ? top + 10 : bot - 4, text: lab + (ym < top ? " ↑" : " ↓") }, svg);
+  }
+  if (o.tol) {
+    el("line", { class: "tol", x1: m.l, x2: W - m.r, y1: Y(o.tol), y2: Y(o.tol) }, svg);
+    el("text", { class: "dlabel", x: W - m.r + 6, y: Y(o.tol) + 4, text: "tol " + o.tol.toExponential(0) }, svg);
+  }
+  if (o.fit) {
+    const [a, b] = o.fit, x0 = x[x.length - 1], x1 = Math.min(xa, (Math.log10(o.tol) - b) / a);
+    el("path", { class: "extrap", d: `M${X(x0)},${Y(Math.pow(10, a * x0 + b))}L${X(x1)},${Y(Math.pow(10, a * x1 + b))}` }, svg);
+  }
+  let d = "", pen = false;
+  for (let i = 0; i < x.length; i++) {
+    const v = y[i];
+    if (!Number.isFinite(v) || (o.log && v <= 0)) { pen = false; continue; }
+    d += (pen ? "L" : "M") + X(x[i]).toFixed(1) + "," + Y(v).toFixed(1); pen = true;
+  }
+  el("path", { class: "line", d }, svg);
+  if (o.rightLabel) {
+    const k = y.length - 1;
+    if (Number.isFinite(y[k])) el("text", { class: "dlabel", x: X(x[k]) + 6, y: Y(y[k]) - 6, text: o.rightLabel }, svg);
+  }
+  // camada de hover: linha vertical + ponto + tooltip
+  const cross = el("line", { class: "cross", y1: m.t, y2: H - m.b, visibility: "hidden" }, svg);
+  const dot = el("circle", { class: "hoverdot", r: 4.5, visibility: "hidden" }, svg);
+  const hit = el("rect", { x: m.l, y: 0, width: W - m.l - m.r, height: H, fill: "transparent", tabindex: 0 }, svg);
+  const show = clientX => {
+    const r = svg.getBoundingClientRect(), sx = (clientX - r.left) * W / r.width;
+    const xv = xi + (sx - m.l) / (W - m.l - m.r) * (xa - xi);
+    let lo = 0, hi = x.length - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (x[mid] < xv) lo = mid; else hi = mid; }
+    const i = Math.abs(x[lo] - xv) < Math.abs(x[hi] - xv) ? lo : hi;
+    if (!Number.isFinite(y[i]) || (o.log && y[i] <= 0)) return;
+    const px = X(x[i]), py = Y(y[i]);
+    cross.setAttribute("x1", px); cross.setAttribute("x2", px); cross.setAttribute("visibility", "visible");
+    dot.setAttribute("cx", px); dot.setAttribute("cy", py); dot.setAttribute("visibility", "visible");
+    tip.replaceChildren();
+    const l1 = el("div", {}, tip); el("span", { class: "k" }, l1); el("strong", { text: o.fmt(y[i]) }, l1);
+    el("span", { text: "  " + o.name }, l1);
+    el("div", { class: "sub", text: "iteração " + fmtInt(x[i]) }, tip);
+    tip.style.display = "block";
+    const cr = card.getBoundingClientRect(), cw = card.clientWidth;
+    const left = r.left - cr.left + px * r.width / W, topPx = r.top - cr.top + py * r.height / H;
+    tip.style.left = Math.min(Math.max(4, left + 12), cw - tip.offsetWidth - 4) + "px";
+    tip.style.top = Math.max(4, topPx - tip.offsetHeight - 10) + "px";
+  };
+  const hide = () => { tip.style.display = "none"; cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden"); };
+  hit.addEventListener("pointermove", e => show(e.clientX));
+  hit.addEventListener("pointerdown", e => show(e.clientX));
+  hit.addEventListener("pointerleave", hide);
+  hit.addEventListener("blur", hide);
+  hit.addEventListener("focus", () => { const r = svg.getBoundingClientRect(); show(r.right - 1); });
+}
+
+let STATE = { meta: {}, cols: null };
+let zoom = store.get("zoom", "terco");
+
+function tile(parent, lab, val, det) {
+  const t = el("div", { class: "tile" }, parent);
+  el("div", { class: "lab", text: lab }, t);
+  el("div", { class: "val", text: val }, t);
+  el("div", { class: "det", text: det || "" }, t);
+}
+
+function render() {
+  const { meta, cols: c } = STATE;
+  const charts = document.getElementById("charts"), tiles = document.getElementById("tiles");
+  charts.replaceChildren(); tiles.replaceChildren();
+  document.getElementById("titulo").textContent = "Convergência — " + (meta.caso || "LBM");
+  if (!c) {
+    el("div", { class: "card wide empty", text: "Aguardando o primeiro relatório (100 iterações)…" }, charts);
+    return;
+  }
+  const d = diagnose(meta, c), N = c.it.length;
+  const st = { run: "Rodando", ok: "Convergido", stop: "Parada ou pausada", bad: "Divergiu (NaN)" }[d.state];
+  const sEl = document.getElementById("status");
+  sEl.className = "status " + d.state;
+  document.getElementById("statusTxt").textContent = st;
+  document.getElementById("subtitulo").textContent =
+    `modelo ${meta.modelo || "?"} · pasta ${EMBED.pasta} · última leitura há ${fmtT(d.age)}`;
+  document.title = `${d.state === "ok" ? "✓" : d.state === "run" ? "▶" : "■"} ${meta.caso || ""} it ${d.it} — res ${fmtE(d.res)}`;
+
+  tile(tiles, "Iteração", fmtInt(d.it), meta.max_iter ? "máx. " + fmtInt(Number(meta.max_iter)) : "");
+  tile(tiles, "Resíduo", fmtE(d.res), d.steady ? "tolerância " + d.tol.toExponential(0) : "caso transiente");
+  tile(tiles, "Taxa de convergência", Number.isFinite(d.rate) ? d.rate.toFixed(3) : "—", "décadas / 1000 it (últimas 20 leituras)");
+  tile(tiles, "Velocidade", Number.isFinite(d.its) ? d.its.toFixed(2) + " it/s" : "—",
+       N ? (c.mlups[N - 1]).toFixed(2) + " MLUPS" : "");
+  if (d.steady) tile(tiles, "Tempo restante (estim.)",
+       d.state === "ok" ? "0" : fmtT(d.etaS),
+       d.state === "ok" ? "tolerância atingida" : Number.isFinite(d.etaIt) ? "~" + fmtInt(d.etaIt) + " it" : "resíduo não está caindo");
+
+  const card = el("div", { class: "card wide" }, charts);
+  el("h2", { text: "Resíduo ‖uⁿ − uⁿ⁻¹⁰⁰‖₂ / ‖uⁿ‖₂" }, card);
+  el("div", { class: "note", text: d.fit ? "linha pontilhada: extrapolação log-linear até a tolerância" : "" }, card);
+  chart(card, c.it, c.res, {
+    log: true, name: "resíduo", fmt: fmtE, height: 260, tol: d.steady ? d.tol : null, rightLabel: "resíduo",
+    extraY: d.steady ? [d.tol] : [], fit: d.fit, xmax: d.fit ? Math.min(c.it[N - 1] + d.etaIt, c.it[N - 1] * 3) : 0,
+    aria: "Resíduo de convergência em escala log versus iteração"
+  });
+
+  const R = refs(meta);
+  const extras = Object.keys(c).filter(k => !["it", "res", "tempo_unix", "mlups"].includes(k) && !k.startsWith("res_"));
+  const resComp = Object.keys(c).filter(k => k.startsWith("res_"));
+  const start = zoom === "terco" ? Math.max(0, Math.min(N - 5, Math.floor(N * 2 / 3))) : 0;
+  for (const k of extras) {
+    const v = c[k], cd = el("div", { class: "card" }, charts);
+    const last = v[N - 1], prev = N > 5 ? v[N - 6] : NaN;
+    const rel = Math.abs(last - prev) / Math.max(Math.abs(last), 1e-300);
+    el("h2", { text: `${k} = ${fmtG(last)}` }, cd);
+    let note = Number.isFinite(rel) ? `variação relativa em 500 it: ${rel.toExponential(1)}` : "";
+    if (R[k]) {
+      const [lo, hi] = R[k];
+      note += hi > lo ? ` · referência [${fmtG(lo)}, ${fmtG(hi)}]` : ` · referência ${fmtG(lo)} (erro ${(100 * (last - lo) / lo).toFixed(2)}%)`;
+    }
+    el("div", { class: "note", text: note }, cd);
+    chart(cd, c.it.slice(start), v.slice(start), {
+      name: k, fmt: fmtG, band: R[k], extraY: zoom === "tudo" && R[k] ? R[k] : [],
+      aria: `${k} versus iteração`
+    });
+  }
+
+  const tb = document.getElementById("tabela");
+  tb.replaceChildren();
+  const cols = ["it", "res", ...resComp, ...extras, "mlups"];
+  const hr = el("tr", {}, el("thead", {}, tb));
+  for (const k of cols) el("th", { text: k }, hr);
+  const body = el("tbody", {}, tb);
+  for (let i = N - 1; i >= Math.max(0, N - 30); i--) {
+    const tr = el("tr", {}, body);
+    for (const k of cols) el("td", { text: k === "it" ? fmtInt(c[k][i]) : k.startsWith("res") ? fmtE(c[k][i]) : fmtG(c[k][i]) }, tr);
+  }
+  document.getElementById("rodape").textContent =
+    `Gerado por lbm3d.py · ${N} leituras (uma a cada 100 iterações) · página atualizada às ${new Date().toLocaleTimeString("pt-BR")}`;
+}
+
+function setData(text) { STATE = parseCSV(text); render(); }
+
+// atualizacao: servido por http -> busca o CSV; aberto do disco -> recarrega a pagina
+const intervalo = Number(EMBED.intervalo) || 5;
+document.getElementById("intv").textContent = intervalo;
+const viaHttp = location.protocol.startsWith("http");
+document.getElementById("modo").textContent = viaHttp ? "· modo servidor (dados ao vivo)" : "· arquivo local (recarrega a página)";
+const auto = document.getElementById("auto");
+auto.checked = store.get("auto", "1") === "1";
+auto.addEventListener("change", () => { store.set("auto", auto.checked ? "1" : "0"); agenda(); });
+let timer = null;
+function agenda() {
+  clearTimeout(timer);
+  if (!auto.checked) return;
+  timer = setTimeout(async () => {
+    if (viaHttp) {
+      try { const r = await fetch("convergencia.csv?t=" + Date.now(), { cache: "no-store" }); if (r.ok) setData(await r.text()); }
+      catch (e) {}
+      agenda();
+    } else location.reload();
+  }, intervalo * 1000);
+}
+for (const b of document.querySelectorAll(".seg button")) {
+  b.setAttribute("aria-pressed", b.dataset.zoom === zoom ? "true" : "false");
+  b.addEventListener("click", () => {
+    zoom = b.dataset.zoom; store.set("zoom", zoom);
+    for (const o of document.querySelectorAll(".seg button")) o.setAttribute("aria-pressed", o === b ? "true" : "false");
+    render();
+  });
+}
+let rz = null;
+window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 150); });
+setData(EMBED.csv);
+agenda();
+</script>
+</body>
+</html>

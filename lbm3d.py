@@ -526,6 +526,10 @@ class Case:
     def post_stream(self, sim, fpost, fnew):
         pass
 
+    def after_step(self, sim):
+        """Chamado ao fim de cada passo (ex.: series temporais de casos transientes)."""
+        pass
+
     def report(self, sim):
         return {}
 
@@ -690,6 +694,9 @@ class Cylinder(Case):
     measure_force = True
     unidade = "m"
     REF = {"C_D": (6.05, 6.25), "C_L": (0.008, 0.010), "dp": (0.165, 0.175)}
+    benchmark = "3D-1Z"
+    Re_padrao = 20.0
+    Um_fisico = 0.45   # velocidade maxima fisica na entrada [m/s]; U_media = 4 Um / 9
 
     def __init__(self, args):
         super().__init__(args)
@@ -697,7 +704,8 @@ class Cylinder(Case):
         H = int(round(4.1 * D))
         self.D, self.H = D, H
         Lx = int(round(25 * D))
-        self.Re = args.Re if args.Re else 20.0
+        self.Re = args.Re if args.Re else self.Re_padrao
+        self.Ubar_fisico = 4.0 * self.Um_fisico / 9.0
         self.Um = args.u_lattice if args.u_lattice else 0.1  # velocidade maxima na entrada
         self.Ubar = 4.0 * self.Um / 9.0
         self.nu = self.Ubar * D / self.Re
@@ -732,7 +740,14 @@ class Cylinder(Case):
                                  dict(mask=cyl, q=qfun, tag=1))
 
     def tag(self):
-        return "cylinder_D%d_Re%g" % (self.D, self.Re)
+        tag = "%s_D%d_Re%g" % (self.name, self.D, self.Re)
+        if self.Um != 0.1:  # Um padrao = 0.1
+            tag += "_U%g" % self.Um
+        if self.args.model != "k17":
+            tag += "_" + self.args.model
+        if self.args.limiter is not None:
+            tag += "_lim%g" % self.args.limiter
+        return tag
 
     def mascara_saida(self):
         m = np.zeros(self.shape, bool)
@@ -740,9 +755,10 @@ class Cylinder(Case):
         return m
 
     def descricao_contorno(self):
-        return ["Entrada (x = 0): parede movel com perfil parabolico [L94] (Schaefer & Turek 3D-1Z)",
-                "  U(y, z) = 16 Um y z (H - y)(H - z) / H^4,  Um = %.4g (rede) = 0.45 m/s,"
-                " U_media = 4 Um / 9 = %.4g." % (self.Um, self.Ubar),
+        return ["Entrada (x = 0): parede movel com perfil parabolico [L94] (Schaefer & Turek %s)"
+                % self.benchmark,
+                "  U(y, z) = 16 Um y z (H - y)(H - z) / H^4,  Um = %.4g (rede) = %g m/s,"
+                " U_media = 4 Um / 9 = %.4g." % (self.Um, self.Um_fisico, self.Ubar),
                 "Saida (x = L): pressao imposta rho = 1 por extrapolacao de nao-equilibrio [G02].",
                 "Paredes do canal (y = 0, H; z = 0, H): nao deslizamento, bounce-back meio caminho [L94].",
                 "Cilindro (D = %d nos, centro em x = %.1f, y = %.1f): nao deslizamento com bounce-back"
@@ -757,14 +773,14 @@ class Cylinder(Case):
         H, dx = self.H, self.dx_fisico
         y = np.linspace(0, H, 200)
         a = fig.add_subplot(1, 2, 1)
-        a.plot(self.inflow(y, H / 2.0) / self.Um * 0.45, y * dx, "b-")
+        a.plot(self.inflow(y, H / 2.0) / self.Um * self.Um_fisico, y * dx, "b-")
         a.set_xlabel("u_x na entrada [m/s]"); a.set_ylabel("y [m]  (z = H/2)"); a.grid(alpha=0.3)
         a = fig.add_subplot(1, 2, 2)
         Y, Z = np.meshgrid(y, y, indexing="ij")
-        im = a.contourf(Y * dx, Z * dx, self.inflow(Y, Z) / self.Um * 0.45, 20, cmap="viridis")
+        im = a.contourf(Y * dx, Z * dx, self.inflow(Y, Z) / self.Um * self.Um_fisico, 20, cmap="viridis")
         fig.colorbar(im, ax=a, label="u_x [m/s]")
         a.set_aspect("equal"); a.set_xlabel("y [m]"); a.set_ylabel("z [m]")
-        fig.suptitle("Perfil de velocidade imposto na entrada (Schaefer & Turek 3D-1Z)")
+        fig.suptitle("Perfil de velocidade imposto na entrada (Schaefer & Turek %s)" % self.benchmark)
         return [salvar(fig, os.path.join(pasta, "perfil_entrada.png"))]
 
     def inflow(self, y, z):
@@ -807,7 +823,7 @@ class Cylinder(Case):
         i1 = int(np.floor(xb + 0.5)) + 1
         r1, r2 = self._sample_line(rho, i1, self.yc, zc), self._sample_line(rho, i1 + 1, self.yc, zc)
         rb = r1 - ((i1 - 0.5) - xb) * (r2 - r1)
-        dp_phys = (rf - rb) / 3.0 * (0.2 / self.Ubar) ** 2  # U_media fisica = 0.2 m/s, rho = 1
+        dp_phys = (rf - rb) / 3.0 * (self.Ubar_fisico / self.Ubar) ** 2  # rho fisico = 1
         return {"C_D": Fd / norm, "C_L": Fl / norm, "dp": dp_phys}
 
     def report(self, sim):
@@ -818,14 +834,143 @@ class Cylinder(Case):
 
     def finish(self, sim, outdir):
         c = self.coefficients(sim)
-        lines = ["Schaefer & Turek 3D-1Z (Re=%.0f), D=%d celulas, modelo=%s:"
-                 % (self.Re, self.D, sim.prm["model"])]
+        lines = ["Schaefer & Turek %s (Re=%.0f), D=%d celulas, modelo=%s:"
+                 % (self.benchmark, self.Re, self.D, sim.prm["model"])]
         for key, label in (("C_D", "C_D"), ("C_L", "C_L"), ("dp", "Delta p [Pa]")):
             lo, hi = self.REF[key]
             ok = "OK" if lo <= c[key] <= hi else "fora da faixa"
             lines.append("  %-13s = %.5f   faixa de referencia [%.3f, %.3f]  -> %s"
                          % (label, c[key], lo, hi, ok))
         return "\n".join(lines)
+
+
+class Cylinder2Z(Cylinder):
+    """Schaefer & Turek (1996), caso 3D-2Z: mesma geometria do 3D-1Z, Um = 2.25 m/s (U_media =
+    1 m/s), Re = 100, escoamento nao estacionario (desprendimento de vortices).
+
+    Roda ate --max-iter (padrao: 150 tempos convectivos D/U_media) e grava a cada `amostra` passos
+    C_D, C_L e dp em graficos/serie_temporal.csv.  Ao final, sobre o ultimo terco da serie: maximos
+    de C_D e C_L, dp medio/maximo e o numero de Strouhal St = f D / U_media, com f do periodo medio
+    entre cruzamentos ascendentes de C_L pela media.  Faixas de referencia do artigo: nao incluidas
+    (REF vazio) ate serem conferidas no artigo original."""
+    name = "cylinder2z"
+    steady = False
+    benchmark = "3D-2Z"
+    Re_padrao = 100.0
+    Um_fisico = 2.25
+    REF = {}
+    amostra = 5
+    tempos_convectivos = 150
+    cl_pp_min = 1e-2  # amplitude pico a pico minima de C_L para considerar desprendimento
+
+    def __init__(self, args):
+        super().__init__(args)
+        self.t_conv = self.D / self.Ubar  # iteracoes por tempo convectivo D / U_media
+        if not args.max_iter:
+            args.max_iter = int(np.ceil(self.tempos_convectivos * self.t_conv / 100.0)) * 100
+        self.dt_fisico = self.dx_fisico * self.Ubar / self.Ubar_fisico
+        self.pasta_graficos = None
+        self._buf = []
+
+    def descricao_contorno(self):
+        return super().descricao_contorno() + [
+            "Escoamento nao estacionario: sem criterio de parada por residuo; roda ate --max-iter.",
+            "Passo de tempo fisico dt = dx U_media(rede) / U_media(fisica) = %.4e s." % self.dt_fisico]
+
+    def ref_ranges(self):
+        return {}
+
+    def after_step(self, sim):
+        if sim.it % self.amostra == 0:
+            c = self.coefficients(sim)
+            self._buf.append((sim.it, c["C_D"], c["C_L"], c["dp"]))
+
+    def _gravar_serie(self):
+        if not self._buf or not self.pasta_graficos:
+            return
+        path = os.path.join(self.pasta_graficos, "serie_temporal.csv")
+        novo = not os.path.exists(path)
+        with open(path, "a") as fh:
+            if novo:
+                fh.write("# dt_fisico=%.8e t_conv=%.6f D=%d\nit,t,C_D,C_L,dp\n" % (self.dt_fisico, self.t_conv, self.D))
+            for it, cd, cl, dp in self._buf:
+                fh.write("%d,%.6e,%.8g,%.8g,%.8g\n" % (it, it * self.dt_fisico, cd, cl, dp))
+        self._buf = []
+
+    def report(self, sim):
+        self._gravar_serie()
+        return self.coefficients(sim)
+
+    def ler_serie(self):
+        path = os.path.join(self.pasta_graficos, "serie_temporal.csv")
+        d = np.loadtxt(path, delimiter=",", comments="#", skiprows=2, ndmin=2)
+        # reinicio a partir de um checkpoint anterior: fica a ultima passagem por cada iteracao
+        _, idx = np.unique(d[::-1, 0], return_index=True)
+        return d[::-1][idx]
+
+    def analise(self):
+        d = self.ler_serie()
+        it, t, cd, cl, dp = d.T
+        jan = it >= it[-1] - (it[-1] - it[0]) / 3.0
+        out = {"t_final": t[-1], "n": int(jan.sum()), "C_D_max": cd[jan].max(), "C_D_med": cd[jan].mean(),
+               "C_L_max": cl[jan].max(), "C_L_min": cl[jan].min(), "dp_max": dp[jan].max(),
+               "dp_med": dp[jan].mean(), "St": np.nan, "periodos": 0}
+        x = cl[jan] - cl[jan].mean()
+        tt = it[jan]
+        meio = x.size // 2
+        out["C_L_pp"] = x.max() - x.min()                       # amplitude pico a pico
+        a1, a2 = np.ptp(x[:meio]) if meio else 0.0, np.ptp(x[meio:])
+        out["decaimento"] = a2 / a1 if a1 > 0 else np.nan        # < 1: oscilacao amortecendo
+        # desprendimento = oscilacao de C_L de amplitude relevante que nao esta amortecendo
+        out["desprendimento"] = bool(out["C_L_pp"] > self.cl_pp_min and out["decaimento"] > 0.8)
+        sobe = np.where((x[:-1] < 0) & (x[1:] >= 0))[0]
+        if out["desprendimento"] and sobe.size >= 2:
+            tc = tt[sobe] - x[sobe] * (tt[sobe + 1] - tt[sobe]) / (x[sobe + 1] - x[sobe])
+            periodo = np.mean(np.diff(tc))  # em iteracoes
+            out["St"] = self.D / (periodo * self.Ubar)
+            out["periodos"] = len(tc) - 1
+        return d, jan, out
+
+    def finish(self, sim, outdir):
+        self.pasta_graficos = self.pasta_graficos or outdir
+        self._gravar_serie()
+        d, jan, a = self.analise()
+        try:
+            from matplotlib.figure import Figure
+            it, t, cd, cl, dp = d.T
+            fig = Figure(figsize=(11, 7))
+            for n, (v, nome) in enumerate(((cd, "C_D"), (cl, "C_L"), (dp, "Delta p [Pa]"))):
+                ax = fig.add_subplot(3, 1, n + 1)
+                ax.plot(t, v, "k-", lw=0.7)
+                ax.axvspan(t[jan][0], t[-1], color="#2a78d6", alpha=0.08, label="janela da analise")
+                ax.set_ylabel(nome)
+                ax.grid(alpha=0.3)
+            fig.axes[0].legend(fontsize=7)
+            fig.axes[-1].set_xlabel("t [s]")
+            fig.suptitle("Cilindro %s (Re = %g, D = %d): series temporais  |  %s"
+                         % (self.benchmark, self.Re, self.D, "St = %.4f" % a["St"] if a["periodos"]
+                            else "sem desprendimento de vortices"))
+            fig.tight_layout()
+            fig.savefig(os.path.join(outdir, "serie_temporal.png"), dpi=120)
+        except Exception as e:  # pragma: no cover
+            print("grafico nao gerado:", e)
+        linhas = ["Schaefer & Turek %s (Re=%.0f), D=%d celulas, modelo=%s, t final = %.3f s "
+                  "(%d it., %.1f tempos convectivos):" % (self.benchmark, self.Re, self.D,
+                                                         sim.prm["model"], a["t_final"], sim.it,
+                                                         sim.it / self.t_conv),
+                  "  janela de analise: ultimo terco da serie (%d amostras)" % a["n"],
+                  "  C_D max = %.5f   (media %.5f)" % (a["C_D_max"], a["C_D_med"]),
+                  "  C_L max = %.5f   C_L min = %.5f" % (a["C_L_max"], a["C_L_min"]),
+                  "  Delta p max = %.5f Pa   (media %.5f Pa)" % (a["dp_max"], a["dp_med"])]
+        linhas.append("  C_L pico a pico na janela = %.3e  (2a metade / 1a metade = %.2f)"
+                      % (a["C_L_pp"], a["decaimento"]))
+        if a["periodos"]:
+            linhas.append("  St = %.4f  (%d periodos de C_L na janela)" % (a["St"], a["periodos"]))
+        else:
+            linhas.append("  sem desprendimento de vortices (C_L pico a pico < %g ou amortecendo):"
+                          " escoamento estacionario, St nao calculado" % self.cl_pp_min)
+        linhas.append("  (faixas de referencia do artigo nao incluidas no codigo: comparar manualmente)")
+        return "\n".join(linhas)
 
 
 class Cavity(Case):
@@ -1643,8 +1788,8 @@ class CilindroCalor(Case):
 
 RESIDUOS = ("res", "res_ux", "res_uy", "res_uz", "res_rho")
 
-CASES = {"shearwave": ShearWave, "duct": Duct, "cylinder": Cylinder, "cavity": Cavity,
-         "spheres": SphereArray, "calor": CilindroCalor}
+CASES = {"shearwave": ShearWave, "duct": Duct, "cylinder": Cylinder, "cylinder2z": Cylinder2Z,
+         "cavity": Cavity, "spheres": SphereArray, "calor": CilindroCalor}
 
 
 # ---------------------------------------------------------------------------
@@ -1713,6 +1858,7 @@ class Simulation:
             self.termico.passo(self)
         self.f, self.ftmp = self.ftmp, self.f
         self.it += 1
+        case.after_step(self)
 
     def update_macros(self):
         rho, ux, uy, uz = macroscopic(self.f, self.case.force)
@@ -2402,6 +2548,7 @@ def _executar(case, args, pastas, restart_file):
     print("=" * 78)
     print("lbm3d  %s  |  pasta do caso: %s" % (time.strftime("%Y-%m-%d %H:%M:%S"), pastas.raiz))
     prm = collision_parameters(case.omega, args.model, args.limiter)
+    case.pasta_graficos = pastas.graficos
     gravar_parametros(pastas, case, prm, args)
     if args.preprocess_only or (not args.no_figs and not os.path.exists(
             os.path.join(pastas.dominio, "dominio_3d.png"))):
@@ -2518,10 +2665,9 @@ def _executar(case, args, pastas, restart_file):
         sim.record()
     res = _ultimo(sim.hist.get("res", []))
     divergiu = not np.isfinite(res)
-    if parar_caso is not None:   # caso com criterio proprio: so termina pelo criterio ou max-iter
-        terminou = converged or sim.it >= args.max_iter
-    else:
-        terminou = converged or not case.steady or sim.it >= args.max_iter
+    # casos com criterio proprio (case.parar) ou nao estacionarios (cylinder2z) so terminam pelo
+    # criterio de convergencia/parada ou por --max-iter
+    terminou = converged or sim.it >= args.max_iter
     nome = ("final" if terminou and not divergiu else
             "divergencia_it%07d" % sim.it if divergiu else "parcial_it%07d" % sim.it)
     pasta = salvar_parcial(sim, pastas, args, nome, checkpoint=False)

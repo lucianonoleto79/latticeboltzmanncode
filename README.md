@@ -21,6 +21,7 @@ tests/test_calor.py         núcleo em C = NumPy, transferência de calor, conta
 resultados/                 casos simulados, um por pasta (índice em resultados/README.md)
 referencias.bib             referências bibliográficas em BibTeX (seção Referências)
 CLAUDE.md                   instruções para o Claude (documentar simulações, estimar tempo, git)
+RODADAS_PENDENTES.md        comandos prontos das rodadas longas do cilindro (rodar no seu computador)
 requirements.txt            numpy, matplotlib
 requirements-dev.txt        + pytest
 ```
@@ -181,6 +182,113 @@ python lbm3d.py --case cylinder --res 10
 ```
 
 [Pasta](resultados/cylinder_D10_Re20) · ![Cilindro: condições de contorno](resultados/cylinder_D10_Re20/contorno/contorno_cortes.png)
+
+### Cilindro 3D-1Z — convergência de malha com Um = 0,05 (em andamento)
+Série D = 6, 10, 16, 20 com a mesma velocidade de rede Um = 0,05 (Mach de rede ≈ 0,087), o K17 em todas
+as malhas e parada em resíduo < 10⁻⁶. Objetivo: verificar se C_D e C_L entram nas faixas com o refino e
+estimar a ordem de convergência (extrapolação de Richardson em `scripts/convergencia_malha.py`).
+**Feito até agora: D = 6** (malha 151 × 27 × 27, 110 079 nós; 15 600 it., 25 min no contêiner):
+C_D = 6,329 (acima da faixa [6,05; 6,25]), C_L = 0,0235 (2,3 × o limite superior), Δp = 0,1656 Pa (dentro
+da faixa). Com D = 6 a malha é grosseira demais para o C_L; D = 10, 16 e 20 ainda não foram rodados
+(estimativas: ~3 h, ~18 h e ~45 h no contêiner, a 1,2 MLUPS), e a rodada D = 10 antiga, com Um = 0,1,
+não entra na série por ter outro número de Mach.
+
+```bash
+python lbm3d.py --case cylinder --res 6 --u-lattice 0.05 --tol 1e-6
+bash scripts/estudo_malha_cilindro.sh          # D = 10, 16, 20 (retoma do checkpoint)
+python scripts/convergencia_malha.py           # tabela, gráfico e Richardson
+```
+
+[Pasta D = 6](resultados/cylinder_D6_Re20_U0.05) · [Análise](resultados/cylinder_convergencia_malha) ·
+![Cilindro D = 6: linhas de corrente](resultados/cylinder_D6_Re20_U0.05/escoamento/final/linhas_corrente.png)
+
+### Cilindro 3D-1Z — comparação de modelos de colisão (D = 6, Um = 0,05)
+Mesma malha e parâmetros do D = 6 do estudo de malha, com os três modelos do código, todos até resíduo
+< 10⁻⁶ (15 600–16 200 it., ~25 min cada no contêiner). **O K17 é o mais próximo da referência nas três
+grandezas: C_D = 6,329 (+1,3 % acima da faixa) contra 6,764 (+8,2 %) no cumulante clássico e 6,883
+(+10,1 %) no BGK; Δp = 0,1656 Pa dentro da faixa só no K17 (cumulante +3,5 %, BGK +6,3 % acima).** O
+C_L fica fora da faixa nos três (0,0235 / 0,0337 / 0,0294), com o K17 de novo o melhor. Vale para esta
+malha grosseira; não foi verificado se a vantagem se mantém em malhas finas.
+
+```bash
+python lbm3d.py --case cylinder --res 6 --u-lattice 0.05 --tol 1e-6 --model cumulant   # idem --model bgk
+python scripts/comparar_cilindro.py --nome comparacao_modelos --saida resultados/cylinder_comparacao_modelos \
+    "K17=resultados/cylinder_D6_Re20_U0.05" "cumulante=resultados/cylinder_D6_Re20_U0.05_cumulant" \
+    "BGK=resultados/cylinder_D6_Re20_U0.05_bgk"
+```
+
+[Comparação](resultados/cylinder_comparacao_modelos) · [cumulante](resultados/cylinder_D6_Re20_U0.05_cumulant) ·
+[BGK](resultados/cylinder_D6_Re20_U0.05_bgk) ·
+![Comparação de modelos, D = 6](resultados/cylinder_comparacao_modelos/comparacao_modelos.png)
+
+### Cilindro 3D-1Z — efeito da velocidade de rede / Mach (D = 6, K17)
+Mesma malha D = 6, Re = 20, com Um = 0,1 / 0,05 / 0,025 (Ma = Um·√3 = 0,17 / 0,087 / 0,043), até resíduo
+< 10⁻⁶ (9 900 / 15 600 / 22 300 it.). **A variação com Um é pequena perto do erro de malha: C_D = 6,302 /
+6,329 / 6,343 (0,65 % de diferença entre os extremos), Δp = 0,1642 / 0,1656 / 0,1666 Pa (1,5 %) e
+C_L = 0,0214 / 0,0235 / 0,0246 (15 %), enquanto o C_L está 2,1–2,5 × acima da faixa em todas.** Diminuir
+Um afasta C_D e C_L da referência e leva Δp para dentro da faixa; a diferença cai pela metade a cada
+redução de Um à metade (≈ 1ª ordem em Um). Com Re e D fixos, reduzir Um também reduz ν e muda as taxas
+do K17, então a variação não é só efeito de compressibilidade, e não foi separada. Em D = 10 a
+comparação Um = 0,1 × 0,05 sai do estudo de malha, ainda não rodado.
+
+```bash
+python lbm3d.py --case cylinder --res 6 --u-lattice 0.1 --tol 1e-6     # idem 0.05 e 0.025
+python scripts/comparar_cilindro.py --nome efeito_mach --saida resultados/cylinder_efeito_mach \
+    "Um=0,1=resultados/cylinder_D6_Re20" "Um=0,05=resultados/cylinder_D6_Re20_U0.05" \
+    "Um=0,025=resultados/cylinder_D6_Re20_U0.025"
+```
+
+[Comparação](resultados/cylinder_efeito_mach) · [Um = 0,1](resultados/cylinder_D6_Re20) ·
+[Um = 0,025](resultados/cylinder_D6_Re20_U0.025) ·
+![Efeito do Mach, D = 6](resultados/cylinder_efeito_mach/efeito_mach.png)
+
+### Cilindro 3D-1Z — limitador de 3ª ordem do K17 (D = 6, Um = 0,05)
+O mesmo D = 6 com o limitador de [G17] (`--limiter 0.01`), que aproxima de 1 as taxas dos cumulantes de
+3ª ordem onde eles são grandes. Convergiu nas mesmas 15 600 it. (25 min). **O limitador piora levemente
+o resultado: C_D = 6,367 contra 6,329 sem limitador (+0,6 %, mais longe da faixa), C_L = 0,0241 contra
+0,0235; Δp = 0,1667 contra 0,1656 Pa (ambos dentro da faixa).** Como o caso já é estável sem ele, não há
+motivo para usá-lo aqui. Só foi testado o valor 0,01 e só nesta malha.
+
+```bash
+python lbm3d.py --case cylinder --res 6 --u-lattice 0.05 --tol 1e-6 --limiter 0.01
+```
+
+[Comparação](resultados/cylinder_efeito_limitador) · [Pasta](resultados/cylinder_D6_Re20_U0.05_lim0.01) ·
+![Efeito do limitador, D = 6](resultados/cylinder_efeito_limitador/efeito_limitador.png)
+
+### Cilindro 3D-1Z — grandezas extraídas dos campos (D = 6)
+Pós-processamento (`scripts/pos_cilindro.py`) do campo final das seis rodadas com D = 6, no plano
+z = H/2: comprimento da bolha de recirculação L_a, ângulo de separação, C_p junto à parede (referência:
+traseira) e perfis de u_x a jusante. **Com o K17, L_a ≈ 0,66 D e separação a ≈ 151° da frente, quase
+iguais com Um = 0,1 / 0,05 / 0,025 e com o limitador; o cumulante clássico e o BGK dão bolhas ≈ 7–9 %
+menores (0,60 e 0,62 D).** Com só 3 nós no raio esses valores são grosseiros, e não conferi se o caso
+3D-1Z tem referência para eles: servem para comparar rodadas entre si, e a convergência de malha
+(D = 10, 16, 20) dirá quanto mudam com o refino. Não é uma simulação nova.
+
+```bash
+python scripts/pos_cilindro.py casos/cylinder_D6_Re20_U0.05     # precisa do .vtk (não versionado)
+```
+
+[Tabela](resultados/cylinder_pos_processamento/pos_processamento.txt) ·
+![Pós-processamento, D = 6, K17](resultados/cylinder_D6_Re20_U0.05/graficos/pos_cilindro.png)
+
+### Cilindro 3D-2Z (Re = 100, não estacionário), D = 6 — `cylinder2z_D6_Re100`
+Primeira rodada do caso novo `cylinder2z` (mesma geometria do 3D-1Z, Um = 2,25 m/s, Ū = 1 m/s,
+Re = 100), D = 6, Um = 0,1 (rede), K17 (ω = 1,969), 150 tempos convectivos = 15 s físicos (20 300 it.,
+~32 min no contêiner). **Com D = 6 não houve desprendimento de vórtices: depois do transiente inicial
+(~2 s) o escoamento fica estacionário, com C_D = 3,66, C_L = −0,023 e Δp = 3,40 Pa, e oscilação residual
+de C_L de só 3·10⁻⁴ pico a pico.** Não verifiquei a causa (malha grosseira com 3 nós no raio é a
+hipótese mais provável) nem comparei com o artigo, cujas faixas para o 3D-2Z não estão no código.
+O `execucao.log` mostra um "St = 1,8873" da primeira versão da análise, que tratava essa oscilação
+residual como desprendimento; a análise foi corrigida (exige C_L pico a pico > 10⁻², limiar escolhido
+por mim, e oscilação que não amorteça) e o `validacao.txt` foi refeito a partir da série gravada.
+
+```bash
+python lbm3d.py --case cylinder2z --res 6
+```
+
+[Pasta](resultados/cylinder2z_D6_Re100) ·
+![3D-2Z, D = 6: séries temporais](resultados/cylinder2z_D6_Re100/graficos/serie_temporal.png)
 
 ### Arranjo cúbico de esferas, L = 32 — `spheres_L32_chi0.3`, `0.5`, `0.7`
 Célula periódica 32³ com uma esfera de diâmetro χL, ν = 0,02, regime de Stokes (Re_p ≤ 0,11).
@@ -804,6 +912,7 @@ avisa. A coluna "modelo efetivo" indica o que roda com os parâmetros padrão.
 | `cylinder` | cilindro em canal de seção quadrada, Re = 20 | Schäfer & Turek (1996), 3D-1Z; C_D ∈ [6,05; 6,25], C_L ∈ [0,008; 0,010], Δp ∈ [0,165; 0,175] Pa | D = 10, Um = 0,1 | K17 (para D ≥ 12 recai no cumulante clássico) |
 | `spheres` | arranjo cúbico simples de esferas, regime de Stokes | Sangani & Acrivos (1982); arraste C = f_t/(3πμ d u_s) | L = 32, χ = 0,5, ν = 0,02 | K17 |
 | `calor` | convecção forçada 2D sobre cilindros (7 seções), Nu com e sem sólido | [CN26]; Nu de referência pela Eq. 17 (Churchill–Bernstein [CB77]) para o círculo | círculo, Re = 100, D = 20, U = 0,05, Pr = 0,7296 | K17 se ω ≥ 1,75, senão cumulante clássico |
+| `cylinder2z` | cilindro em canal, Re = 100, não estacionário (roda até `--max-iter`, padrão 150 D/Ū) | Schäfer & Turek (1996), 3D-2Z; C_D máx., C_L máx./mín., Δp, Strouhal (faixas do artigo ainda não incluídas) | D = 10, Um = 0,1 | K17 (ν = 0,0044) |
 | `cavity` | cavidade cúbica com tampa móvel (demonstração) | comparar com Albensoeder & Kuhlmann (2005); perfis centrais | N = 32, Re = 100, U = 0,1 | cumulante clássico (ν = 0,032) |
 
 Solução do duto (−a ≤ y ≤ a, −b ≤ z ≤ b, G = −dp/dx):
