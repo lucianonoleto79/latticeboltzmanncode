@@ -11,11 +11,11 @@ checkpoint/   checkpoint.npz (estado completo para continuar a simulacao)
 parametros.json  parametros da execucao        execucao.log   saida do terminal (residuos)
 estado.json      iteracao/situacao final        validacao.txt  comparacao com a referencia
 
-Continuar a simulacao:   python lbm3d.py --restart /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_comsolido_Re1_D5
-Painel de convergencia:  abra graficos/convergencia.html  (ou: python acompanhar.py /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_comsolido_Re1_D5 --servir)
+Continuar a simulacao:   python lbm3d.py --restart casos/calor_circulo_comsolido_Re1_D5
+Painel de convergencia:  abra graficos/convergencia.html  (ou: python acompanhar.py casos/calor_circulo_comsolido_Re1_D5 --servir)
 
 Controle durante a execucao (crie o arquivo vazio nesta pasta, ou use acompanhar.py):
   SALVAR  -> salva resultado parcial (escoamento/parcial_itN + graficos + checkpoint) e continua
   PAUSAR  -> pausa enquanto o arquivo existir
   PARAR   -> salva o checkpoint e encerra (continue com --restart)
-  ex.: python acompanhar.py /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_comsolido_Re1_D5 --salvar   |   --pausar   |   --continuar   |   --parar
+  ex.: python acompanhar.py casos/calor_circulo_comsolido_Re1_D5 --salvar   |   --pausar   |   --continuar   |   --parar

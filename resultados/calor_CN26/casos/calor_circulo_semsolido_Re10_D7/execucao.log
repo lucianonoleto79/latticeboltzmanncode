@@ -1,10 +1,10 @@
 ==============================================================================
-lbm3d  2026-11-13 03:17:01  |  pasta do caso: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re10_D7
+lbm3d  2026-11-13 03:17:01  |  pasta do caso: casos/calor_circulo_semsolido_Re10_D7
 AVISO: omega = 1.653 < 1.75 (nu = 0.0350 > 0.0238): fora da faixa da parametrizacao K17 [G17]; usando cumulante classico [G15].
 Pre-processamento (dominio, contorno, malha): 8 arquivos em 3.0 s
 AVISO: omega = 1.653 < 1.75 (nu = 0.0350 > 0.0238): fora da faixa da parametrizacao K17 [G17]; usando cumulante classico [G15].
 Caso: calor | malha (562, 563, 1) (316406 nos) | modelo cumulant | omega = 1.6529 | nu = 0.03500
-Controles: Ctrl+C = menu (continuar/salvar/pausar/sair) | arquivos SALVAR / PAUSAR / PARAR em /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re10_D7
+Controles: Ctrl+C = menu (continuar/salvar/pausar/sair) | arquivos SALVAR / PAUSAR / PARAR em casos/calor_circulo_semsolido_Re10_D7
 Residuos: res(u) = ||u^n - u^(n-1000)|| / ||u^n||  (parada: res(u) < 1.0e-07); componentes normalizadas por ||u^n||; res(rho) = ||drho|| / ||rho||
 [contador] 0h01m00s | it 910 | 15.0 it/s
  iteracao     res(u)    res(ux)    res(uy)    res(uz)   res(rho)   MLUPS      tempo  grandezas monitoradas
@@ -46,8 +46,8 @@ Residuos: res(u) = ||u^n - u^(n-1000)|| / ||u^n||  (parada: res(u) < 1.0e-07); c
 [contador] 0h20m10s | it 17529 | 12.9 it/s
     18000  3.466e-04  3.027e-04  1.688e-04  0.000e+00  1.808e-05    4.58   0h20m43s  Nu_inst=1.86222  Nu=1.86247  C_D=2.84804  C_L=-1.03489e-13
 Criterio de parada do caso atingido na iteracao 18038: |Nu - Nu(-10 D/U)|/Nu < 1e-05 em todos os passos dos ultimos 5 D/U (Eq. 16 adaptada)
-Checkpoint: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re10_D7/checkpoint/checkpoint.npz   (continue com: python lbm3d.py --restart /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re10_D7)
-Campo e imagens do escoamento: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re10_D7/escoamento/final
+Checkpoint: casos/calor_circulo_semsolido_Re10_D7/checkpoint/checkpoint.npz   (continue com: python lbm3d.py --restart casos/calor_circulo_semsolido_Re10_D7)
+Campo e imagens do escoamento: casos/calor_circulo_semsolido_Re10_D7/escoamento/final
 ==============================================================================
 VALIDACAO
 Circular cylinder, Re = 10, metodo sem_solido (D = 7, Ds = 80 D): Nu = 1.8625   Nu_ref (Eq. 17) = 1.853   dif = 0.53%   instantes = 18038   (|Nu - Nu(-10 D/U)|/Nu < 1e-05 em todos os passos dos ultimos 5 D/U (Eq. 16 adaptada))

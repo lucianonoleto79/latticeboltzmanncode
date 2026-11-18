@@ -1,10 +1,10 @@
 ==============================================================================
-lbm3d  2026-11-11 23:46:06  |  pasta do caso: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_elipse_semsolido_Re1_D10
+lbm3d  2026-11-11 23:46:06  |  pasta do caso: casos/calor_elipse_semsolido_Re1_D10
 AVISO: omega = 0.909 < 1.75 (nu = 0.2000 > 0.0238): fora da faixa da parametrizacao K17 [G17]; usando cumulante classico [G15].
 Pre-processamento (dominio, contorno, malha): 8 arquivos em 11.3 s
 AVISO: omega = 0.909 < 1.75 (nu = 0.2000 > 0.0238): fora da faixa da parametrizacao K17 [G17]; usando cumulante classico [G15].
 Caso: calor | malha (802, 803, 1) (644006 nos) | modelo cumulant | omega = 0.9091 | nu = 0.20000
-Controles: Ctrl+C = menu (continuar/salvar/pausar/sair) | arquivos SALVAR / PAUSAR / PARAR em /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_elipse_semsolido_Re1_D10
+Controles: Ctrl+C = menu (continuar/salvar/pausar/sair) | arquivos SALVAR / PAUSAR / PARAR em casos/calor_elipse_semsolido_Re1_D10
 Residuos: res(u) = ||u^n - u^(n-1000)|| / ||u^n||  (parada: res(u) < 1.0e-07); componentes normalizadas por ||u^n||; res(rho) = ||drho|| / ||rho||
 [contador] 0h01m00s | it 463 | 7.7 it/s
 [contador] 0h02m01s | it 926 | 7.6 it/s
@@ -185,8 +185,8 @@ Residuos: res(u) = ||u^n - u^(n-1000)|| / ||u^n||  (parada: res(u) < 1.0e-07); c
     55000  2.619e-04  2.591e-04  3.791e-05  0.000e+00  9.481e-06    4.87   2h01m07s  Nu_inst=0.550335  Nu=0.550318  C_D=12.474  C_L=7.95371e-13
 [contador] 2h01m16s | it 55061 | 7.3 it/s
 Criterio de parada do caso atingido na iteracao 55479: |Nu - Nu(-10 D/U)|/Nu < 1e-05 em todos os passos dos ultimos 5 D/U (Eq. 16 adaptada)
-Checkpoint: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_elipse_semsolido_Re1_D10/checkpoint/checkpoint.npz   (continue com: python lbm3d.py --restart /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_elipse_semsolido_Re1_D10)
-Campo e imagens do escoamento: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_elipse_semsolido_Re1_D10/escoamento/final
+Checkpoint: casos/calor_elipse_semsolido_Re1_D10/checkpoint/checkpoint.npz   (continue com: python lbm3d.py --restart casos/calor_elipse_semsolido_Re1_D10)
+Campo e imagens do escoamento: casos/calor_elipse_semsolido_Re1_D10/escoamento/final
 ==============================================================================
 VALIDACAO
 Ellipse, Re = 1, metodo sem_solido (D = 10, Ds = 80 D): Nu = 0.5503   instantes = 55479   (|Nu - Nu(-10 D/U)|/Nu < 1e-05 em todos os passos dos ultimos 5 D/U (Eq. 16 adaptada))

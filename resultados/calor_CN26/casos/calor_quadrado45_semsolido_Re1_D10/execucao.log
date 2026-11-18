@@ -1,10 +1,10 @@
 ==============================================================================
-lbm3d  2026-11-12 03:52:09  |  pasta do caso: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_quadrado45_semsolido_Re1_D10
+lbm3d  2026-11-12 03:52:09  |  pasta do caso: casos/calor_quadrado45_semsolido_Re1_D10
 AVISO: omega = 0.909 < 1.75 (nu = 0.2000 > 0.0238): fora da faixa da parametrizacao K17 [G17]; usando cumulante classico [G15].
 Pre-processamento (dominio, contorno, malha): 8 arquivos em 3.5 s
 AVISO: omega = 0.909 < 1.75 (nu = 0.2000 > 0.0238): fora da faixa da parametrizacao K17 [G17]; usando cumulante classico [G15].
 Caso: calor | malha (802, 803, 1) (644006 nos) | modelo cumulant | omega = 0.9091 | nu = 0.20000
-Controles: Ctrl+C = menu (continuar/salvar/pausar/sair) | arquivos SALVAR / PAUSAR / PARAR em /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_quadrado45_semsolido_Re1_D10
+Controles: Ctrl+C = menu (continuar/salvar/pausar/sair) | arquivos SALVAR / PAUSAR / PARAR em casos/calor_quadrado45_semsolido_Re1_D10
 Residuos: res(u) = ||u^n - u^(n-1000)|| / ||u^n||  (parada: res(u) < 1.0e-07); componentes normalizadas por ||u^n||; res(rho) = ||drho|| / ||rho||
 [contador] 0h01m00s | it 459 | 7.6 it/s
 [contador] 0h02m02s | it 911 | 7.5 it/s
@@ -165,8 +165,8 @@ Residuos: res(u) = ||u^n - u^(n-1000)|| / ||u^n||  (parada: res(u) < 1.0e-07); c
     49000  1.538e-04  1.521e-04  2.244e-05  0.000e+00  1.071e-05    4.90   1h47m25s  Nu_inst=0.856447  Nu=0.856436  C_D=10.1699  C_L=-2.84495e-13
 [contador] 1h47m48s | it 49176 | 7.6 it/s
 Criterio de parada do caso atingido na iteracao 49488: |Nu - Nu(-10 D/U)|/Nu < 1e-05 em todos os passos dos ultimos 5 D/U (Eq. 16 adaptada)
-Checkpoint: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_quadrado45_semsolido_Re1_D10/checkpoint/checkpoint.npz   (continue com: python lbm3d.py --restart /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_quadrado45_semsolido_Re1_D10)
-Campo e imagens do escoamento: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_quadrado45_semsolido_Re1_D10/escoamento/final
+Checkpoint: casos/calor_quadrado45_semsolido_Re1_D10/checkpoint/checkpoint.npz   (continue com: python lbm3d.py --restart casos/calor_quadrado45_semsolido_Re1_D10)
+Campo e imagens do escoamento: casos/calor_quadrado45_semsolido_Re1_D10/escoamento/final
 ==============================================================================
 VALIDACAO
 Square (tilted 45°), Re = 1, metodo sem_solido (D = 10, Ds = 80 D): Nu = 0.8564   instantes = 49488   (|Nu - Nu(-10 D/U)|/Nu < 1e-05 em todos os passos dos ultimos 5 D/U (Eq. 16 adaptada))

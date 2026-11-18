@@ -1,6 +1,6 @@
-/Users/lucianonoleto/projetos_cfd/lbm3d.py:379: RuntimeWarning: divide by zero encountered in divide
+lbm3d.py:379: RuntimeWarning: divide by zero encountered in divide
   a1 = np.where(q < 0.5, 2 * q, 1.0 / (2 * q))
-/Users/lucianonoleto/projetos_cfd/lbm3d.py:381: RuntimeWarning: divide by zero encountered in divide
+lbm3d.py:381: RuntimeWarning: divide by zero encountered in divide
   a3 = np.where(q < 0.5, 0.0, (2 * q - 1) / (2 * q))
 Caso: spheres | malha (32, 32, 32) (32768 nos) | modelo k17 | omega = 1.7857 | nu = 0.02000
   taxas K17: w3=0.7339 w4=0.0534 w5=0.3624 A=-0.3664 B=0.5729

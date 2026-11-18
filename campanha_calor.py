@@ -351,6 +351,7 @@ def figuras_relatorio(lista, porchave, corr, nivel_nc, saida):
     copiar_casos(lista, saida)
 
 
+RAIZ = os.path.dirname(os.path.abspath(__file__))
 BRUTOS = (".npz", ".vtk")           # campos e checkpoints: copiados como clones (fora do git)
 IGNORAR_NOMES = {"andamento.json", "campanha.out", "SALVAR", "PAUSAR", "PARAR", ".DS_Store"}
 
@@ -398,6 +399,12 @@ def copiar_casos(lista, saida):
                 os.makedirs(os.path.dirname(os.path.join(dst, rel)), exist_ok=True)
                 if n.endswith(BRUTOS):
                     clonar(os.path.join(base, n), os.path.join(dst, rel))
+                elif n.endswith((".txt", ".json", ".log", ".html", ".md")):
+                    # caminhos relativos a raiz do projeto (sem a pasta pessoal do usuario)
+                    with open(os.path.join(base, n), encoding="utf-8", errors="replace") as fh:
+                        txt = fh.read().replace(RAIZ + os.sep, "")
+                    with open(os.path.join(dst, rel), "w", encoding="utf-8") as fh:
+                        fh.write(txt)
                 else:
                     shutil.copy2(os.path.join(base, n), os.path.join(dst, rel))
     log = os.path.join(os.path.dirname(lista[0]["pasta"]), "campanha_calor.log") if lista else ""

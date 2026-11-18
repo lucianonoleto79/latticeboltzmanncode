@@ -1,9 +1,9 @@
 ==============================================================================
-lbm3d  2026-11-12 05:40:52  |  pasta do caso: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re100_D20
+lbm3d  2026-11-12 05:40:52  |  pasta do caso: casos/calor_circulo_semsolido_Re100_D20
 Pre-processamento (dominio, contorno, malha): 8 arquivos em 3.4 s
 Caso: calor | malha (802, 803, 1) (644006 nos) | modelo k17 | omega = 1.8868 | nu = 0.01000
   taxas K17: w3=0.4553 w4=0.0787 w5=0.1842 A=-0.4409 B=0.3535
-Controles: Ctrl+C = menu (continuar/salvar/pausar/sair) | arquivos SALVAR / PAUSAR / PARAR em /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re100_D20
+Controles: Ctrl+C = menu (continuar/salvar/pausar/sair) | arquivos SALVAR / PAUSAR / PARAR em casos/calor_circulo_semsolido_Re100_D20
 Residuos: res(u) = ||u^n - u^(n-1000)|| / ||u^n||  (parada: res(u) < 1.0e-07); componentes normalizadas por ||u^n||; res(rho) = ||drho|| / ||rho||
 [contador] 0h01m00s | it 464 | 7.7 it/s | 1% | restante ~2h11m30s
 [contador] 0h02m00s | it 928 | 7.7 it/s | 2% | restante ~2h10m25s
@@ -203,8 +203,8 @@ Residuos: res(u) = ||u^n - u^(n-1000)|| / ||u^n||  (parada: res(u) < 1.0e-07); c
     61000  1.246e-01  5.340e-02  1.126e-01  0.000e+00  1.898e-04    4.90   2h13m41s  Nu_inst=5.12472  Nu=5.12525  C_D=1.34953  C_L=0.318238
 [contador] 2h13m56s | it 61117 | 7.7 it/s | 100% | restante ~0h00m10s
 Criterio de parada do caso atingido na iteracao 61200: duracao de 153 D/U atingida
-Checkpoint: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re100_D20/checkpoint/checkpoint.npz   (continue com: python lbm3d.py --restart /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re100_D20)
-Campo e imagens do escoamento: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re100_D20/escoamento/final
+Checkpoint: casos/calor_circulo_semsolido_Re100_D20/checkpoint/checkpoint.npz   (continue com: python lbm3d.py --restart casos/calor_circulo_semsolido_Re100_D20)
+Campo e imagens do escoamento: casos/calor_circulo_semsolido_Re100_D20/escoamento/final
 ==============================================================================
 VALIDACAO
 Circular cylinder, Re = 100, metodo sem_solido (D = 20, Ds = 40 D): Nu = 5.1252   Nu_ref (Eq. 17) = 5.210   dif = 1.63%   instantes = 61200   (duracao de 153 D/U atingida)

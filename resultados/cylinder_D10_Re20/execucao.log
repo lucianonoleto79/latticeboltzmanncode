@@ -166,8 +166,8 @@ it   16300  res 1.869e-06  C_D=6.23032  C_L=0.0101733  dp=0.165443  [0.73 MLUPS]
 it   16400  res 1.064e-06  C_D=6.23032  C_L=0.0101732  dp=0.165443  [0.73 MLUPS]
 it   16500  res 5.521e-07  C_D=6.23032  C_L=0.0101732  dp=0.165443  [0.73 MLUPS]
 Convergiu: residuo 5.521e-07 < tol 1.0e-06
-Checkpoint: /private/tmp/claude-501/-Users-lucianonoleto-Library-Application-Support-Claude-scratch-workspaces-1a0735f3-b01e-4bbf-bdbf-b69e347dc3b6-aa3e92d8-19c1-45f0-ac44-f33310f7c38d-scratch-2026-10-28-679786/d99a6274-9730-438f-b341-b92ffe41b8d5/scratchpad/cyl10/checkpoint.npz   (reinicie com: python lbm3d.py --restart /private/tmp/claude-501/-Users-lucianonoleto-Library-Application-Support-Claude-scratch-workspaces-1a0735f3-b01e-4bbf-bdbf-b69e347dc3b6-aa3e92d8-19c1-45f0-ac44-f33310f7c38d-scratch-2026-10-28-679786/d99a6274-9730-438f-b341-b92ffe41b8d5/scratchpad/cyl10/checkpoint.npz)
-Campo final (ParaView): /private/tmp/claude-501/-Users-lucianonoleto-Library-Application-Support-Claude-scratch-workspaces-1a0735f3-b01e-4bbf-bdbf-b69e347dc3b6-aa3e92d8-19c1-45f0-ac44-f33310f7c38d-scratch-2026-10-28-679786/d99a6274-9730-438f-b341-b92ffe41b8d5/scratchpad/cyl10/cylinder_it0016500.vtk
+Checkpoint: cyl10/checkpoint.npz   (reinicie com: python lbm3d.py --restart cyl10/checkpoint.npz)
+Campo final (ParaView): cyl10/cylinder_it0016500.vtk
 ==============================================================================
 VALIDACAO
 Schaefer & Turek 3D-1Z (Re=20), D=10 celulas, modelo=k17:

@@ -1,9 +1,9 @@
 ==============================================================================
-lbm3d  2026-11-12 06:38:11  |  pasta do caso: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_elipse_semsolido_Re100_D20
+lbm3d  2026-11-12 06:38:11  |  pasta do caso: casos/calor_elipse_semsolido_Re100_D20
 Pre-processamento (dominio, contorno, malha): 8 arquivos em 9.4 s
 Caso: calor | malha (802, 803, 1) (644006 nos) | modelo k17 | omega = 1.8868 | nu = 0.01000
   taxas K17: w3=0.4553 w4=0.0787 w5=0.1842 A=-0.4409 B=0.3535
-Controles: Ctrl+C = menu (continuar/salvar/pausar/sair) | arquivos SALVAR / PAUSAR / PARAR em /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_elipse_semsolido_Re100_D20
+Controles: Ctrl+C = menu (continuar/salvar/pausar/sair) | arquivos SALVAR / PAUSAR / PARAR em casos/calor_elipse_semsolido_Re100_D20
 Residuos: res(u) = ||u^n - u^(n-1000)|| / ||u^n||  (parada: res(u) < 1.0e-07); componentes normalizadas por ||u^n||; res(rho) = ||drho|| / ||rho||
 [contador] 0h01m00s | it 460 | 7.6 it/s | 1% | restante ~2h13m52s
 [contador] 0h02m01s | it 911 | 7.3 it/s | 1% | restante ~2h14m06s
@@ -203,8 +203,8 @@ Residuos: res(u) = ||u^n - u^(n-1000)|| / ||u^n||  (parada: res(u) < 1.0e-07); c
     61000  4.328e-02  2.652e-02  3.420e-02  0.000e+00  6.080e-05    4.90   2h13m42s  Nu_inst=3.70747  Nu=3.70671  C_D=1.02275  C_L=-0.0135319
 [contador] 2h13m58s | it 61121 | 7.5 it/s | 100% | restante ~0h00m10s
 Criterio de parada do caso atingido na iteracao 61200: duracao de 153 D/U atingida
-Checkpoint: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_elipse_semsolido_Re100_D20/checkpoint/checkpoint.npz   (continue com: python lbm3d.py --restart /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_elipse_semsolido_Re100_D20)
-Campo e imagens do escoamento: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_elipse_semsolido_Re100_D20/escoamento/final
+Checkpoint: casos/calor_elipse_semsolido_Re100_D20/checkpoint/checkpoint.npz   (continue com: python lbm3d.py --restart casos/calor_elipse_semsolido_Re100_D20)
+Campo e imagens do escoamento: casos/calor_elipse_semsolido_Re100_D20/escoamento/final
 ==============================================================================
 VALIDACAO
 Ellipse, Re = 100, metodo sem_solido (D = 20, Ds = 40 D): Nu = 3.7068   instantes = 61200   (duracao de 153 D/U atingida)

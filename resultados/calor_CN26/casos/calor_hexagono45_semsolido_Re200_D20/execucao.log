@@ -3,10 +3,10 @@ lbm3d  2026-11-11 20:22:24  |  pasta do caso: casos/calor_hexagono45_semsolido_R
 Pre-processamento (dominio, contorno, malha): 8 arquivos em 5.7 s
 Imagens em casos/calor_hexagono45_semsolido_Re200_D20/{dominio,contorno,malha}/
 ==============================================================================
-lbm3d  2026-11-12 17:53:43  |  pasta do caso: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_hexagono45_semsolido_Re200_D20
+lbm3d  2026-11-12 17:53:43  |  pasta do caso: casos/calor_hexagono45_semsolido_Re200_D20
 Caso: calor | malha (602, 603, 1) (363006 nos) | modelo k17 | omega = 1.9417 | nu = 0.00500
   taxas K17: w3=0.2589 w4=0.0500 w5=0.0916 A=-0.4721 B=0.2564
-Controles: Ctrl+C = menu (continuar/salvar/pausar/sair) | arquivos SALVAR / PAUSAR / PARAR em /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_hexagono45_semsolido_Re200_D20
+Controles: Ctrl+C = menu (continuar/salvar/pausar/sair) | arquivos SALVAR / PAUSAR / PARAR em casos/calor_hexagono45_semsolido_Re200_D20
 Residuos: res(u) = ||u^n - u^(n-1000)|| / ||u^n||  (parada: res(u) < 1.0e-07); componentes normalizadas por ||u^n||; res(rho) = ||drho|| / ||rho||
 [contador] 0h01m00s | it 770 | 12.6 it/s | 1% | restante ~1h08m11s
  iteracao     res(u)    res(ux)    res(uy)    res(uz)   res(rho)   MLUPS      tempo  grandezas monitoradas
@@ -132,8 +132,8 @@ Residuos: res(u) = ||u^n - u^(n-1000)|| / ||u^n||  (parada: res(u) < 1.0e-07); c
     52000  1.953e-01  9.019e-02  1.733e-01  0.000e+00  2.685e-04    4.59   1h08m28s  Nu_inst=7.22839  Nu=7.2358  C_D=1.3481  C_L=0.536285
 [contador] 1h08m30s | it 52025 | 12.6 it/s | 99% | restante ~0h00m29s
 Criterio de parada do caso atingido na iteracao 52400: duracao de 131 D/U atingida
-Checkpoint: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_hexagono45_semsolido_Re200_D20/checkpoint/checkpoint.npz   (continue com: python lbm3d.py --restart /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_hexagono45_semsolido_Re200_D20)
-Campo e imagens do escoamento: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_hexagono45_semsolido_Re200_D20/escoamento/final
+Checkpoint: casos/calor_hexagono45_semsolido_Re200_D20/checkpoint/checkpoint.npz   (continue com: python lbm3d.py --restart casos/calor_hexagono45_semsolido_Re200_D20)
+Campo e imagens do escoamento: casos/calor_hexagono45_semsolido_Re200_D20/escoamento/final
 ==============================================================================
 VALIDACAO
 Hexagon (tilted 45°), Re = 200, metodo sem_solido (D = 20, Ds = 30 D): Nu = 7.2375   instantes = 52400   (duracao de 131 D/U atingida)

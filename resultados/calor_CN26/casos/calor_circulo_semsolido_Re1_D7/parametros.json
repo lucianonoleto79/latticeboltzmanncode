@@ -1,6 +1,6 @@
 {
  "caso": "calor",
- "pasta": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re1_D7",
+ "pasta": "casos/calor_circulo_semsolido_Re1_D7",
  "malha": [
   562,
   563,
@@ -41,7 +41,7 @@
   "tol": 1e-07,
   "save_every": 0,
   "checkpoint_every": 5000,
-  "outdir": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_semsolido_Re1_D7",
+  "outdir": "casos/calor_circulo_semsolido_Re1_D7",
   "restart": "",
   "no_gui": true,
   "no_figs": false,

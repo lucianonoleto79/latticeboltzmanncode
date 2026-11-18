@@ -1,9 +1,9 @@
 ==============================================================================
-lbm3d  2026-11-14 21:25:23  |  pasta do caso: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_comsolido_Re200_D10
+lbm3d  2026-11-14 21:25:23  |  pasta do caso: casos/calor_circulo_comsolido_Re200_D10
 Pre-processamento (dominio, contorno, malha): 8 arquivos em 3.1 s
 Caso: calor | malha (302, 303, 1) (91506 nos) | modelo k17 | omega = 1.9704 | nu = 0.00250
   taxas K17: w3=0.1390 w4=0.0275 w5=0.0455 A=-0.4865 B=0.2106
-Controles: Ctrl+C = menu (continuar/salvar/pausar/sair) | arquivos SALVAR / PAUSAR / PARAR em /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_comsolido_Re200_D10
+Controles: Ctrl+C = menu (continuar/salvar/pausar/sair) | arquivos SALVAR / PAUSAR / PARAR em casos/calor_circulo_comsolido_Re200_D10
 Residuos: res(u) = ||u^n - u^(n-1000)|| / ||u^n||  (parada: res(u) < 1.0e-07); componentes normalizadas por ||u^n||; res(rho) = ||drho|| / ||rho||
  iteracao     res(u)    res(ux)    res(uy)    res(uz)   res(rho)   MLUPS      tempo  grandezas monitoradas
      1000  7.137e-02  6.432e-02  3.094e-02  0.000e+00  6.327e-04    3.38   0h00m27s  Nu=7.45236  C_D=1.34669  C_L=0.00715681  1-theta=0.0663749
@@ -121,8 +121,8 @@ Residuos: res(u) = ||u^n - u^(n-1000)|| / ||u^n||  (parada: res(u) < 1.0e-07); c
  iteracao     res(u)    res(ux)    res(uy)    res(uz)   res(rho)   MLUPS      tempo  grandezas monitoradas
     76000  3.833e-02  3.060e-02  2.309e-02  0.000e+00  1.479e-04    3.21   0h36m07s  Nu=5.55842  C_D=1.4499  C_L=-0.427779  1-theta=0.97975
 Criterio de parada do caso atingido na iteracao 76245: 1 - theta = 0.9800 >= 0,98
-Checkpoint: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_comsolido_Re200_D10/checkpoint/checkpoint.npz   (continue com: python lbm3d.py --restart /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_comsolido_Re200_D10)
-Campo e imagens do escoamento: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_circulo_comsolido_Re200_D10/escoamento/final
+Checkpoint: casos/calor_circulo_comsolido_Re200_D10/checkpoint/checkpoint.npz   (continue com: python lbm3d.py --restart casos/calor_circulo_comsolido_Re200_D10)
+Campo e imagens do escoamento: casos/calor_circulo_comsolido_Re200_D10/escoamento/final
 ==============================================================================
 VALIDACAO
 Circular cylinder, Re = 200, metodo com_solido (D = 10, Ds = 30 D): Nu = 5.5583   Nu_ref (Eq. 17) = 7.244   dif = 23.27%   Bi = 1.77e-02   instantes = 76245   (1 - theta = 0.9800 >= 0,98)

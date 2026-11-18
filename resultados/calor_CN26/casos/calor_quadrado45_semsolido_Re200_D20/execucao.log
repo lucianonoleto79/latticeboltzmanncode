@@ -1,9 +1,9 @@
 ==============================================================================
-lbm3d  2026-11-12 19:03:04  |  pasta do caso: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_quadrado45_semsolido_Re200_D20
+lbm3d  2026-11-12 19:03:04  |  pasta do caso: casos/calor_quadrado45_semsolido_Re200_D20
 Pre-processamento (dominio, contorno, malha): 8 arquivos em 3.5 s
 Caso: calor | malha (602, 603, 1) (363006 nos) | modelo k17 | omega = 1.9417 | nu = 0.00500
   taxas K17: w3=0.2589 w4=0.0500 w5=0.0916 A=-0.4721 B=0.2564
-Controles: Ctrl+C = menu (continuar/salvar/pausar/sair) | arquivos SALVAR / PAUSAR / PARAR em /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_quadrado45_semsolido_Re200_D20
+Controles: Ctrl+C = menu (continuar/salvar/pausar/sair) | arquivos SALVAR / PAUSAR / PARAR em casos/calor_quadrado45_semsolido_Re200_D20
 Residuos: res(u) = ||u^n - u^(n-1000)|| / ||u^n||  (parada: res(u) < 1.0e-07); componentes normalizadas por ||u^n||; res(rho) = ||drho|| / ||rho||
 [contador] 0h01m00s | it 762 | 12.7 it/s | 1% | restante ~1h08m02s
  iteracao     res(u)    res(ux)    res(uy)    res(uz)   res(rho)   MLUPS      tempo  grandezas monitoradas
@@ -129,8 +129,8 @@ Residuos: res(u) = ||u^n - u^(n-1000)|| / ||u^n||  (parada: res(u) < 1.0e-07); c
     52000  1.975e-01  8.550e-02  1.781e-01  0.000e+00  3.551e-04    4.59   1h08m29s  Nu_inst=8.23008  Nu=8.00752  C_D=1.54629  C_L=0.630497
 [contador] 1h08m29s | it 52003 | 11.9 it/s | 99% | restante ~0h00m31s
 Criterio de parada do caso atingido na iteracao 52400: duracao de 131 D/U atingida
-Checkpoint: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_quadrado45_semsolido_Re200_D20/checkpoint/checkpoint.npz   (continue com: python lbm3d.py --restart /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_quadrado45_semsolido_Re200_D20)
-Campo e imagens do escoamento: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_quadrado45_semsolido_Re200_D20/escoamento/final
+Checkpoint: casos/calor_quadrado45_semsolido_Re200_D20/checkpoint/checkpoint.npz   (continue com: python lbm3d.py --restart casos/calor_quadrado45_semsolido_Re200_D20)
+Campo e imagens do escoamento: casos/calor_quadrado45_semsolido_Re200_D20/escoamento/final
 ==============================================================================
 VALIDACAO
 Square (tilted 45°), Re = 200, metodo sem_solido (D = 20, Ds = 30 D): Nu = 8.0075   instantes = 52400   (duracao de 131 D/U atingida)

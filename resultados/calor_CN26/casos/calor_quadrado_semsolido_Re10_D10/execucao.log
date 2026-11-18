@@ -1,10 +1,10 @@
 ==============================================================================
-lbm3d  2026-11-12 22:40:45  |  pasta do caso: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_quadrado_semsolido_Re10_D10
+lbm3d  2026-11-12 22:40:45  |  pasta do caso: casos/calor_quadrado_semsolido_Re10_D10
 AVISO: omega = 1.538 < 1.75 (nu = 0.0500 > 0.0238): fora da faixa da parametrizacao K17 [G17]; usando cumulante classico [G15].
 Pre-processamento (dominio, contorno, malha): 8 arquivos em 7.9 s
 AVISO: omega = 1.538 < 1.75 (nu = 0.0500 > 0.0238): fora da faixa da parametrizacao K17 [G17]; usando cumulante classico [G15].
 Caso: calor | malha (802, 803, 1) (644006 nos) | modelo cumulant | omega = 1.5385 | nu = 0.05000
-Controles: Ctrl+C = menu (continuar/salvar/pausar/sair) | arquivos SALVAR / PAUSAR / PARAR em /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_quadrado_semsolido_Re10_D10
+Controles: Ctrl+C = menu (continuar/salvar/pausar/sair) | arquivos SALVAR / PAUSAR / PARAR em casos/calor_quadrado_semsolido_Re10_D10
 Residuos: res(u) = ||u^n - u^(n-1000)|| / ||u^n||  (parada: res(u) < 1.0e-07); componentes normalizadas por ||u^n||; res(rho) = ||drho|| / ||rho||
 [contador] 0h01m00s | it 443 | 7.2 it/s
 [contador] 0h02m00s | it 889 | 7.7 it/s
@@ -89,8 +89,8 @@ Residuos: res(u) = ||u^n - u^(n-1000)|| / ||u^n||  (parada: res(u) < 1.0e-07); c
 [contador] 0h55m28s | it 25056 | 7.5 it/s
 [contador] 0h56m29s | it 25513 | 7.3 it/s
 Criterio de parada do caso atingido na iteracao 25832: |Nu - Nu(-10 D/U)|/Nu < 1e-05 em todos os passos dos ultimos 5 D/U (Eq. 16 adaptada)
-Checkpoint: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_quadrado_semsolido_Re10_D10/checkpoint/checkpoint.npz   (continue com: python lbm3d.py --restart /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_quadrado_semsolido_Re10_D10)
-Campo e imagens do escoamento: /Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_quadrado_semsolido_Re10_D10/escoamento/final
+Checkpoint: casos/calor_quadrado_semsolido_Re10_D10/checkpoint/checkpoint.npz   (continue com: python lbm3d.py --restart casos/calor_quadrado_semsolido_Re10_D10)
+Campo e imagens do escoamento: casos/calor_quadrado_semsolido_Re10_D10/escoamento/final
 ==============================================================================
 VALIDACAO
 Square, Re = 10, metodo sem_solido (D = 10, Ds = 80 D): Nu = 1.5468   instantes = 25832   (|Nu - Nu(-10 D/U)|/Nu < 1e-05 em todos os passos dos ultimos 5 D/U (Eq. 16 adaptada))

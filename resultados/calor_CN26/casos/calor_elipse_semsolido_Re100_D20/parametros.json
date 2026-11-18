@@ -1,6 +1,6 @@
 {
  "caso": "calor",
- "pasta": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_elipse_semsolido_Re100_D20",
+ "pasta": "casos/calor_elipse_semsolido_Re100_D20",
  "malha": [
   802,
   803,
@@ -41,7 +41,7 @@
   "tol": 1e-07,
   "save_every": 0,
   "checkpoint_every": 5000,
-  "outdir": "/Users/lucianonoleto/projetos_cfd/lattice_boltzmann/casos/calor_elipse_semsolido_Re100_D20",
+  "outdir": "casos/calor_elipse_semsolido_Re100_D20",
   "restart": "",
   "no_gui": true,
   "no_figs": false,
