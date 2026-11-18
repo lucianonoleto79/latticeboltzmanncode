@@ -1,0 +1,4 @@
+Schaefer & Turek 3D-1Z (Re=20), D=6 celulas, modelo=k17:
+  C_D           = 6.30157   faixa de referencia [6.050, 6.250]  -> fora da faixa
+  C_L           = 0.02135   faixa de referencia [0.008, 0.010]  -> fora da faixa
+  Delta p [Pa]  = 0.16418   faixa de referencia [0.165, 0.175]  -> fora da faixa

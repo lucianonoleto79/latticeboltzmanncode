@@ -390,7 +390,8 @@ function render() {
   });
 
   const R = refs(meta);
-  const extras = Object.keys(c).filter(k => !["it", "res", "tempo_unix", "mlups"].includes(k));
+  const extras = Object.keys(c).filter(k => !["it", "res", "tempo_unix", "mlups"].includes(k) && !k.startsWith("res_"));
+  const resComp = Object.keys(c).filter(k => k.startsWith("res_"));
   const start = zoom === "terco" ? Math.max(0, Math.min(N - 5, Math.floor(N * 2 / 3))) : 0;
   for (const k of extras) {
     const v = c[k], cd = el("div", { class: "card" }, charts);
@@ -411,13 +412,13 @@ function render() {
 
   const tb = document.getElementById("tabela");
   tb.replaceChildren();
-  const cols = ["it", "res", ...extras, "mlups"];
+  const cols = ["it", "res", ...resComp, ...extras, "mlups"];
   const hr = el("tr", {}, el("thead", {}, tb));
   for (const k of cols) el("th", { text: k }, hr);
   const body = el("tbody", {}, tb);
   for (let i = N - 1; i >= Math.max(0, N - 30); i--) {
     const tr = el("tr", {}, body);
-    for (const k of cols) el("td", { text: k === "it" ? fmtInt(c[k][i]) : k === "res" ? fmtE(c[k][i]) : fmtG(c[k][i]) }, tr);
+    for (const k of cols) el("td", { text: k === "it" ? fmtInt(c[k][i]) : k.startsWith("res") ? fmtE(c[k][i]) : fmtG(c[k][i]) }, tr);
   }
   document.getElementById("rodape").textContent =
     `Gerado por lbm3d.py · ${N} leituras (uma a cada 100 iterações) · página atualizada às ${new Date().toLocaleTimeString("pt-BR")}`;

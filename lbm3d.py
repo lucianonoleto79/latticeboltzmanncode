@@ -35,21 +35,34 @@ Casos de teste / validacao:
               343-360 (valores tabelados em Bogner et al., IJMF 68 (2015) 71-79)
   cavity    : cavidade cubica com tampa movel (demonstracao)
 
-Acompanhamento da convergencia: a cada 100 it. uma linha e acrescentada a
-<saida>/convergencia.csv e o painel <saida>/convergencia.html e regravado:
-abra-o no navegador (recarrega sozinho) ou use  python acompanhar.py <saida> --servir
+Organizacao dos resultados: cada caso tem a sua pasta, casos/<caso>_<parametros>/
+(ex.: casos/cylinder_D10_Re20), com
+  dominio/     imagens da geometria (vista 3D e cortes)
+  contorno/    mapa das condicoes de contorno + condicoes_contorno.txt
+  malha/       malha (corte com os nos, detalhe junto a parede) + malha.txt
+  escoamento/  final/ e parcial_itN/ : imagens do escoamento + campo .vtk (ParaView)
+  graficos/    residuos, grandezas, validacao, convergencia.csv e painel convergencia.html
+  checkpoint/  checkpoint.npz (para continuar a simulacao)
+  parametros.json, execucao.log, estado.json, validacao.txt, LEIAME.txt
 
-Controles (janela grafica):
-  botao/tecla  P  : pausar / continuar
-  botao/tecla  S  : salvar resultados parciais agora (VTK + checkpoint)
-  caixa "Auto-salvar": salva automaticamente a cada 100 iteracoes
-  botao/tecla  Q  : salvar checkpoint e sair (reinicie com --restart)
-Sem janela (--no-gui): Ctrl+C salva o checkpoint e sai.
+Residuos: a cada 100 it. o terminal mostra uma tabela com res(u) (criterio de parada),
+res(ux), res(uy), res(uz), res(rho), MLUPS, tempo e as grandezas do caso; a mesma linha vai
+para graficos/convergencia.csv e o painel graficos/convergencia.html e regravado.
+
+Salvar resultados parciais e interromper:
+  janela grafica : botao/tecla P pausar/continuar, S salvar parcial, Q salvar e sair;
+                   caixa "Auto-salvar parciais" (a cada --save-every it.)
+  terminal       : Ctrl+C abre um menu (continuar / salvar parcial / pausar / salvar e sair)
+  qualquer modo  : arquivos SALVAR, PAUSAR, PARAR na pasta do caso
+                   (python acompanhar.py <pasta> --salvar | --pausar | --continuar | --parar);
+                   SIGTERM = salvar e sair; SIGUSR1 = salvar parcial
+  continuar      : python lbm3d.py --restart <pasta do caso>
 
 Exemplos:
   python lbm3d.py --case duct
+  python lbm3d.py --case cylinder --res 10 --preprocess-only   # so dominio/contorno/malha
   python lbm3d.py --case cylinder --res 10
-  python lbm3d.py --restart saida_cylinder/checkpoint.npz
+  python lbm3d.py --restart casos/cylinder_D10_Re20
   python lbm3d.py --case spheres --res 48 --no-gui --max-time 320   # para em 320 min
 """
 
@@ -408,12 +421,28 @@ class Case:
     name = "base"
     steady = True
     slice_axis = 2
+    periodico = ""          # direcoes periodicas (texto), ex.: "x" ou "x, y, z"
+    dx_fisico = None        # espacamento fisico da malha (quando o caso tem unidades fisicas)
+    unidade = None
+    centro_obstaculo = None  # (x, y, z) em indices de no, para os cortes das figuras
 
     def __init__(self, args):
         self.args = args
         self.force = (0.0, 0.0, 0.0)
 
+    def tag(self):
+        """Nome da pasta do caso em casos/ (identifica os parametros principais)."""
+        return self.name
+
+    def descricao_contorno(self):
+        """Linhas de texto descrevendo as condicoes de contorno (contorno/condicoes_contorno.txt)."""
+        return []
+
     def post_stream(self, sim, fpost, fnew):
+        pass
+
+    def after_step(self, sim):
+        """Chamado ao fim de cada passo (ex.: series temporais de casos transientes)."""
         pass
 
     def report(self, sim):
@@ -432,6 +461,7 @@ class ShearWave(Case):
     name = "shearwave"
     steady = False
     slice_axis = 0
+    periodico = "x, y, z"
 
     def __init__(self, args):
         super().__init__(args)
@@ -450,6 +480,15 @@ class ShearWave(Case):
         self.decay_time = 1.0 / (self.nu * self.kw ** 2)
         if not args.max_iter:
             args.max_iter = int(round(self.decay_time / 100.0)) * 100
+
+    def tag(self):
+        return "shearwave_N%d" % self.N
+
+    def descricao_contorno(self):
+        return ["Dominio totalmente periodico (x, y, z): nao ha paredes.",
+                "Condicao inicial: u_x = U0 sin(2 pi y / N), U0 = %g, u_z = %g (adveccao), rho = 1."
+                % (self.U0, self.ushift),
+                "Solucao exata: amplitude decai com exp(-nu k^2 t), k = 2 pi / N."]
 
     def initial(self):
         rho = np.ones(self.shape)
@@ -478,6 +517,7 @@ class Duct(Case):
     """Duto retangular periodico em x, forcado por forca de corpo (gradiente de pressao)."""
     name = "duct"
     slice_axis = 0
+    periodico = "x"
 
     def __init__(self, args):
         super().__init__(args)
@@ -501,6 +541,16 @@ class Duct(Case):
         self.G = G
         self.force = (G, 0.0, 0.0)
         self.uex = self.analytic(G)
+
+    def tag(self):
+        return "duct_%dx%d" % (self.Ny, self.Nz)
+
+    def descricao_contorno(self):
+        return ["Entrada/saida (x): periodicas; o escoamento e mantido por forca de corpo",
+                "  G = -dp/dx = %.6e (unidades de rede) aplicada pelo termo de forca do cumulante [G15]." % self.G,
+                "Paredes y = +-a e z = +-b: nao deslizamento, bounce-back no meio caminho [L94]",
+                "  (camada de nos solidos fantasma em j = 0, j = Ny+1, k = 0, k = Nz+1).",
+                "Condicao inicial: fluido em repouso, rho = 1."]
 
     def analytic(self, G, nterms=101):
         """F.M. White, Viscous Fluid Flow (2006), Eq. (3-48), -a<y<a, -b<z<b."""
@@ -557,7 +607,11 @@ class Cylinder(Case):
     name = "cylinder"
     slice_axis = 2
     measure_force = True
+    unidade = "m"
     REF = {"C_D": (6.05, 6.25), "C_L": (0.008, 0.010), "dp": (0.165, 0.175)}
+    benchmark = "3D-1Z"
+    Re_padrao = 20.0
+    Um_fisico = 0.45   # velocidade maxima fisica na entrada [m/s]; U_media = 4 Um / 9
 
     def __init__(self, args):
         super().__init__(args)
@@ -565,13 +619,16 @@ class Cylinder(Case):
         H = int(round(4.1 * D))
         self.D, self.H = D, H
         Lx = int(round(25 * D))
-        self.Re = args.Re if args.Re else 20.0
+        self.Re = args.Re if args.Re else self.Re_padrao
+        self.Ubar_fisico = 4.0 * self.Um_fisico / 9.0
         self.Um = args.u_lattice if args.u_lattice else 0.1  # velocidade maxima na entrada
         self.Ubar = 4.0 * self.Um / 9.0
         self.nu = self.Ubar * D / self.Re
         self.omega = 1.0 / (3.0 * self.nu + 0.5)
         self.shape = (Lx + 1, H + 2, H + 2)
         self.xc, self.yc, self.R = 5.0 * D, 2.0 * D, 0.5 * D
+        self.dx_fisico = 0.1 / D  # D fisico = 0.1 m
+        self.centro_obstaculo = (self.xc + 0.5, self.yc + 0.5, None)
         nx, ny, nz = self.shape
         X, Y = np.meshgrid(np.arange(nx) - 0.5, np.arange(ny) - 0.5, indexing="ij")
         cyl2d = (X - self.xc) ** 2 + (Y - self.yc) ** 2 < self.R ** 2
@@ -596,6 +653,50 @@ class Cylinder(Case):
 
         self.links = build_links(self.solid, wall_velocity,
                                  dict(mask=cyl, q=qfun, tag=1))
+
+    def tag(self):
+        tag = "%s_D%d_Re%g" % (self.name, self.D, self.Re)
+        if self.Um != 0.1:  # Um padrao = 0.1
+            tag += "_U%g" % self.Um
+        if self.args.model != "k17":
+            tag += "_" + self.args.model
+        if self.args.limiter is not None:
+            tag += "_lim%g" % self.args.limiter
+        return tag
+
+    def mascara_saida(self):
+        m = np.zeros(self.shape, bool)
+        m[-1] = ~self.solid[-1]
+        return m
+
+    def descricao_contorno(self):
+        return ["Entrada (x = 0): parede movel com perfil parabolico [L94] (Schaefer & Turek %s)"
+                % self.benchmark,
+                "  U(y, z) = 16 Um y z (H - y)(H - z) / H^4,  Um = %.4g (rede) = %g m/s,"
+                " U_media = 4 Um / 9 = %.4g." % (self.Um, self.Um_fisico, self.Ubar),
+                "Saida (x = L): pressao imposta rho = 1 por extrapolacao de nao-equilibrio [G02].",
+                "Paredes do canal (y = 0, H; z = 0, H): nao deslizamento, bounce-back meio caminho [L94].",
+                "Cilindro (D = %d nos, centro em x = %.1f, y = %.1f): nao deslizamento com bounce-back"
+                " interpolado linear [B01];" % (self.D, self.xc, self.yc),
+                "  forca no corpo por troca de quantidade de movimento [M02] -> C_D, C_L.",
+                "Re = U_media D / nu = %g;  nu = %.5g (rede)." % (self.Re, self.nu),
+                "Condicao inicial: perfil de entrada em todo o canal, rho = 1."]
+
+    def figura_contorno(self, pasta, figura, salvar):
+        """Perfil de velocidade imposto na entrada."""
+        fig = figura(11, 4.2)
+        H, dx = self.H, self.dx_fisico
+        y = np.linspace(0, H, 200)
+        a = fig.add_subplot(1, 2, 1)
+        a.plot(self.inflow(y, H / 2.0) / self.Um * self.Um_fisico, y * dx, "b-")
+        a.set_xlabel("u_x na entrada [m/s]"); a.set_ylabel("y [m]  (z = H/2)"); a.grid(alpha=0.3)
+        a = fig.add_subplot(1, 2, 2)
+        Y, Z = np.meshgrid(y, y, indexing="ij")
+        im = a.contourf(Y * dx, Z * dx, self.inflow(Y, Z) / self.Um * self.Um_fisico, 20, cmap="viridis")
+        fig.colorbar(im, ax=a, label="u_x [m/s]")
+        a.set_aspect("equal"); a.set_xlabel("y [m]"); a.set_ylabel("z [m]")
+        fig.suptitle("Perfil de velocidade imposto na entrada (Schaefer & Turek %s)" % self.benchmark)
+        return [salvar(fig, os.path.join(pasta, "perfil_entrada.png"))]
 
     def inflow(self, y, z):
         H = self.H
@@ -637,7 +738,7 @@ class Cylinder(Case):
         i1 = int(np.floor(xb + 0.5)) + 1
         r1, r2 = self._sample_line(rho, i1, self.yc, zc), self._sample_line(rho, i1 + 1, self.yc, zc)
         rb = r1 - ((i1 - 0.5) - xb) * (r2 - r1)
-        dp_phys = (rf - rb) / 3.0 * (0.2 / self.Ubar) ** 2  # U_media fisica = 0.2 m/s, rho = 1
+        dp_phys = (rf - rb) / 3.0 * (self.Ubar_fisico / self.Ubar) ** 2  # rho fisico = 1
         return {"C_D": Fd / norm, "C_L": Fl / norm, "dp": dp_phys}
 
     def report(self, sim):
@@ -648,14 +749,143 @@ class Cylinder(Case):
 
     def finish(self, sim, outdir):
         c = self.coefficients(sim)
-        lines = ["Schaefer & Turek 3D-1Z (Re=%.0f), D=%d celulas, modelo=%s:"
-                 % (self.Re, self.D, sim.prm["model"])]
+        lines = ["Schaefer & Turek %s (Re=%.0f), D=%d celulas, modelo=%s:"
+                 % (self.benchmark, self.Re, self.D, sim.prm["model"])]
         for key, label in (("C_D", "C_D"), ("C_L", "C_L"), ("dp", "Delta p [Pa]")):
             lo, hi = self.REF[key]
             ok = "OK" if lo <= c[key] <= hi else "fora da faixa"
             lines.append("  %-13s = %.5f   faixa de referencia [%.3f, %.3f]  -> %s"
                          % (label, c[key], lo, hi, ok))
         return "\n".join(lines)
+
+
+class Cylinder2Z(Cylinder):
+    """Schaefer & Turek (1996), caso 3D-2Z: mesma geometria do 3D-1Z, Um = 2.25 m/s (U_media =
+    1 m/s), Re = 100, escoamento nao estacionario (desprendimento de vortices).
+
+    Roda ate --max-iter (padrao: 150 tempos convectivos D/U_media) e grava a cada `amostra` passos
+    C_D, C_L e dp em graficos/serie_temporal.csv.  Ao final, sobre o ultimo terco da serie: maximos
+    de C_D e C_L, dp medio/maximo e o numero de Strouhal St = f D / U_media, com f do periodo medio
+    entre cruzamentos ascendentes de C_L pela media.  Faixas de referencia do artigo: nao incluidas
+    (REF vazio) ate serem conferidas no artigo original."""
+    name = "cylinder2z"
+    steady = False
+    benchmark = "3D-2Z"
+    Re_padrao = 100.0
+    Um_fisico = 2.25
+    REF = {}
+    amostra = 5
+    tempos_convectivos = 150
+    cl_pp_min = 1e-2  # amplitude pico a pico minima de C_L para considerar desprendimento
+
+    def __init__(self, args):
+        super().__init__(args)
+        self.t_conv = self.D / self.Ubar  # iteracoes por tempo convectivo D / U_media
+        if not args.max_iter:
+            args.max_iter = int(np.ceil(self.tempos_convectivos * self.t_conv / 100.0)) * 100
+        self.dt_fisico = self.dx_fisico * self.Ubar / self.Ubar_fisico
+        self.pasta_graficos = None
+        self._buf = []
+
+    def descricao_contorno(self):
+        return super().descricao_contorno() + [
+            "Escoamento nao estacionario: sem criterio de parada por residuo; roda ate --max-iter.",
+            "Passo de tempo fisico dt = dx U_media(rede) / U_media(fisica) = %.4e s." % self.dt_fisico]
+
+    def ref_ranges(self):
+        return {}
+
+    def after_step(self, sim):
+        if sim.it % self.amostra == 0:
+            c = self.coefficients(sim)
+            self._buf.append((sim.it, c["C_D"], c["C_L"], c["dp"]))
+
+    def _gravar_serie(self):
+        if not self._buf or not self.pasta_graficos:
+            return
+        path = os.path.join(self.pasta_graficos, "serie_temporal.csv")
+        novo = not os.path.exists(path)
+        with open(path, "a") as fh:
+            if novo:
+                fh.write("# dt_fisico=%.8e t_conv=%.6f D=%d\nit,t,C_D,C_L,dp\n" % (self.dt_fisico, self.t_conv, self.D))
+            for it, cd, cl, dp in self._buf:
+                fh.write("%d,%.6e,%.8g,%.8g,%.8g\n" % (it, it * self.dt_fisico, cd, cl, dp))
+        self._buf = []
+
+    def report(self, sim):
+        self._gravar_serie()
+        return self.coefficients(sim)
+
+    def ler_serie(self):
+        path = os.path.join(self.pasta_graficos, "serie_temporal.csv")
+        d = np.loadtxt(path, delimiter=",", comments="#", skiprows=2, ndmin=2)
+        # reinicio a partir de um checkpoint anterior: fica a ultima passagem por cada iteracao
+        _, idx = np.unique(d[::-1, 0], return_index=True)
+        return d[::-1][idx]
+
+    def analise(self):
+        d = self.ler_serie()
+        it, t, cd, cl, dp = d.T
+        jan = it >= it[-1] - (it[-1] - it[0]) / 3.0
+        out = {"t_final": t[-1], "n": int(jan.sum()), "C_D_max": cd[jan].max(), "C_D_med": cd[jan].mean(),
+               "C_L_max": cl[jan].max(), "C_L_min": cl[jan].min(), "dp_max": dp[jan].max(),
+               "dp_med": dp[jan].mean(), "St": np.nan, "periodos": 0}
+        x = cl[jan] - cl[jan].mean()
+        tt = it[jan]
+        meio = x.size // 2
+        out["C_L_pp"] = x.max() - x.min()                       # amplitude pico a pico
+        a1, a2 = np.ptp(x[:meio]) if meio else 0.0, np.ptp(x[meio:])
+        out["decaimento"] = a2 / a1 if a1 > 0 else np.nan        # < 1: oscilacao amortecendo
+        # desprendimento = oscilacao de C_L de amplitude relevante que nao esta amortecendo
+        out["desprendimento"] = bool(out["C_L_pp"] > self.cl_pp_min and out["decaimento"] > 0.8)
+        sobe = np.where((x[:-1] < 0) & (x[1:] >= 0))[0]
+        if out["desprendimento"] and sobe.size >= 2:
+            tc = tt[sobe] - x[sobe] * (tt[sobe + 1] - tt[sobe]) / (x[sobe + 1] - x[sobe])
+            periodo = np.mean(np.diff(tc))  # em iteracoes
+            out["St"] = self.D / (periodo * self.Ubar)
+            out["periodos"] = len(tc) - 1
+        return d, jan, out
+
+    def finish(self, sim, outdir):
+        self.pasta_graficos = self.pasta_graficos or outdir
+        self._gravar_serie()
+        d, jan, a = self.analise()
+        try:
+            from matplotlib.figure import Figure
+            it, t, cd, cl, dp = d.T
+            fig = Figure(figsize=(11, 7))
+            for n, (v, nome) in enumerate(((cd, "C_D"), (cl, "C_L"), (dp, "Delta p [Pa]"))):
+                ax = fig.add_subplot(3, 1, n + 1)
+                ax.plot(t, v, "k-", lw=0.7)
+                ax.axvspan(t[jan][0], t[-1], color="#2a78d6", alpha=0.08, label="janela da analise")
+                ax.set_ylabel(nome)
+                ax.grid(alpha=0.3)
+            fig.axes[0].legend(fontsize=7)
+            fig.axes[-1].set_xlabel("t [s]")
+            fig.suptitle("Cilindro %s (Re = %g, D = %d): series temporais  |  %s"
+                         % (self.benchmark, self.Re, self.D, "St = %.4f" % a["St"] if a["periodos"]
+                            else "sem desprendimento de vortices"))
+            fig.tight_layout()
+            fig.savefig(os.path.join(outdir, "serie_temporal.png"), dpi=120)
+        except Exception as e:  # pragma: no cover
+            print("grafico nao gerado:", e)
+        linhas = ["Schaefer & Turek %s (Re=%.0f), D=%d celulas, modelo=%s, t final = %.3f s "
+                  "(%d it., %.1f tempos convectivos):" % (self.benchmark, self.Re, self.D,
+                                                         sim.prm["model"], a["t_final"], sim.it,
+                                                         sim.it / self.t_conv),
+                  "  janela de analise: ultimo terco da serie (%d amostras)" % a["n"],
+                  "  C_D max = %.5f   (media %.5f)" % (a["C_D_max"], a["C_D_med"]),
+                  "  C_L max = %.5f   C_L min = %.5f" % (a["C_L_max"], a["C_L_min"]),
+                  "  Delta p max = %.5f Pa   (media %.5f Pa)" % (a["dp_max"], a["dp_med"])]
+        linhas.append("  C_L pico a pico na janela = %.3e  (2a metade / 1a metade = %.2f)"
+                      % (a["C_L_pp"], a["decaimento"]))
+        if a["periodos"]:
+            linhas.append("  St = %.4f  (%d periodos de C_L na janela)" % (a["St"], a["periodos"]))
+        else:
+            linhas.append("  sem desprendimento de vortices (C_L pico a pico < %g ou amortecendo):"
+                          " escoamento estacionario, St nao calculado" % self.cl_pp_min)
+        linhas.append("  (faixas de referencia do artigo nao incluidas no codigo: comparar manualmente)")
+        return "\n".join(linhas)
 
 
 class Cavity(Case):
@@ -681,6 +911,15 @@ class Cavity(Case):
             return (self.U * lid, 0.0, 0.0)
 
         self.links = build_links(s, wall_velocity)
+
+    def tag(self):
+        return "cavity_N%d_Re%g" % (self.N, self.Re)
+
+    def descricao_contorno(self):
+        return ["Tampa (z = N): parede movel com u = (%g, 0, 0) [L94]." % self.U,
+                "Demais paredes: nao deslizamento, bounce-back no meio caminho [L94].",
+                "Re = U N / nu = %g;  nu = %.5g (rede)." % (self.Re, self.nu),
+                "Condicao inicial: fluido em repouso, rho = 1."]
 
     def initial(self):
         z = np.zeros(self.shape)
@@ -714,6 +953,7 @@ class SphereArray(Case):
     name = "spheres"
     slice_axis = 1
     measure_force = True
+    periodico = "x, y, z"
     REF = {0.2: 1.385, 0.3: 1.70, 0.4: 2.150, 0.5: 2.845, 0.6: 3.974, 0.7: 6.00,
            0.8: 10.05, 0.9: 19.16}
 
@@ -730,6 +970,7 @@ class SphereArray(Case):
         x = np.arange(L) - 0.5
         X, Y, Z = np.meshgrid(x, x, x, indexing="ij")
         self.c0 = 0.5 * L - 0.5  # centro entre nos (geometria simetrica)
+        self.centro_obstaculo = (self.c0 + 0.5,) * 3
         sph = (X - self.c0) ** 2 + (Y - self.c0) ** 2 + (Z - self.c0) ** 2 < self.R ** 2
         self.solid = sph
         self.phi = np.pi * self.chi ** 3 / 6.0
@@ -747,6 +988,18 @@ class SphereArray(Case):
         Cref = self.reference()
         self.g = 1e-4 * 3.0 * np.pi * self.nu * self.d * Cref / L ** 3
         self.force = (self.g, 0.0, 0.0)
+
+    def tag(self):
+        return "spheres_L%d_chi%g" % (self.L, self.chi)
+
+    def descricao_contorno(self):
+        return ["Celula periodica L^3 (L = %d) em x, y, z: arranjo cubico simples infinito." % self.L,
+                "Esfera de diametro d = chi L = %.2f nos (chi = %g, fracao solida phi = %.4f):"
+                % (self.d, self.chi, self.phi),
+                "  nao deslizamento com bounce-back interpolado linear [B01];",
+                "  forca por troca de quantidade de movimento [M02].",
+                "Escoamento forcado por aceleracao uniforme g = %.4e em x (forca de corpo [G15])." % self.g,
+                "Condicao inicial: fluido em repouso, rho = 1."]
 
     def reference(self):
         if round(self.chi, 3) in self.REF:
@@ -790,7 +1043,10 @@ class SphereArray(Case):
                    self.solid.mean()))
 
 
-CASES = {"shearwave": ShearWave, "duct": Duct, "cylinder": Cylinder, "cavity": Cavity,
+RESIDUOS = ("res", "res_ux", "res_uy", "res_uz", "res_rho")
+
+CASES = {"shearwave": ShearWave, "duct": Duct, "cylinder": Cylinder, "cylinder2z": Cylinder2Z,
+         "cavity": Cavity,
          "spheres": SphereArray}
 
 
@@ -808,9 +1064,10 @@ class Simulation:
         self.f = equilibrium(rho, ux, uy, uz)
         self.ftmp = np.empty_like(self.f)
         self.it = 0
-        self.hist = {"it": [], "res": []}
+        self.hist = {k: [] for k in ("it",) + RESIDUOS}
         self.rho, self.u = rho, np.stack([ux, uy, uz])
         self.u_prev = self.u.copy()
+        self.rho_prev = self.rho.copy()
         self.body_force = np.zeros(3)
 
     def step(self):
@@ -830,29 +1087,47 @@ class Simulation:
             self.body_force = case.links.force(self.f, self.ftmp, 1)
         self.f, self.ftmp = self.ftmp, self.f
         self.it += 1
+        case.after_step(self)
 
     def update_macros(self):
         rho, ux, uy, uz = macroscopic(self.f, self.case.force)
         self.rho, self.u = rho, np.stack([ux, uy, uz])
 
     def record(self):
-        """Residuo de convergencia ||u^n - u^(n-100)|| / ||u^n|| nos nos de fluido."""
+        """Residuos nos nos de fluido, entre este relatorio e o anterior (n-100):
+            res     = ||u^n - u^(n-100)||_2 / ||u^n||_2            (criterio de parada)
+            res_ux  = ||ux^n - ux^(n-100)||_2 / ||u^n||_2  (idem uy, uz; res^2 = soma dos tres)
+            res_rho = ||rho^n - rho^(n-100)||_2 / ||rho^n||_2
+        """
         self.update_macros()
         du = (self.u - self.u_prev)[:, self.fluid]
         un = self.u[:, self.fluid]
-        res = np.sqrt(np.sum(du * du) / max(np.sum(un * un), 1e-300))
+        norma = max(np.sum(un * un), 1e-300)
+        res = np.sqrt(np.sum(du * du) / norma)
+        comp = np.sqrt(np.sum(du * du, axis=1) / norma)
+        rf, rp = self.rho[self.fluid], self.rho_prev[self.fluid]
+        res_rho = np.sqrt(np.sum((rf - rp) ** 2) / max(np.sum(rf * rf), 1e-300))
         self.u_prev = self.u.copy()
+        self.rho_prev = self.rho.copy()
         self.hist["it"].append(self.it)
-        self.hist["res"].append(res)
+        for key, val in zip(RESIDUOS, (res, comp[0], comp[1], comp[2], res_rho)):
+            self.hist.setdefault(key, []).append(float(val))
         for key, val in self.case.report(self).items():
             self.hist.setdefault(key, []).append(float(val))
         return res
+
+    def residuos(self):
+        return {k: self.hist[k][-1] for k in RESIDUOS if self.hist.get(k)}
+
+    def grandezas(self):
+        """Grandezas monitoradas do caso (tudo que nao e iteracao nem residuo)."""
+        return {k: v[-1] for k, v in self.hist.items() if k != "it" and k not in RESIDUOS and v}
 
     # --- E/S ---------------------------------------------------------------
     def save_checkpoint(self, outdir):
         path = os.path.join(outdir, "checkpoint.npz")
         tmp = os.path.join(outdir, "checkpoint_tmp.npz")
-        np.savez(tmp, f=self.f, it=self.it, u_prev=self.u_prev,
+        np.savez(tmp, f=self.f, it=self.it, u_prev=self.u_prev, rho_prev=self.rho_prev,
                  args=json.dumps(vars(self.args)),
                  hist=json.dumps({k: list(map(float, v)) for k, v in self.hist.items()}))
         os.replace(tmp, path)
@@ -867,6 +1142,8 @@ class Simulation:
         self.hist = {k: list(v) for k, v in json.loads(str(data["hist"])).items()}
         self.hist["it"] = [int(i) for i in self.hist["it"]]
         self.update_macros()
+        # checkpoints antigos nao tinham rho_prev: o primeiro res_rho apos o reinicio fica 0
+        self.rho_prev = data["rho_prev"].copy() if "rho_prev" in data.files else self.rho.copy()
 
     def save_vtk(self, outdir):
         path = os.path.join(outdir, "%s_it%07d.vtk" % (self.case.name, self.it))
@@ -889,46 +1166,176 @@ class Simulation:
         return path
 
 
+
+
 # ---------------------------------------------------------------------------
-# Interface grafica: curva de convergencia + campo de velocidade + controles
+# Organizacao da pasta de cada caso
+# ---------------------------------------------------------------------------
+class Pastas:
+    """casos/<caso>/ com uma subpasta por tipo de resultado."""
+    SUB = ("dominio", "contorno", "malha", "escoamento", "graficos", "checkpoint")
+
+    def __init__(self, raiz):
+        self.raiz = raiz
+        os.makedirs(raiz, exist_ok=True)
+        for s in self.SUB:
+            p = os.path.join(raiz, s)
+            os.makedirs(p, exist_ok=True)
+            setattr(self, s, p)
+
+    def arquivo(self, nome):
+        return os.path.join(self.raiz, nome)
+
+    @property
+    def checkpoint_npz(self):
+        return os.path.join(self.checkpoint, "checkpoint.npz")
+
+
+LEIAME = """Caso {tag} - resultados do lbm3d.py
+{sublinhado}
+
+dominio/      geometria: vista 3D (dominio_3d.png) e cortes fluido/solido (dominio_cortes.png)
+contorno/     condicoes de contorno: mapa nos cortes e em 3D + descricao (condicoes_contorno.txt)
+malha/        malha de calculo: corte com os nos, detalhe junto a parede (links e fracao q), malha.txt
+escoamento/   campos do escoamento: final/ e parcial_itNNNNNNN/ (imagens PNG + campo .vtk p/ ParaView)
+graficos/     convergencia.png (residuos), grandezas.png, validacao, convergencia.csv/.html (painel)
+checkpoint/   checkpoint.npz (estado completo para continuar a simulacao)
+
+parametros.json  parametros da execucao        execucao.log   saida do terminal (residuos)
+estado.json      iteracao/situacao final        validacao.txt  comparacao com a referencia
+
+Continuar a simulacao:   python lbm3d.py --restart {raiz}
+Painel de convergencia:  abra graficos/convergencia.html  (ou: python acompanhar.py {raiz} --servir)
+
+Controle durante a execucao (crie o arquivo vazio nesta pasta, ou use acompanhar.py):
+  SALVAR  -> salva resultado parcial (escoamento/parcial_itN + graficos + checkpoint) e continua
+  PAUSAR  -> pausa enquanto o arquivo existir
+  PARAR   -> salva o checkpoint e encerra (continue com --restart)
+  ex.: python acompanhar.py {raiz} --salvar   |   --pausar   |   --continuar   |   --parar
+"""
+
+CONTROLES = ("SALVAR", "PAUSAR", "PARAR")
+
+
+class _Tee:
+    """Copia a saida do terminal para <caso>/execucao.log."""
+
+    def __init__(self, stream, path):
+        self.stream = stream
+        self.fh = open(path, "a", encoding="utf-8")
+
+    def write(self, s):
+        self.stream.write(s)
+        self.fh.write(s)
+        if "\n" in s:
+            self.fh.flush()
+        return len(s)
+
+    def flush(self):
+        self.stream.flush()
+        self.fh.flush()
+
+    def close_log(self):
+        self.fh.close()
+
+    def __getattr__(self, k):
+        return getattr(self.stream, k)
+
+
+def gravar_parametros(pastas, case, sim_prm, args):
+    dados = {"caso": case.name, "pasta": pastas.raiz, "malha": list(case.shape),
+             "nos": int(np.prod(case.shape)), "nos_fluido": int((~case.solid).sum()),
+             "nu": case.nu, "omega": case.omega, "forca": list(map(float, case.force)),
+             "colisao": {k: (float(v) if isinstance(v, (float, np.floating)) else v)
+                         for k, v in sim_prm.items()},
+             "argumentos": vars(args)}
+    if case.dx_fisico:
+        dados["dx_fisico"] = case.dx_fisico
+        dados["unidade"] = case.unidade
+    with open(pastas.arquivo("parametros.json"), "w", encoding="utf-8") as fh:
+        json.dump(dados, fh, indent=1, default=str)
+    with open(pastas.arquivo("LEIAME.txt"), "w", encoding="utf-8") as fh:
+        titulo = "Caso %s - resultados do lbm3d.py" % case.tag()
+        fh.write(LEIAME.format(tag=case.tag(), sublinhado="=" * len(titulo), raiz=pastas.raiz))
+
+
+def preprocessar(case, pastas, prm):
+    import figuras
+    t = time.time()
+    arqs = figuras.preprocessamento(case, pastas, prm)
+    print("Pre-processamento (dominio, contorno, malha): %d arquivos em %.1f s"
+          % (len(arqs), time.time() - t))
+    return arqs
+
+
+def salvar_parcial(sim, pastas, args, nome=None, checkpoint=True):
+    """Resultado parcial: escoamento/<nome>/ (VTK + imagens), graficos/ e checkpoint."""
+    nome = nome or "parcial_it%07d" % sim.it
+    pasta = os.path.join(pastas.escoamento, nome)
+    os.makedirs(pasta, exist_ok=True)
+    sim.save_vtk(pasta)
+    if not args.no_figs:
+        try:
+            import figuras
+            figuras.figuras_escoamento(sim, pasta)
+            figuras.graficos_convergencia(sim, pastas.graficos, args.tol)
+        except Exception as e:  # imagens nunca interrompem a simulacao
+            print("AVISO: imagens nao geradas (%s)" % e)
+    if checkpoint:
+        sim.save_checkpoint(pastas.checkpoint)
+    return pasta
+
+
+# ---------------------------------------------------------------------------
+# Interface: janela grafica (curvas de residuo + campo), menu no terminal e
+# arquivos de controle (SALVAR / PAUSAR / PARAR na pasta do caso)
 # ---------------------------------------------------------------------------
 class Monitor:
-    def __init__(self, sim, args, outdir):
-        import matplotlib
-        if args.no_gui:
-            matplotlib.use("Agg")
+    CORES = {"res": "k", "res_ux": "#2a78d6", "res_uy": "#1baf7a", "res_uz": "#b87900",
+             "res_rho": "#d03b3b"}
+
+    def __init__(self, sim, args, pastas):
+        self.sim, self.pastas, self.gui = sim, pastas, not args.no_gui
+        self.paused = False
+        self.pausa_arquivo = False
+        self.stop = False
+        self.save_now = False
+        self.menu = False
+        self.autosave = args.save_every > 0
+        self.terminal = (not self.gui) and sys.stdin is not None and sys.stdin.isatty()
+        if not self.gui:
+            import matplotlib
+            matplotlib.use("Agg")  # graficos de validacao sem tela
+            return
         import matplotlib.pyplot as plt
         from matplotlib.widgets import Button, CheckButtons
         self.plt = plt
-        self.sim, self.outdir, self.gui = sim, outdir, not args.no_gui
-        self.paused = False
-        self.stop = False
-        self.save_now = False
-        self.autosave = args.save_every > 0
         self.fig = plt.figure(figsize=(12, 5.5))
         self.ax1 = self.fig.add_axes([0.06, 0.2, 0.42, 0.7])
         self.ax2 = self.fig.add_axes([0.55, 0.2, 0.42, 0.7])
-        self.line, = self.ax1.semilogy([], [], "b.-")
+        self.lines = {k: self.ax1.semilogy([], [], ".-" if k == "res" else "-", color=c,
+                                           lw=1.6 if k == "res" else 0.9, ms=3, label=k)[0]
+                      for k, c in self.CORES.items()}
+        self.ax1.legend(fontsize=7, loc="upper right")
         self.ax1.set_xlabel("iteracao")
-        self.ax1.set_ylabel(r"$\|u^n-u^{n-100}\|_2/\|u^n\|_2$")
+        self.ax1.set_ylabel("residuo")
         self.ax1.grid(True, which="both", alpha=0.3)
         self.img = None
-        self.cbar = None
-        if self.gui:
-            self.bp = Button(self.fig.add_axes([0.06, 0.03, 0.14, 0.07]), "Pausar (P)")
-            self.bs = Button(self.fig.add_axes([0.22, 0.03, 0.14, 0.07]), "Salvar (S)")
-            self.bq = Button(self.fig.add_axes([0.38, 0.03, 0.18, 0.07]), "Salvar e sair (Q)")
-            self.cb = CheckButtons(self.fig.add_axes([0.6, 0.02, 0.25, 0.09]),
-                                   ["Auto-salvar a cada 100 it."], [self.autosave])
-            self.bp.on_clicked(lambda e: self.toggle_pause())
-            self.bs.on_clicked(lambda e: self.request_save())
-            self.bq.on_clicked(lambda e: self.request_stop())
-            self.cb.on_clicked(lambda e: self.toggle_autosave())
-            self.fig.canvas.mpl_connect("key_press_event", self.on_key)
-            self.fig.canvas.mpl_connect("close_event", lambda e: self.request_stop())
-            plt.ion()
-            plt.show(block=False)
+        self.bp = Button(self.fig.add_axes([0.06, 0.03, 0.14, 0.07]), "Pausar (P)")
+        self.bs = Button(self.fig.add_axes([0.22, 0.03, 0.14, 0.07]), "Salvar (S)")
+        self.bq = Button(self.fig.add_axes([0.38, 0.03, 0.18, 0.07]), "Salvar e sair (Q)")
+        self.cb = CheckButtons(self.fig.add_axes([0.6, 0.02, 0.3, 0.09]),
+                               ["Auto-salvar parciais (--save-every)"], [self.autosave])
+        self.bp.on_clicked(lambda e: self.toggle_pause())
+        self.bs.on_clicked(lambda e: self.request_save())
+        self.bq.on_clicked(lambda e: self.request_stop())
+        self.cb.on_clicked(lambda e: self.toggle_autosave())
+        self.fig.canvas.mpl_connect("key_press_event", self.on_key)
+        self.fig.canvas.mpl_connect("close_event", lambda e: self.request_stop())
+        plt.ion()
+        plt.show(block=False)
 
+    # --- acoes ------------------------------------------------------------
     def toggle_pause(self):
         self.paused = not self.paused
         if self.gui:
@@ -937,13 +1344,16 @@ class Monitor:
 
     def toggle_autosave(self):
         self.autosave = not self.autosave
-        print("Auto-salvar:", self.autosave)
+        print("Auto-salvar parciais:", self.autosave)
 
     def request_save(self):
         self.save_now = True
 
     def request_stop(self):
         self.stop = True
+
+    def pausado(self):
+        return self.paused or self.pausa_arquivo
 
     def on_key(self, ev):
         key = (ev.key or "").lower()
@@ -954,46 +1364,102 @@ class Monitor:
         elif key == "q":
             self.request_stop()
 
+    def verificar_controles(self):
+        """Arquivos de controle na pasta do caso (servem para execucoes sem janela,
+        em segundo plano ou remotas).  SALVAR e PARAR sao apagados ao serem atendidos;
+        PAUSAR mantem a simulacao pausada enquanto existir."""
+        raiz = self.pastas.raiz
+        if os.path.exists(os.path.join(raiz, "SALVAR")):
+            _remover(os.path.join(raiz, "SALVAR"))
+            print("[controle] arquivo SALVAR encontrado: salvando resultado parcial")
+            self.save_now = True
+        if os.path.exists(os.path.join(raiz, "PARAR")):
+            _remover(os.path.join(raiz, "PARAR"))
+            print("[controle] arquivo PARAR encontrado: salvando checkpoint e encerrando")
+            self.stop = True
+        pausa = os.path.exists(os.path.join(raiz, "PAUSAR"))
+        if pausa != self.pausa_arquivo:
+            self.pausa_arquivo = pausa
+            print("[controle] %s na iteracao %d" % ("PAUSADO (arquivo PAUSAR)" if pausa else
+                                                    "CONTINUANDO (arquivo PAUSAR removido)", self.sim.it))
+
+    def menu_terminal(self):
+        """Menu aberto pelo Ctrl+C quando a simulacao roda sem janela num terminal."""
+        self.menu = False
+        s = self.sim
+        r = s.hist["res"][-1] if s.hist["res"] else float("nan")
+        print("\n" + "-" * 70)
+        print("Simulacao interrompida na iteracao %d (ultimo residuo %.3e)" % (s.it, r))
+        print("  [c] continuar                     [s] salvar resultado parcial e continuar")
+        print("  [p] pausar / continuar            [q] salvar checkpoint e sair")
+        anterior = signal.getsignal(signal.SIGINT)
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+        try:
+            op = input("opcao [c/s/p/q] (Enter = c; Ctrl+C = q): ").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            op = "q"
+        finally:
+            signal.signal(signal.SIGINT, anterior)
+        print("-" * 70)
+        if op.startswith("s"):
+            self.save_now = True
+            self.paused = False
+        elif op.startswith("q"):
+            self.stop = True
+        elif op.startswith("p"):
+            self.toggle_pause()
+            if self.paused:
+                print("(pausado: Ctrl+C abre o menu de novo)")
+        else:
+            self.paused = False
+
     def events(self, dt=0.001):
         if self.gui:
             self.fig.canvas.flush_events()
-            if dt > 0.01:
-                time.sleep(dt)
+        if dt > 0.01:
+            time.sleep(dt)
 
     def update(self):
+        if not self.gui:
+            return
         s = self.sim
-        self.line.set_data(s.hist["it"], s.hist["res"])
+        for k, ln in self.lines.items():
+            if s.hist.get(k):
+                it = s.hist["it"][len(s.hist["it"]) - len(s.hist[k]):]
+                ln.set_data(it, s.hist[k])
         self.ax1.relim()
         self.ax1.autoscale_view()
-        extra = [k for k in s.hist if k not in ("it", "res")]
-        txt = "  ".join("%s=%.5g" % (k, s.hist[k][-1]) for k in extra)
-        self.ax1.set_title("Convergencia (it=%d)  %s" % (s.it, txt), fontsize=9)
+        txt = "  ".join("%s=%.5g" % kv for kv in s.grandezas().items())
+        self.ax1.set_title("Residuos (it=%d)  %s" % (s.it, txt), fontsize=9)
         ax = s.case.slice_axis
         n = s.u.shape[1 + ax] // 2
         umag = np.sqrt((s.u ** 2).sum(axis=0))
         sl = np.take(np.where(s.fluid, umag, np.nan), n, axis=ax).T
         if self.img is None:
-            self.img = self.ax2.imshow(sl, origin="lower", cmap="jet", aspect="equal")
-            self.cbar = self.fig.colorbar(self.img, ax=self.ax2, shrink=0.8)
+            self.img = self.ax2.imshow(sl, origin="lower", cmap="viridis", aspect="equal")
+            self.fig.colorbar(self.img, ax=self.ax2, shrink=0.8)
             names = "xyz".replace("xyz"[ax], "")
             self.ax2.set_xlabel(names[0]); self.ax2.set_ylabel(names[1])
         else:
             self.img.set_data(sl)
             self.img.set_clim(np.nanmin(sl), np.nanmax(sl))
         self.ax2.set_title("|u| no plano %s = %d" % ("xyz"[ax], n))
-        if self.gui:
-            self.fig.canvas.draw_idle()
-            self.plt.pause(0.001)
-
-    def savefig(self):
-        self.fig.savefig(os.path.join(self.outdir, "convergencia.png"), dpi=110)
+        self.fig.canvas.draw_idle()
+        self.plt.pause(0.001)
 
 
-def log_convergence(outdir, sim, args, mlups):
-    """Acrescenta uma linha a <outdir>/convergencia.csv a cada relatorio (100 it.).
-    Tambem regrava <outdir>/convergencia.html (painel no navegador, recarrega sozinho);
-de outro terminal:  python acompanhar.py <outdir> [--servir]"""
-    path = os.path.join(outdir, "convergencia.csv")
+def _remover(path):
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
+def log_convergence(pasta, sim, args, mlups):
+    """Acrescenta uma linha a <pasta>/convergencia.csv a cada relatorio (100 it.) e regrava
+    <pasta>/convergencia.html (painel no navegador, recarrega sozinho).  <pasta> e a
+    subpasta graficos/ do caso; de outro terminal:  python acompanhar.py <caso> [--servir]"""
+    path = os.path.join(pasta, "convergencia.csv")
     keys = [k for k in sim.hist if k not in ("it", "res")]
     new = not os.path.exists(path)
     with open(path, "a") as fh:
@@ -1006,13 +1472,31 @@ de outro terminal:  python acompanhar.py <outdir> [--servir]"""
             fh.write(",".join(["it", "res", "tempo_unix", "mlups"] + keys) + "\n")
         fh.write(",".join(["%d" % sim.it, "%.6e" % sim.hist["res"][-1], "%.3f" % time.time(),
                            "%.4f" % mlups] + ["%.8g" % sim.hist[k][-1] for k in keys]) + "\n")
-    try:  # painel HTML <outdir>/convergencia.html (abra no navegador; recarrega sozinho)
+    try:  # painel HTML (abra no navegador; recarrega sozinho)
         import acompanhar
-        acompanhar.gerar_html(outdir)
+        acompanhar.gerar_html(pasta)
     except Exception as e:  # o painel nunca interrompe a simulacao
         if not getattr(log_convergence, "_avisou", False):
             print("AVISO: painel HTML nao gerado (%s)" % e)
             log_convergence._avisou = True
+
+
+def _fmt_tempo(s):
+    s = int(s)
+    return "%dh%02dm%02ds" % (s // 3600, (s % 3600) // 60, s % 60)
+
+
+CABECALHO = ("%9s %10s %10s %10s %10s %10s %7s %10s  %s"
+             % ("iteracao", "res(u)", "res(ux)", "res(uy)", "res(uz)", "res(rho)", "MLUPS",
+                "tempo", "grandezas monitoradas"))
+
+
+def linha_residuos(sim, mlups, decorrido):
+    r = sim.residuos()
+    g = "  ".join("%s=%.6g" % kv for kv in sim.grandezas().items())
+    return ("%9d %10.3e %10.3e %10.3e %10.3e %10.3e %7.2f %10s  %s"
+            % (sim.it, r["res"], r.get("res_ux", np.nan), r.get("res_uy", np.nan),
+               r.get("res_uz", np.nan), r.get("res_rho", np.nan), mlups, _fmt_tempo(decorrido), g))
 
 
 def parse_args(argv=None):
@@ -1030,38 +1514,100 @@ def parse_args(argv=None):
     p.add_argument("--u-adv", type=float, default=0.0, help="adveccao na onda de cisalhamento")
     p.add_argument("--limiter", type=float, default=None, help="limitador de 3a ordem [G17] (ex.: 0.01)")
     p.add_argument("--max-iter", type=int, default=0)
-    p.add_argument("--tol", type=float, default=1e-7, help="criterio de parada do residuo")
-    p.add_argument("--save-every", type=int, default=100,
-                   help="salvar VTK + checkpoint a cada N iteracoes (0 desliga; GUI pode alternar)")
-    p.add_argument("--outdir", default="")
-    p.add_argument("--restart", default="", help="arquivo checkpoint.npz para reiniciar")
-    p.add_argument("--no-gui", action="store_true", help="sem janela (Ctrl+C salva e sai)")
-    p.add_argument("--report-every", type=int, default=100)
+    p.add_argument("--tol", type=float, default=1e-7, help="criterio de parada do residuo res(u)")
+    p.add_argument("--save-every", type=int, default=1000,
+                   help="salvar resultado parcial (escoamento/parcial_itN: VTK + imagens; graficos; "
+                        "checkpoint) a cada N iteracoes (0 desliga; a janela pode alternar)")
+    p.add_argument("--checkpoint-every", type=int, default=100,
+                   help="regravar checkpoint/checkpoint.npz a cada N iteracoes (0 desliga)")
+    p.add_argument("--outdir", default="",
+                   help="pasta do caso (padrao: casos/<caso>_<parametros>, ex.: casos/cylinder_D10_Re20)")
+    p.add_argument("--restart", default="",
+                   help="continuar de um checkpoint: a pasta do caso ou o arquivo checkpoint.npz")
+    p.add_argument("--no-gui", action="store_true",
+                   help="sem janela (Ctrl+C abre um menu no terminal: continuar/salvar/pausar/sair)")
+    p.add_argument("--no-figs", action="store_true",
+                   help="nao gerar imagens (dominio, contorno, malha, escoamento, graficos PNG)")
+    p.add_argument("--preprocess-only", action="store_true",
+                   help="so gera dominio/, contorno/ e malha/ (confira a montagem do caso) e sai")
+    p.add_argument("--report-every", type=int, default=100,
+                   help="intervalo (it.) entre impressoes dos residuos / linhas do CSV")
     p.add_argument("--max-time", type=float, default=0.0,
                    help="limite de tempo de relogio em minutos: ao atingir, salva o checkpoint "
                         "e encerra (util na nuvem; continue com --restart)")
     return p.parse_args(argv)
 
 
+def localizar_checkpoint(caminho):
+    """Aceita a pasta do caso, a pasta checkpoint/ ou o arquivo .npz."""
+    if os.path.isdir(caminho):
+        for c in (os.path.join(caminho, "checkpoint", "checkpoint.npz"),
+                  os.path.join(caminho, "checkpoint.npz")):
+            if os.path.exists(c):
+                return c
+        raise FileNotFoundError("nenhum checkpoint.npz em %s" % caminho)
+    return caminho
+
+
+def pasta_do_checkpoint(arquivo):
+    d = os.path.dirname(os.path.abspath(arquivo))
+    if os.path.basename(d) == "checkpoint":
+        d = os.path.dirname(d)
+    rel = os.path.relpath(d)
+    return d if rel.startswith("..") else rel
+
+
 def main(argv=None):
     args = parse_args(argv)
-    restart_file = args.restart or None
+    restart_file = localizar_checkpoint(args.restart) if args.restart else None
     if restart_file:
         # parametros fisicos vem do checkpoint; controles de execucao podem ser trocados
         saved = json.loads(str(np.load(restart_file)["args"]))
         given = {a[2:].split("=")[0].replace("-", "_")
                  for a in (sys.argv[1:] if argv is None else argv) if a.startswith("--")}
-        runtime = {"no_gui", "max_iter", "save_every", "tol", "outdir", "report_every", "max_time"}
+        runtime = {"no_gui", "max_iter", "save_every", "tol", "outdir", "report_every", "max_time",
+                   "checkpoint_every", "no_figs", "preprocess_only"}
         for k, v in saved.items():
             if k != "restart" and not (k in runtime and k in given):
                 setattr(args, k, v)
         args.restart = restart_file
+        if "outdir" not in given:
+            args.outdir = pasta_do_checkpoint(restart_file)
 
-    outdir = args.outdir or "saida_%s" % args.case
-    os.makedirs(outdir, exist_ok=True)
     case = CASES[args.case](args)
     if not args.max_iter:
         args.max_iter = 200000
+    if not args.outdir:
+        args.outdir = os.path.join("casos", case.tag())
+    pastas = Pastas(args.outdir)
+    for nome in CONTROLES:  # arquivos de controle esquecidos de uma execucao anterior
+        if os.path.exists(pastas.arquivo(nome)):
+            _remover(pastas.arquivo(nome))
+            print("(removido arquivo de controle antigo %s)" % pastas.arquivo(nome))
+
+    stdout_original = sys.stdout
+    sys.stdout = _Tee(stdout_original, pastas.arquivo("execucao.log"))
+    try:
+        return _executar(case, args, pastas, restart_file)
+    finally:
+        sys.stdout.flush()
+        sys.stdout.close_log()
+        sys.stdout = stdout_original
+
+
+def _executar(case, args, pastas, restart_file):
+    print("=" * 78)
+    print("lbm3d  %s  |  pasta do caso: %s" % (time.strftime("%Y-%m-%d %H:%M:%S"), pastas.raiz))
+    prm = collision_parameters(case.omega, args.model, args.limiter)
+    case.pasta_graficos = pastas.graficos
+    gravar_parametros(pastas, case, prm, args)
+    if args.preprocess_only or (not args.no_figs and not os.path.exists(
+            os.path.join(pastas.dominio, "dominio_3d.png"))):
+        preprocessar(case, pastas, prm)
+    if args.preprocess_only:
+        print("Imagens em %s/{dominio,contorno,malha}/" % pastas.raiz)
+        return None
+
     sim = Simulation(case, args)
     if restart_file:
         sim.load_checkpoint(restart_file)
@@ -1074,43 +1620,73 @@ def main(argv=None):
         print("  taxas K17: w3=%.4f w4=%.4f w5=%.4f A=%.4f B=%.4f"
               % (sim.prm["w3"], sim.prm["w4"], sim.prm["w5"], sim.prm["A"], sim.prm["B"]))
 
-    mon = Monitor(sim, args, outdir)
+    mon = Monitor(sim, args, pastas)
     if not sim.hist["it"]:
         sim.u_prev = sim.u.copy()
+        sim.rho_prev = sim.rho.copy()
 
     def sigint(signum, frame):
-        print("\nInterrompido: salvando checkpoint...")
-        mon.request_stop()
-    signal.signal(signal.SIGINT, sigint)
-    signal.signal(signal.SIGTERM, sigint)  # ex.: cancelamento na nuvem
+        if signum == signal.SIGINT and mon.terminal and not mon.menu and not mon.stop:
+            print("\n(Ctrl+C) abrindo o menu apos a iteracao atual... (Ctrl+C de novo = salvar e sair)")
+            mon.menu = True
+        else:
+            print("\nInterrompido: salvando checkpoint...")
+            mon.menu = False
+            mon.request_stop()
+
+    def sigusr1(signum, frame):
+        print("\n(SIGUSR1) salvando resultado parcial...")
+        mon.request_save()
+
+    try:  # sinais so podem ser tratados na thread principal
+        signal.signal(signal.SIGINT, sigint)
+        signal.signal(signal.SIGTERM, sigint)  # ex.: cancelamento na nuvem
+        if hasattr(signal, "SIGUSR1"):
+            signal.signal(signal.SIGUSR1, sigusr1)
+    except ValueError:
+        mon.terminal = False
+
+    print("Controles: %s | arquivos SALVAR / PAUSAR / PARAR em %s"
+          % ("botoes/teclas P, S, Q na janela" if mon.gui else
+             "Ctrl+C = menu (continuar/salvar/pausar/sair)" if mon.terminal else
+             "Ctrl+C ou SIGTERM = salvar e sair", pastas.raiz))
+    print("Residuos: res(u) = ||u^n - u^(n-%d)|| / ||u^n||  (parada: res(u) < %.1e); componentes "
+          "normalizadas por ||u^n||; res(rho) = ||drho|| / ||rho||" % (args.report_every, args.tol))
 
     every = args.report_every
     t0, it0 = time.time(), sim.it
     converged = False
+    linhas = 0
     while sim.it < args.max_iter and not mon.stop:
-        if mon.paused:
-            if mon.save_now:
-                mon.save_now = False
-                print("  salvo:", sim.save_vtk(outdir), sim.save_checkpoint(outdir))
+        if mon.menu:
+            mon.menu_terminal()
+        if mon.save_now:
+            mon.save_now = False
+            print("  resultado parcial salvo em:", salvar_parcial(sim, pastas, args))
+        if mon.pausado():
             mon.events(0.1)
+            mon.verificar_controles()
             continue
         sim.step()
         if sim.it % 10 == 0:
             mon.events()
+            mon.verificar_controles()
         if sim.it % every == 0:
             res = sim.record()
             mlups = n_nodes * (sim.it - it0) / max(time.time() - t0, 1e-9) / 1e6
-            extra = "  ".join("%s=%.6g" % (k, v[-1]) for k, v in sim.hist.items()
-                              if k not in ("it", "res"))
-            print("it %7d  res %.3e  %s  [%.2f MLUPS]" % (sim.it, res, extra, mlups))
-            log_convergence(outdir, sim, args, mlups)
+            if linhas % 25 == 0:
+                print(CABECALHO)
+            linhas += 1
+            print(linha_residuos(sim, mlups, time.time() - t0))
+            log_convergence(pastas.graficos, sim, args, mlups)
             if not np.isfinite(res):
                 print("Simulacao divergiu (NaN).")
                 break
             mon.update()
+            if args.checkpoint_every and sim.it % max(args.checkpoint_every, every) == 0:
+                sim.save_checkpoint(pastas.checkpoint)
             if mon.autosave and args.save_every and sim.it % max(args.save_every, every) == 0:
-                sim.save_vtk(outdir)
-                sim.save_checkpoint(outdir)
+                print("  resultado parcial salvo em:", salvar_parcial(sim, pastas, args))
             if case.steady and res < args.tol:
                 converged = True
                 print("Convergiu: residuo %.3e < tol %.1e" % (res, args.tol))
@@ -1118,32 +1694,31 @@ def main(argv=None):
             if args.max_time and time.time() - t0 > 60.0 * args.max_time:
                 print("Limite de tempo (%g min) atingido: salvando checkpoint..." % args.max_time)
                 break
-        if mon.save_now:
-            mon.save_now = False
-            print("  salvo:", sim.save_vtk(outdir), sim.save_checkpoint(outdir))
 
-    ck = sim.save_checkpoint(outdir)
-    vtk = sim.save_vtk(outdir)
+    ck = sim.save_checkpoint(pastas.checkpoint)
     if sim.it % every:
         sim.record()
-    mon.update()
-    mon.savefig()
-    print("Checkpoint: %s   (reinicie com: python %s --restart %s)" % (ck, sys.argv[0], ck))
-    print("Campo final (ParaView): %s" % vtk)
-    if converged or not case.steady or sim.it >= args.max_iter:
-        msg = case.finish(sim, outdir)
+    res = sim.hist["res"][-1] if sim.hist["res"] else float("nan")
+    divergiu = not np.isfinite(res)
+    terminou = converged or sim.it >= args.max_iter
+    nome = ("final" if terminou and not divergiu else
+            "divergencia_it%07d" % sim.it if divergiu else "parcial_it%07d" % sim.it)
+    pasta = salvar_parcial(sim, pastas, args, nome, checkpoint=False)
+    print("Checkpoint: %s   (continue com: python lbm3d.py --restart %s)" % (ck, pastas.raiz))
+    print("Campo e imagens do escoamento: %s" % pasta)
+    if terminou:
+        msg = case.finish(sim, pastas.graficos)
         if msg and case.steady and not converged:
             msg += "\n  (ATENCAO: max-iter atingido sem convergir; resultado provisorio)"
         if msg:
             print("=" * 78 + "\nVALIDACAO\n" + msg + "\n" + "=" * 78)
-            with open(os.path.join(outdir, "validacao.txt"), "a") as fh:
+            with open(pastas.arquivo("validacao.txt"), "a") as fh:
                 fh.write(msg + "\n")
-    terminou = converged or not case.steady or sim.it >= args.max_iter
-    res = sim.hist["res"][-1] if sim.hist["res"] else float("nan")
-    with open(os.path.join(outdir, "estado.json"), "w") as fh:  # lido pelo fluxo na nuvem
-        json.dump({"caso": case.name, "it": sim.it, "residuo": res, "tol": args.tol,
-                   "convergiu": converged, "terminou": bool(terminou),
-                   "divergiu": not np.isfinite(res)}, fh, indent=1)
+    with open(pastas.arquivo("estado.json"), "w") as fh:  # lido pelo fluxo na nuvem
+        json.dump({"caso": case.name, "pasta": pastas.raiz, "it": sim.it, "residuo": res,
+                   "residuos": sim.residuos(), "tol": args.tol, "convergiu": converged,
+                   "terminou": bool(terminou), "divergiu": bool(divergiu),
+                   "checkpoint": ck}, fh, indent=1)
     if mon.gui and not mon.stop:
         mon.plt.ioff()
         mon.plt.show()

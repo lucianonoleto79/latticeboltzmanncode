@@ -1,0 +1,52 @@
+{
+ "caso": "spheres",
+ "pasta": "resultados/spheres_L48_chi0.5.tmp",
+ "malha": [
+  48,
+  48,
+  48
+ ],
+ "nos": 110592,
+ "nos_fluido": 103469,
+ "nu": 0.02,
+ "omega": 1.7857142857142856,
+ "forca": [
+  1.1637800910759066e-08,
+  0.0,
+  0.0
+ ],
+ "colisao": {
+  "model": "k17",
+  "w1": 1.7857142857142856,
+  "limiter": null,
+  "w2": 1.0,
+  "w3": 0.7338748208313428,
+  "w4": 0.053392658509454856,
+  "w5": 0.36236643644899263,
+  "A": -0.3664479850046861,
+  "B": 0.5729459543892538
+ },
+ "argumentos": {
+  "case": "spheres",
+  "model": "k17",
+  "res": 48,
+  "res_z": 0,
+  "chi": 0.5,
+  "Re": 0.0,
+  "nu": 0.0,
+  "u_lattice": 0.0,
+  "u_adv": 0.0,
+  "limiter": null,
+  "max_iter": 200000,
+  "tol": 1e-07,
+  "save_every": 1000,
+  "checkpoint_every": 100,
+  "outdir": "resultados/spheres_L48_chi0.5.tmp",
+  "restart": "",
+  "no_gui": false,
+  "no_figs": false,
+  "preprocess_only": true,
+  "report_every": 100,
+  "max_time": 0.0
+ }
+}
